@@ -63,3 +63,17 @@ panel there is over Ulam latent bins and is not the object probed in
 | token raster | position vs token id | emitted observation stream |
 | posterior marginal | position vs latent bin | Ulam posterior, true state overlaid; must stay inside the bright band |
 | TV curve | steps after a kick vs total variation | perturbation separability from no-op; decays as damping washes the kick out |
+
+## `analysis/*.png` -- checkpoint analysis, from `scripts/make_analysis_figures.py`
+
+Colours throughout: red = belief (`action_lag0`), blue = initial condition (`z0`),
+green = metric. x is log token count; the leftmost point is the untrained model, drawn at
+one third of the first real checkpoint and shaded grey where marked.
+
+| figure | axes | reading |
+|---|---|---|
+| `r2_vs_tokens` | tokens vs held-out R², one panel per system | grey dashed = shuffled control. A quantity is learned only if it rises above its own leftmost point |
+| `r2_vs_depth` | depth (`emb`, `L0..L3`) vs R², 3 rows x 4 systems | one line per checkpoint, dark = untrained, bright = 500M |
+| `ablation_vs_tokens` | tokens vs excess Δ loss | shading is ±1 sd of the random control; **hollow markers = erasure hit the rank cap and is incomplete**; >0 means load-bearing |
+| `geometry` (top) | tokens vs mean principal angle | dash-dot grey = random subspaces at matched rank. That line, not 90°, is the independence level |
+| `geometry` (bottom) | heatmap, ablated (row) vs R² retained (column) | fraction of each block's R² surviving the erasure of the row's block; diagonal near 0 confirms the erasure worked |

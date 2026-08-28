@@ -152,5 +152,97 @@ def _demo() -> None:
     print("ablation ok")
 
 
+def _grouped_r2(probe, activations: np.ndarray, targets: np.ndarray) -> float:
+    predicted = probe(activations)
+    ss_res = np.sum((targets - predicted) ** 2, axis=0)
+    ss_tot = np.sum((targets - targets.mean(axis=0)) ** 2, axis=0)
+    live = ss_tot > 1e-12
+    return float(np.mean(1.0 - ss_res[live] / ss_tot[live])) if live.any() else float("nan")
+
+
+def erasure_basis(
+    a_train: np.ndarray,
+    f_train: np.ndarray,
+    a_test: np.ndarray,
+    f_test: np.ndarray,
+    floor: float,
+    max_rank: int = 64,
+):
+    """Directions that must go before a target stops being linearly decodable.
+
+    Iterative nullspace projection (Ravfogel et al. 2020, "Null It Out"): fit a
+    probe, delete its row space, refit on what is left, repeat. One pass is not
+    enough because a feature is represented redundantly -- deleting the readout
+    directions leaves correlated copies that a refit picks straight back up, so
+    a single-shot ablation measures the loss of a feature that is still there.
+
+    Returns `(basis, history)` where `history` is R^2 after each round. The rank
+    of the basis is itself the result: it counts how many directions the network
+    spreads the feature over.
+    """
+    from .probe import fit_probe  # local import: probe.py has no torch dependency
+
+    mean = a_train.mean(axis=0)
+    basis = np.zeros((a_train.shape[1], 0))
+    history = [_grouped_r2(fit_probe(a_train, f_train), a_test, f_test)]
+
+    while basis.shape[1] < max_rank and history[-1] > floor:
+        left_train = a_train - ((a_train - mean) @ basis) @ basis.T
+        left_test = a_test - ((a_test - mean) @ basis) @ basis.T
+
+        probe = fit_probe(left_train, f_train)
+        direction = probe.weight
+        direction = direction - basis @ (basis.T @ direction)  # keep the basis orthonormal
+        u, s, _ = np.linalg.svd(direction, full_matrices=False)
+        keep = u[:, s > 1e-8 * max(s[0], 1e-30)]
+        if keep.shape[1] == 0:
+            break
+
+        basis = np.concatenate([basis, keep], axis=1)
+        stripped_train = a_train - ((a_train - mean) @ basis) @ basis.T
+        stripped_test = a_test - ((a_test - mean) @ basis) @ basis.T
+        history.append(_grouped_r2(fit_probe(stripped_train, f_train), stripped_test, f_test))
+
+    return basis, history
+
+
+def _demo_erasure() -> None:
+    """A single-shot ablation leaves a redundantly coded target readable; the
+    iterative one does not. That gap is the whole reason this function exists.
+    """
+    rng = np.random.default_rng(0)
+    n, d = 4000, 32
+    signal = rng.normal(size=(n, 2))
+    # Five noisy copies of the same 2-d signal, embedded in random directions.
+    embed = rng.normal(size=(2, d))
+    activations = signal @ embed
+    for _ in range(4):
+        activations = activations + signal @ rng.normal(size=(2, d)) * 0.8
+    activations += rng.normal(size=(n, d)) * 0.1
+    targets = signal
+
+    from .probe import fit_probe
+
+    tr, te = slice(0, 3000), slice(3000, n)
+    intact = _grouped_r2(fit_probe(activations[tr], targets[tr]), activations[te], targets[te])
+    assert intact > 0.9, intact
+
+    single = probe_basis(fit_probe(activations[tr], targets[tr]).weight, slice(0, 2))
+    mean = activations[tr].mean(axis=0)
+    stripped = activations - ((activations - mean) @ single) @ single.T
+    after_single = _grouped_r2(fit_probe(stripped[tr], targets[tr]), stripped[te], targets[te])
+
+    basis, history = erasure_basis(
+        activations[tr], targets[tr], activations[te], targets[te], floor=0.02
+    )
+    assert history[-1] <= 0.02, history
+    assert basis.shape[1] > single.shape[1], (basis.shape, single.shape)
+    assert np.allclose(basis.T @ basis, np.eye(basis.shape[1]), atol=1e-8)
+    print(
+        f"erasure ok: intact={intact:.3f}  after single-shot rank {single.shape[1]}="
+        f"{after_single:.3f}  after erasure rank {basis.shape[1]}={history[-1]:.3f}"
+    )
+
+
 if __name__ == "__main__":
-    _demo()
+    _demo_erasure()

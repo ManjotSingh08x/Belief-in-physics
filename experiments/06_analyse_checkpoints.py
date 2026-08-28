@@ -7,17 +7,21 @@ expensive part (the exact beliefs) is computed once per system and reused.
    arrive before the belief, or the other way round?
 2. **Depth.** The same R^2 at every residual-stream depth, so we can see where
    each quantity is built and whether that layer moves during training.
-3. **Cost.** Mean-ablate the subspace a probe reads and measure the increase in
-   next-token loss, against a random subspace of the same rank. Decodable is
-   not the same as used, and only the excess over the control is interpretable.
+3. **Cost.** Erase a quantity from the stream, then measure the increase in
+   next-token loss against a random subspace of the same rank. Erase, not
+   single-shot ablate: removing a probe's row space leaves the feature readable
+   by a refit, and the loss after such an intervention describes deleting
+   something that is still there. `erasure_basis` iterates until the target is
+   undecodable and reports the rank that took.
 
-Also recorded: principal angles between the group subspaces, and cross-probing
-after ablation. Both exist to keep (3) honest -- the three subspaces overlap, so
-ablating the belief partly ablates the metric, and the raw damage numbers cannot
-be read as independent without knowing how much they share.
+Also recorded: principal angles between the erased subspaces, and cross-probing
+after erasure. Both exist to keep (3) honest -- if the subspaces overlap then
+erasing the belief also erases the metric, and the damage numbers cannot be read
+as independent without knowing how much they share.
 
 Run:  uv run python experiments/06_analyse_checkpoints.py
-Env:  OUTPUT_DIR (default experiments/outputs-03), SYSTEMS, N_EVAL, N_CONTROL.
+Env:  OUTPUT_DIR (default experiments/outputs-03), SYSTEMS, N_EVAL, N_CONTROL,
+      MAX_ERASURE_RANK.
 """
 
 from __future__ import annotations
@@ -37,8 +41,8 @@ import torch
 from models.ablation import (
     ablated_loss,
     ablated_stream,
+    erasure_basis,
     principal_angles,
-    probe_basis,
     random_basis,
 )
 from models.analysis import _sequence_split, residual_streams_batched
@@ -50,6 +54,7 @@ from physics.branch_configs import BRANCH_CONFIGS, make_branch_process
 
 N_EVAL = int(os.environ.get("N_EVAL", 512))
 N_CONTROL = int(os.environ.get("N_CONTROL", 5))  # random subspaces per rank
+MAX_ERASURE_RANK = int(os.environ.get("MAX_ERASURE_RANK", 48))  # half of d_model
 TRAIN_FRAC = 0.7
 EVAL_SEED = 20_260_828
 ABLATION_GROUPS = ("action_lag0", "z0", "metric")
@@ -95,47 +100,67 @@ def _probe_all_depths(streams, features, groups, train_idx, test_idx, rng):
     return records
 
 
-def _ablate(model, tokens_t, streams, records, groups, rng):
-    """Damage per group per depth, minus a matched-rank random-subspace control."""
+def _ablate(model, tokens_t, streams, record, groups, rng, features, train_idx, test_idx):
+    """Damage per group at one depth, after actually erasing the feature.
+
+    A single-shot ablation of the probe's row space does not remove the target --
+    a refit recovers it from redundant directions -- so the loss measured after
+    one is the loss of deleting something still present. `erasure_basis` iterates
+    until the target is undecodable, and the rank it needs is reported alongside,
+    because a control at rank 3 says nothing about an erasure that took rank 20.
+    """
+    depth = record["depth"]
     base_loss = ablated_loss(model, tokens_t, 0, None)
-    control_cache: dict[tuple[int, int], float] = {}
-    out = []
+    activations = streams[depth]
+    d_model = activations.shape[-1]
+    mean = activations.reshape(-1, d_model).mean(axis=0)
 
-    for record in records:
-        depth = record["depth"]
-        mean = streams[depth].reshape(-1, streams[depth].shape[-1]).mean(axis=0)
-        d_model = mean.shape[0]
-        entry = {"depth": depth, "name": record["name"], "base_loss": base_loss, "groups": {}}
+    a_train = activations[train_idx].reshape(-1, d_model).astype(np.float64)
+    a_test = activations[test_idx].reshape(-1, d_model).astype(np.float64)
+    f_train = features[train_idx].reshape(-1, features.shape[-1]).astype(np.float64)
+    f_test = features[test_idx].reshape(-1, features.shape[-1]).astype(np.float64)
 
-        for group in ABLATION_GROUPS:
-            basis = probe_basis(record["probe_weight"], groups[group])
-            rank = basis.shape[1]
-            if rank == 0:
-                continue
-            damage = ablated_loss(model, tokens_t, depth, basis, mean) - base_loss
+    control_cache: dict[int, tuple[float, float]] = {}
+    out = {"depth": depth, "name": record["name"], "base_loss": base_loss, "groups": {}}
 
-            key = (depth, rank)
-            if key not in control_cache:
-                control_cache[key] = float(
-                    np.mean(
-                        [
-                            ablated_loss(model, tokens_t, depth, random_basis(rng, d_model, rank), mean)
-                            for _ in range(N_CONTROL)
-                        ]
-                    )
-                    - base_loss
-                )
-            entry["groups"][group] = {
-                "rank": rank,
-                "delta_loss": damage,
-                "delta_loss_random_control": control_cache[key],
-                "excess": damage - control_cache[key],
-            }
-        out.append(entry)
+    for group in ABLATION_GROUPS:
+        columns = groups[group]
+        intact = record["r2_by_group"][group]
+        if not np.isfinite(intact):
+            continue
+        basis, history = erasure_basis(
+            a_train, f_train[:, columns], a_test, f_test[:, columns],
+            floor=max(0.02, 0.1 * intact), max_rank=MAX_ERASURE_RANK,
+        )
+        rank = basis.shape[1]
+        if rank == 0:
+            continue
+        damage = ablated_loss(model, tokens_t, depth, basis, mean) - base_loss
+
+        if rank not in control_cache:
+            draws = [
+                ablated_loss(model, tokens_t, depth, random_basis(rng, d_model, rank), mean) - base_loss
+                for _ in range(N_CONTROL)
+            ]
+            control_cache[rank] = (float(np.mean(draws)), float(np.std(draws)))
+        control, control_sd = control_cache[rank]
+
+        out["groups"][group] = {
+            "rank": rank,
+            "hit_rank_cap": rank >= MAX_ERASURE_RANK,
+            "r2_before": history[0],
+            "r2_after": history[-1],
+            "delta_loss": damage,
+            "delta_loss_random_control": control,
+            "delta_loss_random_control_sd": control_sd,
+            "excess": damage - control,
+            "excess_in_control_sds": (damage - control) / control_sd if control_sd > 0 else float("nan"),
+            "basis": basis,  # popped by the caller before serialising
+        }
     return out
 
 
-def _geometry(model, tokens_t, streams, record, features, groups, train_idx, test_idx):
+def _geometry(model, tokens_t, streams, record, features, groups, train_idx, test_idx, erasure):
     """Subspace overlap, and what survives a group's removal, at one depth.
 
     `principal_angles` near 0 means one group's directions sit inside another's;
@@ -143,14 +168,14 @@ def _geometry(model, tokens_t, streams, record, features, groups, train_idx, tes
     fit every group again after removing one, and see which ones went with it.
     """
     depth = record["depth"]
-    weight = record["probe_weight"]
-    bases = {g: probe_basis(weight, groups[g]) for g in ABLATION_GROUPS}
+    bases = {g: np.asarray(erasure[g]) for g in ABLATION_GROUPS if g in erasure}
     mean = streams[depth].reshape(-1, streams[depth].shape[-1]).mean(axis=0)
 
     angles = {}
     for i, a in enumerate(ABLATION_GROUPS):
         for b in ABLATION_GROUPS[i + 1 :]:
-            angles[f"{a}|{b}"] = principal_angles(bases[a], bases[b]).tolist()
+            if a in bases and b in bases:
+                angles[f"{a}|{b}"] = principal_angles(bases[a], bases[b]).tolist()
 
     f_train = features[train_idx].reshape(-1, features.shape[-1]).astype(np.float64)
     f_test = features[test_idx].reshape(-1, features.shape[-1]).astype(np.float64)
@@ -208,6 +233,10 @@ def main() -> None:
             # Depth chosen on the headline group, then reused for the causal work
             # so ablation and geometry describe the same place in the network.
             best = max(records, key=lambda r: r["r2_by_group"]["action_lag0"])
+            ablation = _ablate(
+                model, tokens_t, streams, best, groups, rng, features, train_idx, test_idx
+            )
+            bases = {g: v.pop("basis") for g, v in ablation["groups"].items()}
             entry = {
                 "tokens": tokens_seen,
                 "loss": ablated_loss(model, tokens_t, 0, None),
@@ -215,9 +244,9 @@ def main() -> None:
                 "by_depth": [
                     {k: v for k, v in r.items() if k != "probe_weight"} for r in records
                 ],
-                "ablation": _ablate(model, tokens_t, streams, records, groups, rng),
+                "ablation": [ablation],
                 "geometry": _geometry(
-                    model, tokens_t, streams, best, features, groups, train_idx, test_idx
+                    model, tokens_t, streams, best, features, groups, train_idx, test_idx, bases
                 ),
             }
             curve.append(entry)

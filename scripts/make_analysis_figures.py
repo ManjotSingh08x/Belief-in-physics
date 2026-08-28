@@ -17,6 +17,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from models.ablation import principal_angles, random_basis
+
 ROOT = Path(__file__).resolve().parent.parent
 FIGDIR = ROOT / "figures" / "analysis"
 DEFAULT = ROOT / "experiments" / "results-branch" / "phase4_checkpoint_analysis.json"
@@ -104,32 +106,35 @@ def r2_vs_depth(results: dict) -> Path:
 
 
 def ablation_vs_tokens(results: dict) -> Path:
-    fig, axes = plt.subplots(1, len(results), figsize=(4.2 * len(results), 4.0), squeeze=False)
+    fig, axes = plt.subplots(1, len(results), figsize=(4.2 * len(results), 4.2), squeeze=False)
     fig.suptitle(
-        "Cost of deleting each quantity: Δ next-token loss above a random subspace of equal rank",
-        fontsize=12,
+        "Cost of erasing each quantity: Δ next-token loss above a random subspace of equal rank "
+        "(shaded = ±1 sd of the control; hollow = erasure hit the rank cap, so incomplete)",
+        fontsize=10,
     )
 
     for ax, (name, r) in zip(axes[0], results.items()):
         x = _x(r["curve"])
         for group in GROUPS:
-            y, rank = [], None
+            y, sd, capped = [], [], []
             for c in r["curve"]:
-                entry = next(a for a in c["ablation"] if a["name"] == c["best_depth"])
-                cell = entry["groups"].get(group)
+                cell = c["ablation"][0]["groups"].get(group)
                 y.append(np.nan if cell is None else cell["excess"])
-                rank = rank if cell is None else cell["rank"]
-            ax.plot(x, y, "o-", ms=3.5, lw=1.6, color=COLOUR[group],
-                    label=f"{LABEL[group]}  (rank {rank})")
+                sd.append(0.0 if cell is None else cell["delta_loss_random_control_sd"])
+                capped.append(bool(cell and cell["hit_rank_cap"]))
+            y, sd, capped = np.array(y), np.array(sd), np.array(capped)
+            ax.fill_between(x, y - sd, y + sd, color=COLOUR[group], alpha=0.15, lw=0)
+            ax.plot(x, y, "-", lw=1.6, color=COLOUR[group], label=LABEL[group])
+            ax.plot(x[~capped], y[~capped], "o", ms=4, color=COLOUR[group])
+            ax.plot(x[capped], y[capped], "o", ms=5, mfc="none", mec=COLOUR[group], mew=1.4)
         ax.axhline(0, color="0.4", lw=1.0, ls="--")
         ax.set_xscale("log")
         ax.set_xlabel("tokens seen")
         ax.set_title(name, fontsize=10)
         ax.grid(alpha=0.25)
-    axes[0][0].set_ylabel("excess Δ loss (nats)\n0 = no worse than deleting random directions")
-    for ax in axes[0]:
         ax.legend(fontsize=8)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    axes[0][0].set_ylabel("excess Δ loss (nats)\n>0 = load-bearing, <0 = cheaper than random")
+    fig.tight_layout(rect=(0, 0, 1, 0.90))
     out = FIGDIR / "ablation_vs_tokens.png"
     fig.savefig(out, dpi=150)
     plt.close(fig)
@@ -144,6 +149,7 @@ def geometry(results: dict) -> Path:
         fontsize=11,
     )
     pairs = [f"{a}|{b}" for i, a in enumerate(GROUPS) for b in GROUPS[i + 1 :]]
+    rng = np.random.default_rng(0)
 
     for col, (name, r) in enumerate(results.items()):
         ax = axes[0][col]
@@ -152,7 +158,19 @@ def geometry(results: dict) -> Path:
             y = [np.mean(c["geometry"]["principal_angles_deg"].get(pair, [np.nan])) for c in r["curve"]]
             ax.plot(x, y, style, lw=1.6, marker="o", ms=3,
                     label=pair.replace("action_lag0", "belief").replace("|", " vs "))
-        ax.axhline(90, color="0.4", lw=1.0, ls="--")
+        # Two random subspaces of these ranks already overlap in d_model=128, so
+        # the chance level -- not 90 degrees -- is what "independent" looks like.
+        null = []
+        for c in r["curve"]:
+            ranks = [v["rank"] for v in c["ablation"][0]["groups"].values()]
+            rank = int(np.mean(ranks)) if ranks else 1
+            null.append(
+                np.mean([
+                    principal_angles(random_basis(rng, 128, rank), random_basis(rng, 128, rank)).mean()
+                    for _ in range(8)
+                ])
+            )
+        ax.plot(x, null, color="0.45", lw=1.2, ls="-.", label="random subspaces, matched rank")
         ax.set_xscale("log")
         ax.set_ylim(0, 95)
         ax.set_title(name, fontsize=10)
