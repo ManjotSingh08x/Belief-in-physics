@@ -52,3 +52,29 @@ def test_make_simulator_is_cached_across_calls():
     sim1 = make_simulator(config)
     sim2 = make_simulator(config)
     assert (sim1.hmm.T != sim2.hmm.T).nnz == 0
+
+
+def test_streaming_rng_yields_distinct_batches_including_the_perturbations():
+    """Without an explicit rng, simulate_batch reseeds from self.seed and returns
+    the *same* batch every call -- which would have trained every step on one
+    repeated batch while the loss curve still looked like it was converging.
+    """
+    sim = make_simulator(_small_pendulum_config())
+    repeated = [sim.simulate_batch(8, 6, 4) for _ in range(2)]
+    assert np.array_equal(repeated[0].tokens, repeated[1].tokens), "documents the default"
+
+    stream = np.random.default_rng(1)
+    streamed = [sim.simulate_batch(8, 6, 4, rng=stream) for _ in range(3)]
+    for earlier, later in zip(streamed, streamed[1:]):
+        assert not np.array_equal(earlier.tokens, later.tokens)
+        assert not np.array_equal(
+            earlier.tokens[earlier.is_action], later.tokens[later.is_action]
+        ), "perturbations must be redrawn too, not just the observations"
+
+
+def test_perturbations_are_drawn_uniformly():
+    sim = make_simulator(_small_pendulum_config())
+    episodes = sim.simulate_batch(4000, 6, 4, rng=np.random.default_rng(2))
+    actions = episodes.tokens[episodes.is_action] - sim.hmm.n_obs
+    fractions = np.bincount(actions, minlength=sim.hmm.n_actions) / actions.size
+    assert np.abs(fractions - 1.0 / sim.hmm.n_actions).max() < 0.02
