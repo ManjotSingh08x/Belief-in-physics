@@ -1,0 +1,133 @@
+"""Phase 2 training: next-token cross entropy, nothing else.
+
+Two things worth stating because they change how the loss curve should be read.
+
+**Action tokens are unpredictable by construction.** `DiscreteHMM.sample_batch`
+draws each perturbation uniformly at random, so no model can do better than
+`log(n_actions)` on those positions. They are kept in the loss because the claim
+is about ordinary next-token pretraining, but the number that carries signal is
+the loss restricted to observation positions, so both are reported.
+
+**Data is streamed, never reused.** The generator is an HMM, so training data is
+unlimited and every step sees a fresh batch. There is no train/test gap to
+manage and no memorisation to control for -- which is exactly why a probe result
+here cannot be explained by the model having memorised a finite corpus.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from tqdm.auto import tqdm
+
+from .transformer import TinyTransformer
+
+
+@dataclass(frozen=True)
+class TrainConfig:
+    total_tokens: int = 40_000_000
+    batch_size: int = 128
+    learning_rate: float = 1e-3
+    weight_decay: float = 0.01
+    warmup_frac: float = 0.02
+    grad_clip: float = 1.0
+    seed: int = 0
+    log_every: int = 100
+
+
+def pick_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def _split_loss(logits: torch.Tensor, tokens: torch.Tensor, is_action: torch.Tensor) -> tuple[float, float]:
+    """(observation-position loss, action-position loss) on the next-token targets."""
+    flat_logits = logits[:, :-1].reshape(-1, logits.shape[-1])
+    targets = tokens[:, 1:].reshape(-1)
+    per_token = F.cross_entropy(flat_logits, targets, reduction="none")
+    action_mask = is_action[:, 1:].reshape(-1)
+
+    obs = per_token[~action_mask]
+    act = per_token[action_mask]
+    return (
+        float(obs.mean()) if obs.numel() else float("nan"),
+        float(act.mean()) if act.numel() else float("nan"),
+    )
+
+
+def train(
+    model: TinyTransformer,
+    sim,
+    N: int,
+    M: int,
+    config: TrainConfig,
+    device: str | None = None,
+) -> dict:
+    """Stream batches from `sim` and fit next-token cross entropy.
+
+    Returns the history plus a held-out evaluation, rather than mutating
+    anything the caller holds beyond the model weights.
+    """
+    device = device or pick_device()
+    model = model.to(device)
+
+    seq_len = M * (1 + N // sim.K)
+    steps = max(1, config.total_tokens // (config.batch_size * seq_len))
+    warmup = max(1, int(steps * config.warmup_frac))
+
+    optimiser = torch.optim.AdamW(
+        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+    )
+
+    def lr_at(step: int) -> float:
+        if step < warmup:
+            return step / warmup
+        progress = (step - warmup) / max(1, steps - warmup)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+    schedule = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_at)
+
+    stream = np.random.default_rng(config.seed + 1)
+    eval_batch = sim.simulate_batch(256, N, M, rng=np.random.default_rng(config.seed + 99_999))
+    eval_tokens = torch.as_tensor(eval_batch.tokens, dtype=torch.long, device=device)
+    eval_actions = torch.as_tensor(eval_batch.is_action, dtype=torch.bool, device=device)
+
+    history: list[dict] = []
+    model.train()
+    for step in tqdm(range(steps), desc="train", dynamic_ncols=True):
+        episodes = sim.simulate_batch(config.batch_size, N, M, rng=stream)
+        tokens = torch.as_tensor(episodes.tokens, dtype=torch.long, device=device)
+
+        loss = model.loss(tokens)
+        optimiser.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
+        optimiser.step()
+        schedule.step()
+
+        if step % config.log_every == 0 or step == steps - 1:
+            model.eval()
+            with torch.no_grad():
+                obs_loss, act_loss = _split_loss(model(eval_tokens), eval_tokens, eval_actions)
+            model.train()
+            history.append(
+                {"step": step, "train_loss": float(loss.item()), "eval_obs_loss": obs_loss, "eval_action_loss": act_loss}
+            )
+
+    model.eval()
+    return {
+        "history": history,
+        "steps": steps,
+        "seq_len": seq_len,
+        "tokens_seen": steps * config.batch_size * seq_len,
+        "device": device,
+        "action_loss_floor": float(np.log(sim.hmm.n_actions)),
+        "final": history[-1] if history else None,
+    }

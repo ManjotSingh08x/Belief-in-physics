@@ -1,6 +1,7 @@
 """Build (or load from cache) all four DiscreteHMMs and report nnz / build
 time / memory, per the Phase 1 verification plan.
 """
+
 from __future__ import annotations
 
 import time
@@ -16,7 +17,9 @@ def main() -> None:
         dt = time.perf_counter() - t0
         hmm = sim.hmm
         T_bytes = hmm.T.data.nbytes + hmm.T.indices.nbytes + hmm.T.indptr.nbytes
-        P_bytes = sum(P.data.nbytes + P.indices.nbytes + P.indptr.nbytes for P in hmm.P_actions)
+        P_bytes = sum(
+            P.data.nbytes + P.indices.nbytes + P.indptr.nbytes for P in hmm.P_actions
+        )
         E_bytes = hmm.E.nbytes
         print(
             f"{name:16s} n_latent={hmm.n_latent:7d} n_obs={hmm.n_obs:5d} n_actions={hmm.n_actions} "

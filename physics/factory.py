@@ -86,8 +86,19 @@ class Simulator:
     K: int
     seed: int
 
-    def simulate_batch(self, num_simulations: int, N: int, M: int, with_beliefs: bool = False) -> Episodes:
-        rng = np.random.default_rng(self.seed)
+    def simulate_batch(
+        self,
+        num_simulations: int,
+        N: int,
+        M: int,
+        with_beliefs: bool = False,
+        rng: np.random.Generator | None = None,
+    ) -> Episodes:
+        """Pass `rng` to stream distinct batches; the default reseeds from
+        `self.seed` every call and so returns the *same* batch each time.
+        """
+        if rng is None:
+            rng = np.random.default_rng(self.seed)
         episodes = self.hmm.sample_batch(rng, num_simulations, N, M, self.K)
         if with_beliefs:
             beliefs = self.hmm.forward(episodes.tokens, episodes.is_action)

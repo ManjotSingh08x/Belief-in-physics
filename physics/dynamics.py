@@ -1,6 +1,7 @@
 """Contract every physical system implements. State `z` has shape (..., state_dim);
 all methods are vectorised over arbitrary leading batch dims.
 """
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
@@ -25,8 +26,7 @@ class PhysicalSystem(Protocol):
         """Instantaneous, deterministic perturbation. action in [0, n_actions)."""
         ...
 
-    def energy(self, z: np.ndarray) -> np.ndarray:
-        ...
+    def energy(self, z: np.ndarray) -> np.ndarray: ...
 
     def observable(self, z: np.ndarray) -> np.ndarray:
         """Quantity the emission channel bins into observation tokens."""

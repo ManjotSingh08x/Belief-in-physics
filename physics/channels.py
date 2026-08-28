@@ -1,6 +1,7 @@
 """Emission construction: turn a system's `observable(z)` into a stochastic
 (n_latent, n_obs) matrix E, where E[i, o] = P(observation bin o | latent bin i).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -26,10 +27,14 @@ def gaussian_channel(
         E = np.zeros((obs_values.shape[0], len(bin_edges) - 1))
         for k in (-1, 0, 1):
             mu = obs_values[:, None] + k * span
-            E += norm.cdf(hi_arr[None, :], mu, noise_std) - norm.cdf(lo_arr[None, :], mu, noise_std)
+            E += norm.cdf(hi_arr[None, :], mu, noise_std) - norm.cdf(
+                lo_arr[None, :], mu, noise_std
+            )
     else:
         mu = obs_values[:, None]
-        E = norm.cdf(hi_arr[None, :], mu, noise_std) - norm.cdf(lo_arr[None, :], mu, noise_std)
+        E = norm.cdf(hi_arr[None, :], mu, noise_std) - norm.cdf(
+            lo_arr[None, :], mu, noise_std
+        )
     E = np.clip(E, 1e-12, None)
     E /= E.sum(axis=1, keepdims=True)
     return E
@@ -48,7 +53,9 @@ def equal_area_sphere_cells(n_lat: int, n_lon_at_equator: int):
     return lat_edges, lon_edges
 
 
-def sphere_cell_index(lat: np.ndarray, lon: np.ndarray, lat_edges: np.ndarray, lon_edges: list[np.ndarray]) -> np.ndarray:
+def sphere_cell_index(
+    lat: np.ndarray, lon: np.ndarray, lat_edges: np.ndarray, lon_edges: list[np.ndarray]
+) -> np.ndarray:
     """Flat cell index for (lat, lon) arrays under the equal-area scheme."""
     n_lat = len(lat_edges) - 1
     lat_idx = np.clip(np.searchsorted(lat_edges, lat, side="right") - 1, 0, n_lat - 1)
@@ -60,7 +67,11 @@ def sphere_cell_index(lat: np.ndarray, lon: np.ndarray, lat_edges: np.ndarray, l
         if not np.any(mask):
             continue
         edges = lon_edges[b]
-        lon_idx = np.clip(np.searchsorted(edges, lon_wrapped[mask], side="right") - 1, 0, len(edges) - 2)
+        lon_idx = np.clip(
+            np.searchsorted(edges, lon_wrapped[mask], side="right") - 1,
+            0,
+            len(edges) - 2,
+        )
         out[mask] = offsets[b] + lon_idx
     return out
 
@@ -75,12 +86,16 @@ def _demo() -> None:
     E = gaussian_channel(vals, edges, noise_std=0.3)
     assert E.shape == (4, 4)
     assert np.allclose(E.sum(axis=1), 1.0)
-    assert E[0].argmax() == 0 and E[3].argmax() == 3, "likelihood should peak at the bin containing the true value"
+    assert (
+        E[0].argmax() == 0 and E[3].argmax() == 3
+    ), "likelihood should peak at the bin containing the true value"
 
     lat_edges, lon_edges = equal_area_sphere_cells(8, 16)
     n = n_sphere_cells(lon_edges)
     assert n > 0
-    idx = sphere_cell_index(np.array([0.0, 0.5, -0.5]), np.array([0.0, 3.0, -3.0]), lat_edges, lon_edges)
+    idx = sphere_cell_index(
+        np.array([0.0, 0.5, -0.5]), np.array([0.0, 3.0, -3.0]), lat_edges, lon_edges
+    )
     assert idx.shape == (3,) and np.all(idx < n)
     print("channels ok")
 

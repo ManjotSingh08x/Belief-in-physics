@@ -23,25 +23,42 @@ class Episodes:
 
 
 def _sample_sparse_categorical(mat: sp.csr_matrix, states: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    out = np.empty_like(states)
-    uniq, inv = np.unique(states, return_inverse=True)
-    for u_i, s in enumerate(uniq):
-        cols = mat.indices[mat.indptr[s] : mat.indptr[s + 1]]
-        probs = mat.data[mat.indptr[s] : mat.indptr[s + 1]]
-        probs = probs / probs.sum()
-        group = np.flatnonzero(inv == u_i)
-        out[group] = rng.choice(cols, size=group.size, p=probs)
-    return out
+    """One draw from row `s` of `mat` for each s in `states`, fully vectorised.
+
+    The rows are ragged, so the trick is that a CSR matrix already stores them
+    as contiguous blocks: a global cumulative sum over `mat.data` is monotone
+    *within* each block, so one `searchsorted` against it inverts every row's
+    CDF at once. Sampling per unique state in Python instead costs one
+    `rng.choice` call per sequence per step, which dominated generation for the
+    larger grids where every sequence sits in its own bin.
+    """
+    if states.size == 0:
+        return np.empty(0, dtype=np.int64)
+
+    starts = mat.indptr[states]
+    lens = mat.indptr[states + 1] - starts
+    ends = np.cumsum(lens)
+    row_lo = ends - lens
+
+    seq_id = np.repeat(np.arange(states.size), lens)
+    flat = starts[seq_id] + (np.arange(ends[-1]) - row_lo[seq_id])
+
+    csum = np.cumsum(mat.data[flat])
+    base = np.concatenate(([0.0], csum[ends[:-1] - 1])) if states.size > 1 else np.zeros(1)
+    totals = csum[ends - 1] - base
+
+    targets = base + rng.random(states.size) * totals
+    pos = np.clip(np.searchsorted(csum, targets, side="left"), row_lo, ends - 1)
+    return mat.indices[flat[pos]].astype(np.int64)
 
 
 def _sample_dense_categorical(mat: np.ndarray, states: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    out = np.empty_like(states)
-    uniq, inv = np.unique(states, return_inverse=True)
-    for u_i, s in enumerate(uniq):
-        probs = mat[s]
-        group = np.flatnonzero(inv == u_i)
-        out[group] = rng.choice(mat.shape[1], size=group.size, p=probs)
-    return out
+    """Same, for a dense row-stochastic matrix (the emission channel)."""
+    if states.size == 0:
+        return np.empty(0, dtype=np.int64)
+    csum = np.cumsum(mat[states], axis=1)
+    targets = rng.random((states.size, 1)) * csum[:, -1:]
+    return np.clip((csum < targets).sum(axis=1), 0, mat.shape[1] - 1).astype(np.int64)
 
 
 @dataclass(frozen=True)
