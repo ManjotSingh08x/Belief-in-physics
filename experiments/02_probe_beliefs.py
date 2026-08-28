@@ -85,7 +85,7 @@ def main() -> None:
         for tag, filename in (("trained", f"{name}_trained.pt"), ("random_init", f"{name}_random_init.pt")):
             model = _load(OUTPUT_DIR / filename, config, device)
             record[tag] = probe_layers(
-                model, episodes.tokens, features, fmap, device, train_frac=TRAIN_FRAC
+                model, episodes.tokens, features, fmap.groups, device, train_frac=TRAIN_FRAC
             )
 
         trained_best = best_layer(record["trained"])

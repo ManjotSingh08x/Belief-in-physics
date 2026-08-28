@@ -21,6 +21,7 @@ import os
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from models.train import TrainConfig, pick_device, train
@@ -76,9 +77,10 @@ def main() -> None:
 
         report = train(
             model,
-            sim,
-            N=n_steps,
-            M=NUM_PERTURBATIONS,
+            lambda rng, n: sim.simulate_batch(n, n_steps, NUM_PERTURBATIONS, rng=rng).tokens,
+            seq_len=MAX_SEQ_LEN,
+            action_mask_fn=lambda tok: tok >= sim.hmm.n_obs,
+            action_loss_floor=float(np.log(sim.hmm.n_actions)),
             config=TrainConfig(
                 total_tokens=TOTAL_TOKENS,
                 batch_size=BATCH_SIZE,

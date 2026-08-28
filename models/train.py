@@ -64,21 +64,24 @@ def _split_loss(logits: torch.Tensor, tokens: torch.Tensor, is_action: torch.Ten
 
 def train(
     model: TinyTransformer,
-    sim,
-    N: int,
-    M: int,
+    sampler,
+    seq_len: int,
     config: TrainConfig,
     device: str | None = None,
+    action_mask_fn=None,
+    action_loss_floor: float = float("nan"),
 ) -> dict:
-    """Stream batches from `sim` and fit next-token cross entropy.
+    """Stream batches from `sampler(rng, n) -> tokens` and fit next-token loss.
 
-    Returns the history plus a held-out evaluation, rather than mutating
-    anything the caller holds beyond the model weights.
+    `sampler` rather than a simulator object so the same loop serves both the
+    Ulam pipeline (where perturbations are observed tokens) and the exact branch
+    pipeline (where they are hidden and the vocabulary is observations only).
+    `action_mask_fn` is only meaningful for the former; without it the split
+    loss is not reported because there are no action positions to split on.
     """
     device = device or pick_device()
     model = model.to(device)
 
-    seq_len = M * (1 + N // sim.K)
     steps = max(1, config.total_tokens // (config.batch_size * seq_len))
     warmup = max(1, int(steps * config.warmup_frac))
 
@@ -95,15 +98,19 @@ def train(
     schedule = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_at)
 
     stream = np.random.default_rng(config.seed + 1)
-    eval_batch = sim.simulate_batch(256, N, M, rng=np.random.default_rng(config.seed + 99_999))
-    eval_tokens = torch.as_tensor(eval_batch.tokens, dtype=torch.long, device=device)
-    eval_actions = torch.as_tensor(eval_batch.is_action, dtype=torch.bool, device=device)
+    eval_rng = np.random.default_rng(config.seed + 99_999)
+    eval_np = sampler(eval_rng, 256)
+    eval_tokens = torch.as_tensor(eval_np, dtype=torch.long, device=device)
+    eval_actions = (
+        torch.as_tensor(action_mask_fn(eval_np), dtype=torch.bool, device=device)
+        if action_mask_fn is not None
+        else None
+    )
 
     history: list[dict] = []
     model.train()
     for step in tqdm(range(steps), desc="train", dynamic_ncols=True):
-        episodes = sim.simulate_batch(config.batch_size, N, M, rng=stream)
-        tokens = torch.as_tensor(episodes.tokens, dtype=torch.long, device=device)
+        tokens = torch.as_tensor(sampler(stream, config.batch_size), dtype=torch.long, device=device)
 
         loss = model.loss(tokens)
         optimiser.zero_grad(set_to_none=True)
@@ -115,7 +122,16 @@ def train(
         if step % config.log_every == 0 or step == steps - 1:
             model.eval()
             with torch.no_grad():
-                obs_loss, act_loss = _split_loss(model(eval_tokens), eval_tokens, eval_actions)
+                logits = model(eval_tokens)
+                if eval_actions is not None:
+                    obs_loss, act_loss = _split_loss(logits, eval_tokens, eval_actions)
+                else:
+                    obs_loss = float(
+                        F.cross_entropy(
+                            logits[:, :-1].reshape(-1, logits.shape[-1]), eval_tokens[:, 1:].reshape(-1)
+                        )
+                    )
+                    act_loss = float("nan")
             model.train()
             history.append(
                 {"step": step, "train_loss": float(loss.item()), "eval_obs_loss": obs_loss, "eval_action_loss": act_loss}
@@ -128,6 +144,6 @@ def train(
         "seq_len": seq_len,
         "tokens_seen": steps * config.batch_size * seq_len,
         "device": device,
-        "action_loss_floor": float(np.log(sim.hmm.n_actions)),
+        "action_loss_floor": action_loss_floor,
         "final": history[-1] if history else None,
     }

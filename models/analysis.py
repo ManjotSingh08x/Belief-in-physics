@@ -50,7 +50,7 @@ def probe_layers(
     model: TinyTransformer,
     tokens: np.ndarray,
     features: np.ndarray,
-    fmap: BeliefFeatures,
+    groups: dict[str, slice],
     device: str,
     train_frac: float = 0.7,
     seed: int = 0,
@@ -74,7 +74,7 @@ def probe_layers(
                 "depth": depth,
                 "name": "embedding" if depth == 0 else f"resid_post_{depth - 1}",
                 "r2_pooled": probe_quality(probe, a_test, f_test),
-                "r2_by_group": grouped_r2(probe, a_test, f_test, fmap.groups),
+                "r2_by_group": grouped_r2(probe, a_test, f_test, groups),
                 "r2_shuffled_control": shuffled_control(rng, a_train, f_train),
                 "n_train": int(a_train.shape[0]),
                 "n_test": int(a_test.shape[0]),
@@ -110,7 +110,7 @@ def _demo() -> None:
     features = np.concatenate([signal, noise], axis=-1)
     fmap = BeliefFeatures(sp.csr_matrix((1, 6)), tuple("abcdef"), {"signal": slice(0, 3), "noise": slice(3, 6)})
 
-    records = probe_layers(model, tokens, features, fmap, "cpu")
+    records = probe_layers(model, tokens, features, fmap.groups, "cpu")
     assert len(records) == 3
     last = records[-1]
     assert last["r2_by_group"]["signal"] > 0.95, last
