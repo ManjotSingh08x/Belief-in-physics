@@ -37,6 +37,7 @@ class TrainConfig:
     grad_clip: float = 1.0
     seed: int = 0
     log_every: int = 100
+    checkpoint_at: tuple[int, ...] = ()  # token counts to hand to `on_checkpoint`
 
 
 def pick_device() -> str:
@@ -70,6 +71,7 @@ def train(
     device: str | None = None,
     action_mask_fn=None,
     action_loss_floor: float = float("nan"),
+    on_checkpoint=None,
 ) -> dict:
     """Stream batches from `sampler(rng, n) -> tokens` and fit next-token loss.
 
@@ -78,6 +80,11 @@ def train(
     pipeline (where they are hidden and the vocabulary is observations only).
     `action_mask_fn` is only meaningful for the former; without it the split
     loss is not reported because there are no action positions to split on.
+
+    `on_checkpoint(tokens_seen, model)` fires the first time the token count
+    passes each entry of `config.checkpoint_at`. The LR schedule is defined over
+    `total_tokens`, so a checkpoint is a snapshot part-way along *this* run, not
+    a model that was trained to that budget and annealed.
     """
     device = device or pick_device()
     model = model.to(device)
@@ -108,8 +115,21 @@ def train(
     )
 
     history: list[dict] = []
+    tokens_per_step = config.batch_size * seq_len
+    pending = sorted(config.checkpoint_at)
+    saved: list[int] = []
+
     model.train()
     for step in tqdm(range(steps), desc="train", dynamic_ncols=True):
+        seen = step * tokens_per_step
+        while pending and seen >= pending[0]:
+            target = pending.pop(0)
+            if on_checkpoint is not None:
+                model.eval()
+                on_checkpoint(target, model)
+                model.train()
+            saved.append(target)
+
         tokens = torch.as_tensor(sampler(stream, config.batch_size), dtype=torch.long, device=device)
 
         loss = model.loss(tokens)
@@ -138,8 +158,14 @@ def train(
             )
 
     model.eval()
+    for target in pending:  # schedule entries past the final step
+        if on_checkpoint is not None:
+            on_checkpoint(target, model)
+        saved.append(target)
+
     return {
         "history": history,
+        "checkpoints": saved,
         "steps": steps,
         "seq_len": seq_len,
         "tokens_seen": steps * config.batch_size * seq_len,

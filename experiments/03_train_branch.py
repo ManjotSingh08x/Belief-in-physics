@@ -31,9 +31,14 @@ NUM_LAYERS = 4
 NUM_HEADS = 1
 D_MLP = 4 * EMBED_DIM
 BATCH_SIZE = 128
-TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 100_000_000))
+TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 500_000_000))
 LEARNING_RATE = 1e-3
 SEED = 0
+
+# Log-spaced snapshots so the probe curves have resolution early, where the
+# interesting reorganisation happens. Fractions of TOTAL_TOKENS rather than
+# absolute counts, so shrinking the budget for a smoke test keeps the shape.
+CHECKPOINT_FRACTIONS = (0.004, 0.01, 0.024, 0.06, 0.12, 0.24, 0.5, 1.0)
 
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-03"))
 SYSTEMS = os.environ.get("SYSTEMS", ",".join(BRANCH_CONFIGS)).split(",")
@@ -70,6 +75,15 @@ def main() -> None:
         model = TinyTransformer(model_cfg)
         model.load_state_dict(random_init.state_dict())
 
+        ckpt_dir = OUTPUT_DIR / "checkpoints"
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+        def save(tokens_seen: int, m: TinyTransformer, _name=name, _dir=ckpt_dir) -> None:
+            torch.save(m.state_dict(), _dir / f"{_name}_{tokens_seen}.pt")
+
+        schedule = tuple(sorted({int(f * TOTAL_TOKENS) for f in CHECKPOINT_FRACTIONS}))
+        save(0, random_init)  # the untrained control lives on the same axis
+
         report = train(
             model,
             lambda rng, n: process.sample_batch(rng, n).tokens,
@@ -79,8 +93,10 @@ def main() -> None:
                 batch_size=BATCH_SIZE,
                 learning_rate=LEARNING_RATE,
                 seed=SEED,
+                checkpoint_at=schedule,
             ),
             device=device,
+            on_checkpoint=save,
         )
         torch.save(model.state_dict(), OUTPUT_DIR / f"{name}_trained.pt")
 
@@ -93,6 +109,7 @@ def main() -> None:
             "M": process.M,
             "branches": int(process.n_branches(process.M)),
             "uniform_token_loss": float(__import__("numpy").log(process.n_obs)),
+            "checkpoint_tokens": [0, *schedule],
             "model": model_cfg.__dict__,
             "wall_seconds": time.perf_counter() - t0,
         }
