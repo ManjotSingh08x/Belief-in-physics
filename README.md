@@ -75,7 +75,8 @@ uv run python experiments/01_train.py      # four GPU training runs
 uv run python experiments/02_probe.py      # belief / mood / physical metrics by depth
 uv run python experiments/03_myopic.py     # raw-token-window control
 uv run python experiments/04_emergence.py  # target R2 over training time
-uv run python experiments/05_geometry.py   # predicted geometry by checkpoint and layer
+uv run python experiments/05_geometry.py   # tetrahedral geometry by checkpoint and layer
+PROJECTION=square uv run python experiments/05_geometry.py  # planar square view
 ```
 
 GPU work in `01_train.py` runs on Kaggle T4.

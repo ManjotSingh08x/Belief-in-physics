@@ -66,12 +66,22 @@ No system developed a meaningful true-mood gain.
 ## Geometry
 
 The exact tetrahedral target is [`figures/messk/mess4_belief_geometry.png`](../figures/messk/mess4_belief_geometry.png).
-Checkpoint-by-layer predictions are:
+The clearer square projection is [`figures/messk/mess4_belief_geometry_planar.png`](../figures/messk/mess4_belief_geometry_planar.png).
+The square view is deliberately lossy and is not used for any score.
+
+Checkpoint-by-layer tetrahedral predictions are:
 
 - [Pendulum](../figures/transformer-belief/pendulum_mess4_checkpoint_layers.png)
 - [Predator-prey](../figures/transformer-belief/predator_prey_mess4_checkpoint_layers.png)
 - [Sphere](../figures/transformer-belief/sphere_mess4_checkpoint_layers.png)
 - [Double pendulum](../figures/transformer-belief/double_pendulum_mess4_checkpoint_layers.png)
+
+Planar square projections are:
+
+- [Pendulum](../figures/transformer-belief/pendulum_mess4_checkpoint_layers_planar.png)
+- [Predator-prey](../figures/transformer-belief/predator_prey_mess4_checkpoint_layers_planar.png)
+- [Sphere](../figures/transformer-belief/sphere_mess4_checkpoint_layers_planar.png)
+- [Double pendulum](../figures/transformer-belief/double_pendulum_mess4_checkpoint_layers_planar.png)
 
 Pendulum and predator-prey clouds expand and separate modestly with training but remain far from the exact fractal support.
 Sphere shows only weak belief improvement despite strong physical-metric recovery.

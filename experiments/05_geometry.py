@@ -16,7 +16,8 @@ coloured by the dominant state of the exact belief, not by a quantity inferred
 from the transformer.
 
 Run:  uv run python experiments/05_geometry.py
-Env:  OUTPUT_DIR, FIGURE_DIR, CONFIGS, N_EVAL, MAX_POINTS.
+Env:  OUTPUT_DIR, FIGURE_DIR, CONFIGS, N_EVAL, MAX_POINTS, PROJECTION.
+Set `PROJECTION=square` for a readable planar view; it is intentionally lossy.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ from models.bootstrap import r2_columns
 from models.probe import fit_probe
 from models.train import pick_device
 from models.transformer import ModelConfig, TinyTransformer
-from physics.messk import simplex_embedding
+from physics.messk import simplex_embedding, square_projection_vertices
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
 N_EVAL = int(os.environ.get("N_EVAL", 256))
@@ -57,6 +58,7 @@ SPLIT_SEED = 0
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-messk"))
 FIGURE_DIR = Path(os.environ.get("FIGURE_DIR", "figures/transformer-belief"))
 CONFIGS = os.environ.get("CONFIGS", ",".join(MESSK_CONFIGS)).split(",")
+PROJECTION = os.environ.get("PROJECTION", "tetrahedron")
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -85,6 +87,26 @@ def _format_tokens(tokens: int) -> str:
     return f"{tokens / 1_000:g}k tokens"
 
 
+def _square_coords(coords: np.ndarray, simplex_vertices: np.ndarray) -> np.ndarray:
+    barycentric = 1.0 / len(simplex_vertices) + coords @ np.linalg.pinv(simplex_vertices)
+    return barycentric @ square_projection_vertices()
+
+
+def _set_square_style(ax) -> None:
+    vertices = square_projection_vertices()
+    ring = np.vstack([vertices, vertices[0]])
+    ax.plot(ring[:, 0], ring[:, 1], color=MUTED, lw=0.8, zorder=1)
+    ax.plot([-1, 1], [-1, 1], color=GRID, lw=0.45, zorder=0)
+    ax.plot([-1, 1], [1, -1], color=GRID, lw=0.45, zorder=0)
+    ax.set_xlim(-1.12, 1.12)
+    ax.set_ylim(-1.12, 1.12)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
 def _set_2d_style(ax, vertices: np.ndarray) -> None:
     ring = np.vstack([vertices, vertices[0]])
     ax.plot(ring[:, 0], ring[:, 1], color=MUTED, lw=0.8, zorder=1)
@@ -106,8 +128,22 @@ def _set_3d_style(ax, vertices: np.ndarray) -> None:
     ax.set_axis_off()
 
 
-def _draw_cloud(ax, exact: np.ndarray, predicted: np.ndarray, labels: np.ndarray, k: int) -> None:
+def _draw_cloud(
+    ax, exact: np.ndarray, predicted: np.ndarray, labels: np.ndarray, k: int,
+    projection: str,
+) -> None:
     vertices = simplex_embedding(k)
+    if projection == "square":
+        exact_square = _square_coords(exact, vertices)
+        predicted_square = _square_coords(predicted, vertices)
+        ax.scatter(*exact_square.T, s=2.0, c=REFERENCE, alpha=0.14,
+                   linewidths=0, rasterized=True)
+        for state in range(k):
+            mask = labels == state
+            ax.scatter(*predicted_square[mask].T, s=3.0, c=STATE_COLOURS[state],
+                       alpha=0.30, linewidths=0, rasterized=True)
+        _set_square_style(ax)
+        return
     if k == 3:
         ax.scatter(exact[:, 0], exact[:, 1], s=2.0, c=REFERENCE, alpha=0.12, linewidths=0, rasterized=True)
         for state in range(k):
@@ -148,15 +184,20 @@ def _legend(k: int) -> list[Line2D]:
     return handles
 
 
-def _make_axes(n_rows: int, n_depths: int, k: int):
+def _make_axes(n_rows: int, n_depths: int, k: int, projection_mode: str):
     fig = plt.figure(figsize=(3.05 * n_depths, 2.45 * n_rows + 1.3), facecolor=SURFACE)
     axes = []
     for row in range(n_rows):
         row_axes = []
         for col in range(n_depths):
             index = row * n_depths + col + 1
-            projection = "3d" if k == 4 else None
-            row_axes.append(fig.add_subplot(n_rows, n_depths, index, projection=projection, facecolor=SURFACE))
+            axes_projection = "3d" if k == 4 and projection_mode == "tetrahedron" else None
+            row_axes.append(
+                fig.add_subplot(
+                    n_rows, n_depths, index,
+                    projection=axes_projection, facecolor=SURFACE,
+                )
+            )
         axes.append(row_axes)
     return fig, axes
 
@@ -188,7 +229,7 @@ def _plot_config(name: str, training: dict, device: str) -> dict:
     config = ModelConfig(**training[name]["model"])
     axis = sorted(training[name]["checkpoint_tokens"])
     n_depths = config.n_layers + 1
-    fig, axes = _make_axes(len(axis), n_depths, k)
+    fig, axes = _make_axes(len(axis), n_depths, k, PROJECTION)
     rows = []
 
     for row, seen in enumerate(axis):
@@ -207,12 +248,12 @@ def _plot_config(name: str, training: dict, device: str) -> dict:
             depth_records.append(record)
 
             ax = axes[row][depth]
-            _draw_cloud(ax, exact_plot, predicted[chosen], labels, k)
+            _draw_cloud(ax, exact_plot, predicted[chosen], labels, k, PROJECTION)
             annotation = f"R² {record['r2']:+.2f}  outside {record['outside_simplex_fraction']:.0%}"
-            if k == 3:
-                ax.text(0.02, 0.02, annotation, transform=ax.transAxes, fontsize=7, color=INK)
-            else:
+            if PROJECTION == "tetrahedron" and k == 4:
                 ax.text2D(0.02, 0.02, annotation, transform=ax.transAxes, fontsize=7, color=INK)
+            else:
+                ax.text(0.02, 0.02, annotation, transform=ax.transAxes, fontsize=7, color=INK)
             if row == 0:
                 ax.set_title("embedding" if depth == 0 else f"residual after block {depth}",
                              fontsize=9, color=INK, pad=5)
@@ -235,16 +276,22 @@ def _plot_config(name: str, training: dict, device: str) -> dict:
 
     system_name = name.rsplit("_mess", 1)[0].replace("_", " ").title()
     chain_name = f"Mess-{k}"
-    fig.suptitle(f"{system_name} × {chain_name}: predicted belief geometry",
+    view_name = "planar square projection" if PROJECTION == "square" else "tetrahedral view"
+    fig.suptitle(f"{system_name} × {chain_name}: {view_name}",
                  x=0.5, y=1.0 - 0.10 / height, fontsize=15, color=INK)
-    fig.text(0.5, 1.0 - 0.40 / height,
-             "held-out linear-probe predictions; pale points are the exact reachable set",
+    subtitle = (
+        "lossy 2-D display only; probe scores remain in the faithful 3-D simplex"
+        if PROJECTION == "square"
+        else "held-out linear-probe predictions; pale points are the exact reachable set"
+    )
+    fig.text(0.5, 1.0 - 0.40 / height, subtitle,
              ha="center", va="top", fontsize=9, color=MUTED)
     fig.legend(handles=_legend(k), loc="lower center", ncol=k + 1, frameon=False,
                bbox_to_anchor=(0.5, 0.005), fontsize=8)
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
-    figure_path = FIGURE_DIR / f"{name}_checkpoint_layers.png"
+    suffix = "_planar" if PROJECTION == "square" else ""
+    figure_path = FIGURE_DIR / f"{name}_checkpoint_layers{suffix}.png"
     fig.savefig(figure_path, dpi=180, facecolor=SURFACE)
     plt.close(fig)
     return {
@@ -253,6 +300,7 @@ def _plot_config(name: str, training: dict, device: str) -> dict:
         "n_validation_sequences": int(len(validation_idx)),
         "n_test_sequences": int(len(test_idx)),
         "n_plot_points": int(len(chosen)),
+        "projection": PROJECTION,
         "figure": str(figure_path),
         "checkpoints": rows,
         "wall_seconds": time.perf_counter() - t0,
@@ -269,21 +317,30 @@ def _demo() -> None:
     ]) @ vertices
     inside = _prediction_record(target, target, vertices)
     assert inside["r2"] > 0.99 and inside["outside_simplex_fraction"] == 0.0
+    pure_states = np.eye(4) @ vertices
+    assert np.allclose(_square_coords(pure_states, vertices), square_projection_vertices())
+    assert np.allclose(_square_coords(np.zeros((1, 3)), vertices), 0.0)
     outside = _prediction_record(np.full_like(target, 2.0), target, vertices)
     assert outside["outside_simplex_fraction"] == 1.0
 
 
 def main() -> None:
     _demo()
+    if PROJECTION not in {"tetrahedron", "square"}:
+        raise SystemExit("PROJECTION must be 'tetrahedron' or 'square'")
     device = pick_device()
     training = json.loads((OUTPUT_DIR / "messk_01_training.json").read_text())
     results = {}
-    print(f"device={device}  configs={CONFIGS}  n_eval={N_EVAL}  max_points={MAX_POINTS}", flush=True)
+    print(
+        f"device={device}  projection={PROJECTION}  configs={CONFIGS}  "
+        f"n_eval={N_EVAL}  max_points={MAX_POINTS}", flush=True,
+    )
     for name in CONFIGS:
         print(f"\n=== {name} ===", flush=True)
         results[name] = _plot_config(name, training, device)
 
-    path = OUTPUT_DIR / "messk_05_geometry.json"
+    result_name = "messk_05_geometry_planar.json" if PROJECTION == "square" else "messk_05_geometry.json"
+    path = OUTPUT_DIR / result_name
     path.write_text(json.dumps(results, indent=2, default=float))
     print(f"\nwrote {path}", flush=True)
 

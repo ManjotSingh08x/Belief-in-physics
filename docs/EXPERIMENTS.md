@@ -89,6 +89,8 @@ Plots the transformer's predicted belief geometry for all eight checkpoints and 
 The pale cloud is the exact reachable set, and prediction colours denote the dominant exact belief state.
 Predictions are never clipped or projected back into the tetrahedron, so geometric failures remain visible.
 Each panel reports test R2 and the fraction of predicted points outside the simplex.
+`PROJECTION=square` additionally places the four pure states at square corners for a clearer planar display.
+That square view collapses one belief dimension and is visualisation only; fitting and R2 remain in the faithful three-dimensional simplex coordinates.
 
 ## Compute and outputs
 
@@ -105,7 +107,9 @@ All probing and plotting ran on `staging-entity` CPU and completed in `218` seco
 | `messk_04_emergence.json` | checkpoint curves and emergence crossings |
 | `messk_05_geometry.json` | checkpoint-by-layer geometry scores |
 | `figures/messk/mess4_belief_geometry.png` | exact tetrahedral belief geometry |
-| `figures/transformer-belief/*.png` | predicted geometry across checkpoints and layers |
+| `figures/messk/mess4_belief_geometry_planar.png` | exact square projection |
+| `figures/transformer-belief/*_checkpoint_layers.png` | tetrahedral checkpoint-by-layer predictions |
+| `figures/transformer-belief/*_checkpoint_layers_planar.png` | planar checkpoint-by-layer predictions |
 
 ## Run
 
@@ -117,6 +121,7 @@ uv run python experiments/02_probe.py
 uv run python experiments/03_myopic.py
 uv run python experiments/04_emergence.py
 uv run python experiments/05_geometry.py
+PROJECTION=square uv run python experiments/05_geometry.py
 ```
 
 Training is the only GPU step.

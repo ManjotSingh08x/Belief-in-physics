@@ -22,7 +22,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from physics.messk import MessKProcess, simplex_embedding  # noqa: E402
+from physics.messk import (  # noqa: E402
+    MessKProcess,
+    simplex_embedding,
+    square_projection_vertices,
+)
 
 RESULT_OUT = Path("experiments/outputs-messk")
 FIGURE_OUT = Path("figures/messk")
@@ -63,6 +67,12 @@ def _sample(data: dict) -> tuple[np.ndarray, np.ndarray]:
     return data["_beliefs"][::step] @ vertices, data["_truth"][::step]
 
 
+def _sample_planar(data: dict) -> tuple[np.ndarray, np.ndarray]:
+    step = max(1, data["n_points"] // MAX_POINTS)
+    points = data["_beliefs"][::step] @ square_projection_vertices()
+    return points, data["_truth"][::step]
+
+
 def _edges_3d(ax, vertices: np.ndarray) -> None:
     for i, j in combinations(range(4), 2):
         ax.plot(*zip(vertices[i], vertices[j]), color=EDGE, lw=0.7, zorder=1)
@@ -88,6 +98,25 @@ def _cloud_2d(ax, points: np.ndarray, labels: np.ndarray, dims: tuple[int, int])
         mask = labels == state
         ax.scatter(points[mask, dims[0]], points[mask, dims[1]], c=STATE_COLOURS[state],
                    s=0.45, alpha=0.22, linewidths=0, rasterized=True)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+
+def _cloud_square(ax, points: np.ndarray, labels: np.ndarray) -> None:
+    vertices = square_projection_vertices()
+    ring = np.vstack([vertices, vertices[0]])
+    ax.plot(ring[:, 0], ring[:, 1], color=MUTED, lw=1.0)
+    ax.plot([-1, 1], [-1, 1], color=EDGE, lw=0.55)
+    ax.plot([-1, 1], [1, -1], color=EDGE, lw=0.55)
+    for state in range(4):
+        mask = labels == state
+        ax.scatter(*points[mask].T, c=STATE_COLOURS[state], s=0.55, alpha=0.24,
+                   linewidths=0, rasterized=True)
+    align = (("right", "top"), ("left", "top"), ("left", "bottom"), ("right", "bottom"))
+    for state, ((x, y), (ha, va)) in enumerate(zip(vertices, align)):
+        ax.text(x + (0.04 if x > 0 else -0.04), y + (0.04 if y > 0 else -0.04),
+                f"state {state}", ha=ha, va=va, fontsize=9, color=INK)
+    ax.set(xlim=(-1.16, 1.16), ylim=(-1.16, 1.16))
     ax.set_aspect("equal")
     ax.axis("off")
 
@@ -146,9 +175,34 @@ def main() -> None:
     fig.savefig(figure_path, dpi=180, facecolor=SURFACE)
     plt.close(fig)
 
+    planar_points, planar_labels = _sample_planar(data)
+    planar_fig, planar_ax = plt.subplots(figsize=(8.2, 8.2), facecolor=SURFACE)
+    planar_ax.set_facecolor(SURFACE)
+    _cloud_square(planar_ax, planar_points, planar_labels)
+    planar_fig.suptitle("Exact Mess-4 belief geometry: planar square projection",
+                        y=0.975, fontsize=15, color=INK)
+    planar_fig.text(
+        0.5, 0.94,
+        "four pure states are square corners; this readable 2-D view collapses one belief dimension",
+        ha="center", va="top", fontsize=9, color=MUTED,
+    )
+    planar_fig.legend(
+        handles=[
+            Line2D([], [], marker="o", linestyle="none", markersize=5,
+                   color=STATE_COLOURS[state], label=f"true next mood {state}")
+            for state in range(4)
+        ],
+        loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=4,
+        frameon=False, fontsize=8,
+    )
+    planar_fig.tight_layout(rect=(0.02, 0.06, 0.98, 0.91))
+    planar_path = FIGURE_OUT / "mess4_belief_geometry_planar.png"
+    planar_fig.savefig(planar_path, dpi=180, facecolor=SURFACE)
+    plt.close(planar_fig)
+
     record = {key: value for key, value in data.items() if not key.startswith("_")}
     (RESULT_OUT / "mess4_geometry.json").write_text(json.dumps(record, indent=2, default=float))
-    print(f"wrote {figure_path}")
+    print(f"wrote {figure_path} and {planar_path}")
 
 
 if __name__ == "__main__":

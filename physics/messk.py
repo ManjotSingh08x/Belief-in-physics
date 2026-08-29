@@ -47,6 +47,17 @@ def simplex_embedding(k: int) -> np.ndarray:
     return (centred @ np.linalg.svd(centred)[2][: k - 1].T)[:, :3]
 
 
+def square_projection_vertices() -> np.ndarray:
+    """Four state vertices for a readable, lossy planar view of Mess-4.
+
+    A tetrahedron is three-dimensional, so no 2-D map can preserve all belief
+    distances. This projection places the four pure states at square corners and
+    is for visual inspection only; every probe score remains in the faithful
+    three-dimensional simplex coordinates.
+    """
+    return np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
+
+
 @dataclass(frozen=True)
 class MessKProcess:
     """K moods, K letters. A mood emits its own letter with probability `alpha`.

@@ -6,7 +6,13 @@ from itertools import combinations
 
 import numpy as np
 
-from physics.messk import MessDriven, MessKProcess, simplex_embedding, token_window_features
+from physics.messk import (
+    MessDriven,
+    MessKProcess,
+    simplex_embedding,
+    square_projection_vertices,
+    token_window_features,
+)
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
 
@@ -165,6 +171,14 @@ def test_simplex_embedding_shapes():
     v = simplex_embedding(4)
     d = [np.linalg.norm(v[i] - v[j]) for i in range(4) for j in range(i + 1, 4)]
     assert np.allclose(d, d[0]), "a regular simplex has equal edges"
+
+
+def test_square_projection_places_four_states_at_distinct_corners():
+    vertices = square_projection_vertices()
+    assert vertices.shape == (4, 2)
+    assert len(np.unique(vertices, axis=0)) == 4
+    assert np.allclose(vertices.mean(axis=0), 0.0)
+    assert np.allclose(np.eye(4) @ vertices, vertices)
 
 
 def test_features_line_up_with_their_groups():
