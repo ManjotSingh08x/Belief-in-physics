@@ -78,6 +78,32 @@ BRANCH_CONFIGS: dict[str, dict] = {
         "obs_range": (-np.pi, np.pi), "periodic": True,
         "action_names": ("-2dv", "-dv", "+dv", "+2dv"),
     },
+    # --- the all-positive 3-action set, no no-op --------------------------
+    # {+1,+2,+3}*dv has variance (2/3)dv^2, which at dv = 1.5 is exactly the
+    # parent's (2/3)*1.5^2. So this is a PURE mean shift against `pendulum`:
+    # identical spread, identical M and branch count, mean +3.0 per segment
+    # instead of 0. Whatever differs in the belief geometry is the drift.
+    "pendulum_mess3_plus": {
+        "system": Pendulum, "system_kwargs": {"gamma": 0.15, "kicks": (1.5, 3.0, 4.5)},
+        "z0": [[0.4, 0.0], [-0.3, 0.5], [1.0, -0.4], [-0.8, 0.2]],
+        "K": 8, "dt": 0.02, "M": 8,
+        "emission_bins": 16, "noise_std": 0.5,
+        "obs_range": (-np.pi, np.pi), "periodic": True,
+        "action_names": ("+dv", "+2dv", "+3dv"),
+    },
+    # The same set shrunk until the drift no longer runs into omega_max. Mean
+    # kick is 2*dv per segment against per-segment damping retention
+    # exp(-gamma*K*dt*steps_per_segment) = 0.825, so omega settles at 2*dv/0.175;
+    # dv = 0.35 puts that at 4.0, half the clip. The price is the whole point:
+    # variance falls to 0.082, eighteen times less than the parent's 1.5.
+    "pendulum_mess3_plus_small": {
+        "system": Pendulum, "system_kwargs": {"gamma": 0.15, "kicks": (0.35, 0.70, 1.05)},
+        "z0": [[0.4, 0.0], [-0.3, 0.5], [1.0, -0.4], [-0.8, 0.2]],
+        "K": 8, "dt": 0.02, "M": 8,
+        "emission_bins": 16, "noise_std": 0.5,
+        "obs_range": (-np.pi, np.pi), "periodic": True,
+        "action_names": ("+dv", "+2dv", "+3dv"),
+    },
     "predator_prey_mess4": {
         # the legacy cross with the no-op deleted; per-coordinate variance goes
         # (2/5)k^2 -> (1/2)k'^2, so k' = k*sqrt(4/5)
