@@ -168,15 +168,32 @@ arm and any rank-r deletion costs something, so only `excess(k) = KL(ablated, k)
 each k rather than carried over from k = 1.
 
 **E5, coupling versus emergence.** Within one model, a family of targets of
-matched width 3 and matched scale,
-`f_alpha = alpha * (three emission columns) + (1 - alpha) * (a random functional
-of the belief)`. The `alpha = 1` end is the next-token distribution restricted to
-three bins, so its coupling is 1 by construction; the `alpha = 0` end is a random
-linear functional whose coupling is near 0. Emergence time is read at a fixed
-absolute R^2 threshold, never at half the final value -- the belief has not
-plateaued, so its final value is not an asymptote. The test is a Spearman
-correlation across ~14 targets inside one model, which can fail, rather than four
+matched width `n_actions` and matched scale,
+`f_alpha = alpha * (emission columns) + (1 - alpha) * base`. The `alpha = 1` end
+is the next-token distribution restricted to those bins, so its coupling is high
+by construction; the `alpha = 0` end has coupling near 0. The test is a Spearman
+correlation across ~20 targets inside one model, which can fail, rather than four
 ordinal comparisons across four runs, which cannot.
+
+Two things that a first pass got wrong and that the result depends on:
+
+*Two families, because one of them is not a control.* With `base` a random
+functional of the belief, every member is an arbitrary quantity the model has no
+reason to build, and a null says little. The second family sets `base` to the
+**actual belief marginal**, so `alpha = 0` IS `action_lag0` and the family passes
+through the place the real quantities live. Both families are run and reported
+separately; agreement between them is the evidence.
+
+*Emergence is read at a fraction of each target's own final learned gain, not at
+an absolute threshold.* Learned gain is `R^2(t) - R^2(untrained)` at the same
+seed. Higher-`alpha` targets do not only emerge sooner, they end higher -- a
+target whose asymptotic gain is 0.29 crosses an absolute 0.05 before one whose
+asymptote is 0.10, for reasons that have nothing to do with timing. Normalising
+by the target's own asymptote removes that confound. This does not reintroduce
+the "half of final" problem the belief has, because the synthetic targets do
+plateau within the window and any that do not are excluded by
+`learned_gain > 0.10`. Both scorings are reported; only the fractional one is
+read.
 
 **E6, the kick-magnitude sweep.** Phase 1 chose each `kick` as the *smallest*
 value clearing its separability threshold, so claim 1's headline coupling was set
