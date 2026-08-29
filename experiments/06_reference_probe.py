@@ -13,9 +13,13 @@ sequences, against an architecture-matched random-initialisation control. The
 four numbers separate the causes:
 
 * random-init in-sample      -> what the fit buys with no learning at all
-* random-init held out       -> what the last tick of tokens carries by itself
+* random-init held out       -> what an untrained network of this shape reaches
 * trained in-sample          -> the number their protocol would print for us
 * trained held out           -> the honest number
+
+A raw-observation-token window is scored on the same rows under the same split,
+because a residual-stream number is only interpretable against how much of the
+belief a window of recent observations already carries.
 
 `N_EVAL` must keep rows-per-feature well above one. Their run had 15; the
 earlier version of this file had 1.9, which is why it returned a negative R2.
@@ -40,14 +44,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import torch
+from sklearn.linear_model import Ridge
 
 from models.analysis import residual_streams_batched
+from models.probe_extra import sparse_token_window_features
 from models.train import pick_device
 from models.transformer import ModelConfig, TinyTransformer
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
 N_EVAL = int(os.environ.get("N_EVAL", 6_144))  # 15.4 rows per feature, matching theirs
-TRAIN_FRAC = 0.8
+TRAIN_FRAC = 0.6
+VALIDATION_FRAC = 0.2
+WINDOWS = tuple(int(w) for w in os.environ.get("WINDOWS", "10,20,40,80").split(","))
+TOKEN_ALPHAS = (1.0, 10.0, 100.0, 1_000.0)
 EVAL_SEED = 20_260_829
 SPLIT_SEED = 0
 RIDGE_ALPHA = float(os.environ.get("RIDGE_ALPHA", 1.0))
@@ -130,8 +139,9 @@ def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> float:
     return float(np.mean(1.0 - residual / total))
 
 
-def ridge_scores(features, targets, train_rows, test_rows, alpha=RIDGE_ALPHA) -> dict:
-    """Standardised ridge, scored on the fitting rows and on held-out rows."""
+def ridge_scores(features, targets, split, alpha=RIDGE_ALPHA) -> dict:
+    """Standardised ridge, scored on the fitting rows and on both held-out sets."""
+    train_rows, validation_rows, test_rows = split
     train = _moments(features, targets, train_rows)
     mean = train["sx"] / train["n"]
     variance = np.maximum(train["sxx"] / train["n"] - mean**2, 0.0)
@@ -140,16 +150,52 @@ def ridge_scores(features, targets, train_rows, test_rows, alpha=RIDGE_ALPHA) ->
     y_bar = train["sy"] / train["n"]
     weights = np.linalg.solve(gram + alpha * np.eye(len(gram)), cross)
 
-    test = _moments(features, targets, test_rows)
-    gram_test, cross_test, z_sum_test = _standardise(test, mean, scale)
-    return {
-        "in_sample_r2": _r2(train, gram, cross, z_sum, weights, y_bar),
-        "test_r2": _r2(test, gram_test, cross_test, z_sum_test, weights, y_bar),
+    scored = {"in_sample_r2": _r2(train, gram, cross, z_sum, weights, y_bar)}
+    for label, rows in (("validation_r2", validation_rows), ("test_r2", test_rows)):
+        held = _moments(features, targets, rows)
+        scored[label] = _r2(held, *_standardise(held, mean, scale), weights, y_bar)
+    return scored | {
         "feature_dim": int(features.shape[1]),
         "n_train_rows": int(train["n"]),
-        "n_test_rows": int(test["n"]),
         "rows_per_feature": float(train["n"] / features.shape[1]),
     }
+
+
+def token_window_scores(tokens, targets, tick_rows, proc, split) -> dict:
+    """The myopic control, scored on the same rows under the same protocol.
+
+    Without this at tick level the residual-stream number cannot be read: the
+    question is always how much of it a window of raw observations already has.
+    """
+    widest = max(w for w in WINDOWS if w <= tokens.shape[1])
+    kept = sparse_token_window_features(tokens, proc.n_obs, widest, proc.n_steps)[tick_rows]
+    train_rows, validation_rows, test_rows = split
+    best = None
+    for window in (w for w in WINDOWS if w <= tokens.shape[1]):
+        columns = np.concatenate(
+            [
+                np.arange(window * proc.n_obs),
+                np.arange(widest * proc.n_obs, widest * proc.n_obs + proc.n_steps),
+            ]
+        )
+        design = kept[:, columns]
+        for alpha in TOKEN_ALPHAS:
+            probe = Ridge(alpha=alpha, solver="lsqr", tol=1e-6).fit(
+                design[train_rows], targets[train_rows]
+            )
+            candidate = {
+                "window": window,
+                "alpha": alpha,
+                "feature_dim": int(design.shape[1]),
+                "in_sample_r2": float(probe.score(design[train_rows], targets[train_rows])),
+                "validation_r2": float(
+                    probe.score(design[validation_rows], targets[validation_rows])
+                ),
+                "test_r2": float(probe.score(design[test_rows], targets[test_rows])),
+            }
+            if best is None or candidate["validation_r2"] > best["validation_r2"]:
+                best = candidate
+    return best
 
 
 def _load(path: Path, config: ModelConfig, device: str) -> TinyTransformer:
@@ -158,14 +204,11 @@ def _load(path: Path, config: ModelConfig, device: str) -> TinyTransformer:
     return model.to(device).eval()
 
 
-def _probe(path, config, batch, proc, split, device) -> dict:
+def _probe(path, config, batch, proc, targets, split, device) -> dict:
     model = _load(path, config, device)
     streams = residual_streams_batched(model, batch["tokens"], device)
-    targets = batch["beliefs"][:, :: proc.n_steps, :].reshape(-1, batch["beliefs"].shape[-1])
     scores = {
-        name: ridge_scores(
-            tick_features(streams, proc.n_steps, whole_tick), targets, *split
-        )
+        name: ridge_scores(tick_features(streams, proc.n_steps, whole_tick), targets, split)
         for name, whole_tick in (("whole_tick", True), ("last_position", False))
     }
     del model, streams
@@ -180,8 +223,9 @@ def _demo() -> None:
     rng = np.random.default_rng(0)
     x = rng.normal(size=(400, 5))
     y = x @ rng.normal(size=(5, 2)) + 0.1 * rng.normal(size=(400, 2))
-    scored = ridge_scores(x, y, np.arange(320), np.arange(320, 400), alpha=1e-6)
-    assert scored["test_r2"] > 0.95, scored
+    split = (np.arange(240), np.arange(240, 320), np.arange(320, 400))
+    scored = ridge_scores(x, y, split, alpha=1e-6)
+    assert scored["test_r2"] > 0.95 and scored["validation_r2"] > 0.95, scored
 
 
 def main() -> None:
@@ -198,7 +242,19 @@ def main() -> None:
         order = np.random.default_rng(SPLIT_SEED).permutation(N_EVAL)
         ticks = np.arange(proc.m)
         rows = lambda seqs: (seqs[:, None] * proc.m + ticks[None, :]).reshape(-1)  # noqa: E731
-        split = (rows(order[: int(TRAIN_FRAC * N_EVAL)]), rows(order[int(TRAIN_FRAC * N_EVAL) :]))
+        train_end = int(TRAIN_FRAC * N_EVAL)
+        validation_end = train_end + int(VALIDATION_FRAC * N_EVAL)
+        split = (
+            rows(order[:train_end]),
+            rows(order[train_end:validation_end]),
+            rows(order[validation_end:]),
+        )
+        targets = batch["beliefs"][:, :: proc.n_steps, :].reshape(-1, batch["beliefs"].shape[-1])
+        # last position of each tick, in the same sequence-major order as `targets`
+        tick_rows = (
+            np.arange(N_EVAL)[:, None] * proc.seq_len
+            + (ticks[None, :] * proc.n_steps + proc.n_steps - 1)
+        ).reshape(-1)
 
         config = ModelConfig(**training[name]["model"])
         entry = {
@@ -209,10 +265,13 @@ def main() -> None:
             "evaluation_seed": EVAL_SEED,
             "analysis_commit": ANALYSIS_COMMIT,
             "device": device,
-            "trained": _probe(OUTPUT_DIR / f"{name}_trained.pt", config, batch, proc, split, device),
-            "random_init": _probe(
-                OUTPUT_DIR / f"{name}_random_init.pt", config, batch, proc, split, device
+            "trained": _probe(
+                OUTPUT_DIR / f"{name}_trained.pt", config, batch, proc, targets, split, device
             ),
+            "random_init": _probe(
+                OUTPUT_DIR / f"{name}_random_init.pt", config, batch, proc, targets, split, device
+            ),
+            "raw_tokens": token_window_scores(batch["tokens"], targets, tick_rows, proc, split),
         }
         entry["wall_seconds"] = time.perf_counter() - started
         results[name] = entry
@@ -227,6 +286,13 @@ def main() -> None:
                 f"random in-sample {random['in_sample_r2']:+.3f} test {random['test_r2']:+.3f}",
                 flush=True,
             )
+        raw = entry["raw_tokens"]
+        print(
+            f"  {'raw_tokens':<14} dim={raw['feature_dim']:>5} W={raw['window']:<3} "
+            f"alpha={raw['alpha']:<7g} | in-sample {raw['in_sample_r2']:+.3f} "
+            f"test {raw['test_r2']:+.3f}",
+            flush=True,
+        )
 
     path = OUTPUT_DIR / "messk_06_reference_probe.json"
     path.write_text(json.dumps(results, indent=2, default=float))
