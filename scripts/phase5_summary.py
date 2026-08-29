@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from scipy.stats import spearmanr
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(os.environ.get("OUTPUT_DIR", ROOT / "experiments/outputs-03"))
@@ -239,10 +240,59 @@ def causal(d):
                   f"random={r['random_delta_mean']:+.4f}+-{r['random_delta_sd']:.4f}")
 
 
+MIN_GAIN = 0.10
+
+
+def _gain_crossing(axis, curve, thresh):
+    """Tokens at which the learned gain first reaches `thresh`, log-interpolated."""
+    g = np.asarray(curve) - curve[0]
+    hit = np.flatnonzero(g >= thresh)
+    if not hit.size:
+        return None
+    i = int(hit[0])
+    if i == 0:
+        return float(axis[0])
+    x0, x1, y0, y1 = np.log(max(axis[i - 1], 1)), np.log(axis[i]), g[i - 1], g[i]
+    return float(np.exp(x0 + (thresh - y0) / (y1 - y0) * (x1 - x0)))
+
+
+def _fractional_rho(entry, frac, family=None):
+    """Spearman(coupling, log emergence time) at a FRACTION of each target's own gain.
+
+    An absolute gain threshold conflates "learned sooner" with "learned more":
+    a target ending at gain 0.29 crosses 0.05 before one ending at 0.10 almost
+    mechanically. Normalising by the target's own asymptote removes that.
+    """
+    axis, pts = entry["tokens_axis"], []
+    for t in entry["targets"]:
+        if t["alpha"] is None or t["learned_gain"] <= MIN_GAIN:
+            continue
+        if family is not None and t["family"] != family:
+            continue
+        c = _gain_crossing(axis, t["curve"], frac * t["learned_gain"])
+        if c:
+            pts.append((t["coupling_to_p"], np.log(c)))
+    if len(pts) < 4:
+        return None, len(pts)
+    rho = spearmanr([p[0] for p in pts], [p[1] for p in pts]).correlation
+    return float(rho), len(pts)
+
+
 def emergence(d):
     head("5.7  E5 coupling vs emergence, within one model, matched-width targets")
+    print("  rho at a fraction of each target's OWN final learned gain (confound-free);")
+    print("  negative = higher coupling to p(next) emerges earlier.")
+    print(f"  {'system':<17}{'frac':<6}{'random':>14}{'belief':>14}{'both':>14}")
     for n, v in d.items():
-        print(f"  {n}   Spearman(coupling, log tokens to threshold): "
+        for frac in (0.5, 0.75):
+            cells = []
+            for fam in ("random", "belief", None):
+                rho, k = _fractional_rho(v, frac, fam)
+                cells.append("     --" if rho is None else f"{rho:+.2f} (n={k})")
+            print(f"  {n:<17}{frac:<6}" + "".join(f"{c:>14}" for c in cells))
+    print()
+    for n, v in d.items():
+        print(f"  {n}   Spearman(coupling, log tokens to ABSOLUTE gain threshold): "
               + "  ".join(f"{t}:{s['spearman_coupling_vs_log_tokens']}" for t, s in v["spearman"].items()))
         for r in sorted(v["targets"], key=lambda r: -r["coupling_to_p"]):
             c = r["crossings"]

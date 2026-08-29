@@ -12,12 +12,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+from phase5_summary import MIN_GAIN, _fractional_rho, _gain_crossing
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", ROOT / "experiments/outputs-03"))
@@ -309,42 +312,49 @@ def fig_emergence(emergence) -> Path:
 
     Two families. The `belief` family is anchored at the project's own headline
     target, so it passes through the place the real quantities live; the `random`
-    family does not. They disagree in sign, which is the result.
+    family does not. Emergence is scored at 75% of each target's OWN final learned
+    gain, because higher-coupling targets also end higher and would cross a fixed
+    absolute threshold sooner for that reason alone.
     """
+    frac = 0.75
     systems = list(emergence)
     fig, axes = plt.subplots(1, len(systems), figsize=(3.8 * len(systems), 4.2), squeeze=False)
     fig.suptitle("E5: does coupling to the next-token distribution predict emergence?\n"
-                 "Targets matched on width and scale inside one model; alpha sweeps the coupling.",
-                 fontsize=10)
+                 f"Targets matched on width and scale inside one model; y is {frac:.0%} of each "
+                 "target's own final learned gain.", fontsize=10)
     style = {"belief": ("o", COLOUR["action_lag0"]), "random": ("^", "0.45")}
     for ax, name in zip(axes[0], systems):
-        rows = emergence[name]["targets"]
-        thr = sorted(r for r in rows[0]["crossings"])[0]
+        entry = emergence[name]
+        axis, rows = entry["tokens_axis"], entry["targets"]
+
+        def cross(r):
+            return _gain_crossing(axis, r["curve"], frac * r["learned_gain"])
+
         for family, (marker, colour) in style.items():
-            pts = [(r["coupling_to_p"], r["crossings"][thr])
-                   for r in rows
-                   if r.get("family") == family and r.get("learned_gain", 1) > 0.1
-                   and r["crossings"][thr] is not None]
+            pts = [(r["coupling_to_p"], cross(r)) for r in rows
+                   if r.get("family") == family and r.get("learned_gain", 1) > MIN_GAIN]
+            pts = [(x, y) for x, y in pts if y]
             if pts:
                 ax.scatter(*zip(*pts), marker=marker, s=42, color=colour, alpha=0.85,
                            label=f"{family} family")
         for r in rows:
-            if r.get("alpha") is None and r["crossings"][thr] is not None:
+            if r.get("alpha") is not None:
+                continue
+            y = cross(r) if r["learned_gain"] > MIN_GAIN else None
+            if y:
                 label = r["target"].replace("real_", "")
-                ax.scatter([r["coupling_to_p"]], [r["crossings"][thr]], marker="*", s=170,
-                           color=COLOUR.get(label.replace("action_lag0", "action_lag0"), "k"),
-                           edgecolor="k", linewidth=0.4,
-                           label=f"real {label.replace('action_lag0', 'belief')}")
-        sp = emergence[name]["spearman"]
+                ax.scatter([r["coupling_to_p"]], [y], marker="*", s=170,
+                           color=COLOUR.get(label, "k"), edgecolor="k", linewidth=0.4,
+                           label=f"real {LABEL.get(label, label)}")
         note = "  ".join(
-            f"{k}:{v['spearman_coupling_vs_log_tokens']:+.2f}"
-            for k, v in sp.items()
-            if "@" in k and v["spearman_coupling_vs_log_tokens"] is not None
+            f"{fam or 'both'}:{rho:+.2f}"
+            for fam, rho in ((f, _fractional_rho(entry, frac, f)[0]) for f in ("random", "belief", None))
+            if rho is not None
         )
         ax.set_yscale("log"); ax.set_xlabel("coupling to p (measured R²)")
         ax.set_title(f"{name}\nSpearman {note}", fontsize=7.5)
         ax.grid(alpha=0.25); ax.legend(fontsize=6)
-    axes[0][0].set_ylabel("tokens for the learned gain to reach the threshold")
+    axes[0][0].set_ylabel(f"tokens to reach {frac:.0%} of own final learned gain")
     fig.tight_layout(rect=(0, 0, 1, 0.90))
     out = FIGDIR / "emergence_coupling.png"
     fig.savefig(out, dpi=150); plt.close(fig)

@@ -13,8 +13,8 @@ running when this was written.
 |---|---|
 | 1. The belief is not recoverable from the optimal next-token distribution | **survives, and strengthened.** Tested three more ways, including one that could have killed it |
 | 2. The representation keeps sharpening after the loss converges | **refuted.** The loss had not converged; excess over the Bayes floor fell 95% across the same window |
-| 3. Erasure separates decodable from used | **withdrawn.** The intervention never removed the feature, and the depth it was read at was chosen by a coin flip |
-| 4. The metric emerges before the belief because it couples more to p | **not supported** by the controlled test. Coupling does not order emergence within a matched family |
+| 3. Erasure separates decodable from used | **withdrawn, and the method with it.** The depth was chosen by a coin flip, the sign flips when depth is held fixed, an MLP still reads the target at 98% of intact after the erasure, and only 2 of 19 belief cells clear a variance-matched null |
+| 4. The metric emerges before the belief because it couples more to p | **direction supported, mechanism not shown.** Higher coupling emerges earlier in 24 of 24 cells across four systems and two target families, but `alpha` cannot move coupling without also moving how much of the target is a linear image of `p` |
 | z0 is not learned in any system | **survives** |
 | The three subspaces overlap far above chance | **survives, and matters more than stated** |
 
@@ -83,6 +83,150 @@ its oracle recovery is 0.71, essentially the pendulum's 0.72. The information is
 present and **the model fails to extract it**. Sphere is a model failure, not an
 information deficit, which is consistent with it having the largest excess loss
 of the four.
+
+## 5.1 The full ablation grid: F1 confirmed, and a null that nothing clears
+
+Every depth, every checkpoint, three nulls, a rank ladder, and a resample arm.
+This is the experiment phase 4 should have run, and it retracts phase 4's
+erasure section outright.
+
+**F1: the phase-4 sign does not survive holding depth fixed.** Phase 4 re-chose
+the readout depth at every checkpoint by an argmax over near-equal R^2 values,
+so its "excess Δloss over training" curve mixes two moving parts. Holding depth
+fixed, the pendulum's belief excess (nats over a matched random subspace) reads:
+
+| depth | 0M | 2M | 5M | 12M | 30M | 60M | 120M | 250M | 500M |
+|---|---|---|---|---|---|---|---|---|---|
+| embedding | +0.016 | +0.214 | +0.327 | +0.399 | +0.397 | +0.393 | +0.379 | +0.378 | +0.382 |
+| resid_post_0 | +0.064 | +0.093 | +0.100 | -0.115 | -0.106 | -0.090 | -0.085 | -0.086 | -0.074 |
+| resid_post_1 | +0.055 | +0.070 | -0.098 | -0.093 | -0.062 | -0.050 | -0.009 | +0.007 | -0.000 |
+| resid_post_2 | +0.052 | -0.033 | -0.058 | -0.117 | -0.129 | -0.110 | -0.095 | -0.081 | -0.072 |
+| resid_post_3 | +0.046 | -0.050 | -0.058 | -0.107 | -0.107 | -0.114 | -0.091 | -0.058 | -0.046 |
+
+Each row is a different story, and three of the five change sign inside the
+window. predator_prey is the same shape. Any claim read off a curve that lets
+the depth move is unreadable.
+
+**F2 confirmed exactly.** At `resid_post_3` the erasure has almost nothing to
+act on: erasing the pendulum's rank-35 belief basis costs **+0.0009 nats**
+against +0.0426 for a matched random subspace. At the final residual stream only
+`vocab_size - 1` directions can move the loss at all -- 15 of 128 for the
+pendulum, 7 for predator_prey. Phase 4 read its headline at a depth where the
+measurement is bounded near zero by construction.
+
+**The variance-matched null erases the rest.** Three nulls were run: an isotropic
+random subspace, the top-r principal components, and the fewest principal
+components carrying the same variance fraction as the target basis. The third is
+the honest one -- an erasure that removes 23% of the stream's variance should be
+compared against another that removes 23%, not against a random subspace that
+removes 3%.
+
+Belief erasure, final checkpoint, nats above each null:
+
+| system | depth | rank | var frac | Δloss | vs random (sd) | vs var-matched PCA |
+|---|---|---|---|---|---|---|
+| pendulum | embedding | 20 | 0.135 | 0.3962 | +0.382 (97) | **+0.337** |
+| pendulum | resid_post_0 | 60 | 0.106 | 0.1518 | -0.074 (-3) | -0.101 |
+| pendulum | resid_post_1 | 60 | 0.230 | 0.1930 | -0.000 (-0) | -0.074 |
+| pendulum | resid_post_2 | 46 | 0.113 | 0.0083 | -0.072 (-4) | -0.351 |
+| pendulum | resid_post_3 | 35 | 0.034 | 0.0009 | -0.046 (-3) | -0.527 |
+| predator_prey | resid_post_0 | 66 | 0.152 | 0.0471 | -0.060 (-2) | -0.171 |
+| predator_prey | resid_post_3 | 66 | 0.056 | 0.0008 | -0.172 (-5) | -0.849 |
+| sphere | resid_post_1 | 20 | 0.078 | 0.0530 | +0.032 (+7) | -0.015 |
+| double_pendulum | resid_post_1 | 22 | 0.150 | 0.0835 | +0.051 (+14) | -0.062 |
+| double_pendulum | resid_post_2 | 16 | 0.123 | 0.0634 | +0.050 (+26) | -0.011 |
+| double_pendulum | resid_post_3 | 27 | 0.026 | 0.1349 | +0.080 (+2) | **+0.060** |
+
+Of 19 belief cells across all four systems, **two** clear the variance-matched
+null: the pendulum embedding and double_pendulum's final layer. The metric grid
+is the same -- 18 cells, one clearance (the predator_prey embedding). Every
+positive result phase 4 reported, including double_pendulum's +22 sd and the
+pendulum metric's +15 sd, is a comparison against a null that removes less
+variance than the treatment.
+
+**And the embedding clearances are degenerate.** At the embedding the belief
+probe reads token identity, so erasing its subspace deletes the input rather
+than a computed feature. That is why the embedding row is large, flat across
+training in predator_prey (+0.486 at 2M, +0.532 at 500M), and present in the
+untrained model. It is not evidence about belief use.
+
+The one survivor worth naming is **double_pendulum at `resid_post_3`**: +0.1349
+nats, +0.060 above the variance-matched null, at a depth where at most 11 of 128
+directions can move the loss. It is a real effect in the only system where the
+belief probe is weak (R^2 = 0.137), which is the opposite of what claim 3
+predicted.
+
+**The resample arm rules out a mean-shift artifact.** Replacing the subspace with
+a phase-matched activation from another sequence, rather than the mean, gives
+larger damage everywhere (pendulum `resid_post_1`: 0.314 vs 0.193), so the mean
+ablation is not merely knocking the stream off its manifold. It does not change
+any sign.
+
+## 5.2 What the R^2 numbers mean
+
+**V2. The stream tracks the posterior, not the truth.** On held-out positions
+where the posterior's mode disagrees with the action that actually fired, a probe
+fitted to the belief lands on the belief's mode far more often than on the truth:
+
+| system | disagreements | probe mode = belief mode | probe mode = truth | chance |
+|---|---|---|---|---|
+| pendulum | 36% | **0.689** | 0.202 | 0.333 |
+| predator_prey | 53% | **0.616** | 0.147 | 0.200 |
+
+Agreement with the truth is *below* chance on exactly the positions where the
+belief points elsewhere, which is what a representation of the posterior should
+do and what a partial decoding of the hidden action could not. This is the
+single cleanest piece of evidence that the simplex framing is not decoration,
+and it did not exist before phase 5.
+
+**V3. The dumb baseline is well short on the belief and close on the metric.**
+
+| system | features | d_model | bag: belief | model: belief | bag: metric | model: metric |
+|---|---|---|---|---|---|---|
+| pendulum | 136 | 128 | 0.260 | 0.590 | **0.829** | 0.891 |
+| predator_prey | 72 | 128 | 0.215 | 0.681 | 0.477 | 0.676 |
+
+A bag of the last 8 observation tokens plus the phase in segment, with roughly as
+many features as `d_model`, recovers 44% of the pendulum's belief R^2 but **93%
+of its metric R^2**. The metric result is therefore a much smaller claim than it
+reads as: `E_b[omega]` is close to a function of the last few tokens. The belief
+result is not.
+
+**V5. The linear probe substantially understates the belief.** MLP 0.873 against
+linear 0.590 for the pendulum, 0.857 against 0.681 for predator_prey. The
+untrained baseline also rises (0.316 and 0.318), so the learned gain under an MLP
+is 0.557 and 0.539, comparable to the linear gain. The ordering survives; the
+levels do not.
+
+**R6. "Erased" is the wrong word, everywhere in this project.**
+
+| system | depth | rank | linear before -> after | MLP before -> after |
+|---|---|---|---|---|
+| pendulum | resid_post_3 | 35 | 0.590 -> 0.052 | **0.873 -> 0.852** |
+| predator_prey | resid_post_2 | 64 | 0.681 -> 0.193 | **0.857 -> 0.836** |
+
+Iterative nullspace projection removes linear decodability and essentially
+nothing else. After an intervention that drops the linear probe by 91%, an MLP
+still recovers the belief at 98% of its intact value. **Every ablation result in
+phases 4 and 5 measures the deletion of a linearly readable component, not the
+deletion of a feature.** A null in such an experiment is therefore weak evidence
+about use: the model can still reach the belief through the nonlinear path that
+survived. This is the most important caveat in phase 5 and it applies to the
+causal section below.
+
+**C17.** Scoring the free coordinates of the simplex rather than the dependent
+columns moves the pendulum from 0.590 to 0.627 and predator_prey from 0.681 to
+0.690. Real but small; the phase-4 numbers were not distorted by this.
+
+**C16.** Belief R^2 by entropy quartile, pendulum: 0.20 / 0.48 / 0.15 / -0.14
+from low to high entropy. Part of this is mechanical, since a narrow stratum has
+less target variance to explain, but the highest-entropy bin (just after a kick,
+when the posterior is nearly uniform) carries no signal at all. The pooled number
+is not driven by position, though: a position-only probe scores -0.0002.
+
+**V6.** Bootstrap CIs over held-out sequences are narrow: pendulum belief 0.590
+with [0.557, 0.613], predator_prey 0.681 with [0.663, 0.696]. The n = 154 concern
+is real for the design but does not by itself make these numbers fragile.
 
 ## 5.3 / 5.4 Claim 1 survives four attacks
 
@@ -155,99 +299,6 @@ row and its negation on opposite sides. The effect is bounded by in-sample
 optimism and was immaterial for the pendulum (0.712 to 0.713), but
 double_pendulum moved from 0.117 to 0.017 and sphere from an underpowered 0.628
 to not runnable. `tests/test_phase5.py` carries the regression.
-
-## 5.7 E6, the kick-magnitude sweep: claim 1 is not an artifact of the phase-1 threshold
-
-Pendulum retrained at four multiples of the magnitude phase 1 chose, on Kaggle T4.
-
-| kick scale | kick | eval loss | coupling `R^2(b|p)` | stream, pooled | stream, matched pairs | shuffled |
-|---|---|---|---|---|---|---|
-| 0.50 | 0.75 | 1.7462 | **-0.002** | 0.398 | 0.542 | -0.007 |
-| 0.75 | 1.12 | 1.7689 | 0.006 | 0.582 | 0.699 | +0.003 |
-| 1.00 | 1.50 | 1.7975 | 0.023 | 0.612 | 0.713 | -0.003 |
-| 1.50 | 2.25 | 1.8353 | 0.033 | 0.548 | 0.654 | -0.003 |
-| 2.50 | 3.75 | 1.9127 | 0.051 | 0.538 | 0.455 | -0.005 |
-
-Coupling rises monotonically with magnitude, by a factor of about 25 over the
-range, and stays under 0.06 throughout. The residual-stream number stays between
-0.40 and 0.61 at every magnitude and is not monotone. At half the chosen kick the
-coupling is **exactly zero** and the stream still recovers the belief at 0.398
-pooled and 0.542 matched.
-
-So the gap claim 1 reports is a property of the representation, not a restatement
-of the phase-1 separability threshold. C6 is closed.
-
-**Limit of this sweep:** coupling never exceeds 0.051 within the usable magnitude
-range, so the high-coupling regime is untested. Reaching it would need a kick
-large enough to saturate or wrap the observable, at which point the kick would be
-trivially detectable for the wrong reason, which is what the phase-1 threshold
-was protecting against.
-
-## 5.2 What the R^2 numbers mean
-
-**V2. The stream tracks the posterior, not the truth.** On held-out positions
-where the posterior's mode disagrees with the action that actually fired, a probe
-fitted to the belief lands on the belief's mode far more often than on the truth:
-
-| system | disagreements | probe mode = belief mode | probe mode = truth | chance |
-|---|---|---|---|---|
-| pendulum | 36% | **0.689** | 0.202 | 0.333 |
-| predator_prey | 53% | **0.616** | 0.147 | 0.200 |
-
-Agreement with the truth is *below* chance on exactly the positions where the
-belief points elsewhere, which is what a representation of the posterior should
-do and what a partial decoding of the hidden action could not. This is the
-single cleanest piece of evidence that the simplex framing is not decoration,
-and it did not exist before phase 5.
-
-**V3. The dumb baseline is well short on the belief and close on the metric.**
-
-| system | features | d_model | bag: belief | model: belief | bag: metric | model: metric |
-|---|---|---|---|---|---|---|
-| pendulum | 136 | 128 | 0.260 | 0.590 | **0.829** | 0.891 |
-| predator_prey | 72 | 128 | 0.215 | 0.681 | 0.477 | 0.676 |
-
-A bag of the last 8 observation tokens plus the phase in segment, with roughly as
-many features as `d_model`, recovers 44% of the pendulum's belief R^2 but **93%
-of its metric R^2**. The metric result is therefore a much smaller claim than it
-reads as: `E_b[omega]` is close to a function of the last few tokens. The belief
-result is not.
-
-**V5. The linear probe substantially understates the belief.** MLP 0.873 against
-linear 0.590 for the pendulum, 0.857 against 0.681 for predator_prey. The
-untrained baseline also rises (0.316 and 0.318), so the learned gain under an MLP
-is 0.557 and 0.539, comparable to the linear gain. The ordering survives; the
-levels do not.
-
-**R6. "Erased" is the wrong word, everywhere in this project.**
-
-| system | depth | rank | linear before -> after | MLP before -> after |
-|---|---|---|---|---|
-| pendulum | resid_post_3 | 35 | 0.590 -> 0.052 | **0.873 -> 0.852** |
-| predator_prey | resid_post_2 | 64 | 0.681 -> 0.193 | **0.857 -> 0.836** |
-
-Iterative nullspace projection removes linear decodability and essentially
-nothing else. After an intervention that drops the linear probe by 91%, an MLP
-still recovers the belief at 98% of its intact value. **Every ablation result in
-phases 4 and 5 measures the deletion of a linearly readable component, not the
-deletion of a feature.** A null in such an experiment is therefore weak evidence
-about use: the model can still reach the belief through the nonlinear path that
-survived. This is the most important caveat in phase 5 and it applies to the
-causal section below.
-
-**C17.** Scoring the free coordinates of the simplex rather than the dependent
-columns moves the pendulum from 0.590 to 0.627 and predator_prey from 0.681 to
-0.690. Real but small; the phase-4 numbers were not distorted by this.
-
-**C16.** Belief R^2 by entropy quartile, pendulum: 0.20 / 0.48 / 0.15 / -0.14
-from low to high entropy. Part of this is mechanical, since a narrow stratum has
-less target variance to explain, but the highest-entropy bin (just after a kick,
-when the posterior is nearly uniform) carries no signal at all. The pooled number
-is not driven by position, though: a position-only probe scores -0.0002.
-
-**V6.** Bootstrap CIs over held-out sequences are narrow: pendulum belief 0.590
-with [0.557, 0.613], predator_prey 0.681 with [0.663, 0.696]. The n = 154 concern
-is real for the design but does not by itself make these numbers fragile.
 
 ## 5.5 / 5.6 The causal picture
 
@@ -334,28 +385,88 @@ This is the contrast phase 4 should have run. It does not rescue claim 3 as
 stated -- the phase-4 numbers remain unusable -- but it replaces the null with a
 positive result at the right depth and the right rank.
 
-## 5.7 E5: coupling does not order emergence
+## 5.6b E6, the kick-magnitude sweep: claim 1 is not an artifact of the phase-1 threshold
 
-Fourteen matched targets in one pendulum model, width 3, scale matched, with
-`alpha` sweeping the coupling to `p` from -0.02 to 0.44. Emergence time is the
-tokens at which the *learned gain* over the untrained model first reaches a
-threshold.
+Pendulum retrained at four multiples of the magnitude phase 1 chose, on Kaggle T4.
 
-| threshold | Spearman(coupling, log tokens) | n |
-|---|---|---|
-| 0.05 | +0.32 | 10 |
-| 0.10 | -0.19 | 10 |
-| 0.20 | -0.90 | 7 |
+| kick scale | kick | eval loss | coupling `R^2(b|p)` | stream, pooled | stream, matched pairs | shuffled |
+|---|---|---|---|---|---|---|
+| 0.50 | 0.75 | 1.7462 | **-0.002** | 0.398 | 0.542 | -0.007 |
+| 0.75 | 1.12 | 1.7689 | 0.006 | 0.582 | 0.699 | +0.003 |
+| 1.00 | 1.50 | 1.7975 | 0.023 | 0.612 | 0.713 | -0.003 |
+| 1.50 | 2.25 | 1.8353 | 0.033 | 0.548 | 0.654 | -0.003 |
+| 2.50 | 3.75 | 1.9127 | 0.051 | 0.538 | 0.455 | -0.005 |
 
-The sign flips with the threshold, so there is no stable relationship to report.
-More directly: across the ten matched targets that get learned at all, coupling
-spans a factor of about 1.8 (0.25 to 0.44) while emergence time spans a factor of
-1.5 (7.4M to 11.0M). And the real belief target, whose coupling is **0.010** --
-the lowest of anything learned -- emerges at **2.7M**, earlier than every
-synthetic target with 25 to 44 times its coupling.
+Coupling rises monotonically with magnitude, by a factor of about 25 over the
+range, and stays under 0.06 throughout. The residual-stream number stays between
+0.40 and 0.61 at every magnitude and is not monotone. At half the chosen kick the
+coupling is **exactly zero** and the stream still recovers the belief at 0.398
+pooled and 0.542 matched.
 
-Claim 4 is therefore not supported. The phase-4 ordering (metric at 0.4M, belief
-at 2.7M, with couplings 0.152 and 0.010) is a real observation, but coupling to
-the next-token distribution is not what produces it. The more likely explanation,
-untested, is how directly the observation reveals the quantity: V3 shows a bag of
-the last 8 tokens already gives 93% of the metric's R^2 and 44% of the belief's.
+So the gap claim 1 reports is a property of the representation, not a restatement
+of the phase-1 separability threshold. C6 is closed.
+
+**Limit of this sweep:** coupling never exceeds 0.051 within the usable magnitude
+range, so the high-coupling regime is untested. Reaching it would need a kick
+large enough to saturate or wrap the observable, at which point the kick would be
+trivially detectable for the wrong reason, which is what the phase-1 threshold
+was protecting against.
+
+## 5.7 E5: coupling does order emergence
+
+*This section reverses what the pilot said.* The pilot ran one system (pendulum),
+one target family, and scored emergence at an **absolute** learned-gain threshold.
+All three of those were wrong, and fixing them flips the sign.
+
+**Two families, because one is not a control.** The first family built each target
+by interpolating a random functional of the belief toward `p(next)`. Every member
+is an arbitrary functional the model has no reason to build, so a null there says
+little. The second family interpolates from the *actual* belief marginal instead:
+at `alpha = 0` the target IS `action_lag0`, and `alpha` walks it toward `p`.
+
+**Absolute thresholds are confounded.** Higher-`alpha` targets do not merely emerge
+sooner, they end higher: in predator_prey the `alpha = 1.0` target reaches a final
+learned gain of 0.291 and `alpha = 0.0` reaches 0.101. A target with three times
+the asymptote crosses a fixed gain of 0.05 sooner almost mechanically. The
+confound-free emergence time is the crossing at a **fraction of each target's own
+final gain**.
+
+Spearman(coupling, log emergence time); negative means higher coupling emerges
+earlier. `n` is the targets clearing `learned_gain > 0.10`.
+
+| system | frac | random family | belief family | pooled |
+|---|---|---|---|---|
+| pendulum | 0.50 | -0.49 (8) | -0.68 (7) | -0.56 (15) |
+| pendulum | 0.75 | -0.71 (8) | -0.96 (7) | -0.83 (15) |
+| predator_prey | 0.50 | -0.97 (14) | -1.00 (7) | -0.98 (21) |
+| predator_prey | 0.75 | -0.95 (14) | -1.00 (7) | -0.94 (21) |
+| sphere | 0.50 | -0.21 (9) | -1.00 (4) | -0.35 (13) |
+| sphere | 0.75 | -0.53 (9) | -0.80 (4) | -0.56 (13) |
+| double_pendulum | 0.50 | -0.88 (9) | -1.00 (5) | -0.87 (14) |
+| double_pendulum | 0.75 | -0.97 (9) | -1.00 (5) | -0.95 (14) |
+
+**Every cell is negative**: 24 of 24 across four systems, two families and two
+normalisations. The belief family, the one anchored at a quantity the model
+actually represents, is at or near -1.00 in three of four systems. Claim 4's
+direction is supported.
+
+Two limits keep this from being decisive. The sphere's random family is weak
+(-0.21 at frac 0.50), and the sphere is the system where nothing else is learned
+either. And the design is correlational within a family: `alpha` moves coupling,
+but it also moves how much of the target is a linear image of `p`, and those are
+not separable by construction -- a target more nearly equal to `p` is both more
+coupled and more nearly free. So the honest statement is that **coupling to
+`p(next)` predicts emergence order, and this experiment cannot show it causes it.**
+
+The real-target couplings that motivated claim 4 are consistent with it but do not
+sit on the fitted line. In pendulum the metric couples at 0.153 and crosses at
+0.4M while the belief couples at 0.015 and crosses at 3.7M -- the right order. In
+sphere the belief couples at 0.019 and is never learned. But the pendulum's own
+synthetic targets at coupling 0.025 cross between "never" and 2.4M, a spread wider
+than the gap being explained, so coupling alone does not fix the timing.
+
+V3 gives a second variable that is not the same thing: a causal bag of the last 8
+tokens recovers **93%** of the pendulum's metric R^2 but only **44%** of its
+belief R^2. How directly the recent observation window reveals a quantity is a
+distinct axis from how much that quantity overlaps the next-token distribution,
+and this phase did not separate them.
