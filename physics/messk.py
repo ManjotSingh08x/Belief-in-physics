@@ -148,33 +148,31 @@ class MessKProcess:
 
 
 @dataclass(frozen=True)
-class MessPendulum:
-    """The chain's letters become velocity impulses on a pendulum.
+class MessDriven:
+    """The chain's letters become impulses on a physical system.
 
     Their mapping is all-positive and graded -- letter l becomes (l+1)*delta_v --
-    and the observation is theta rounded to whole degrees and clamped to +-90,
-    giving 181 bins with no added noise. Both are kept.
+    so every letter displaces the state and none of them is a no-op. The
+    observation is the system's scalar observable, binned uniformly over its own
+    range into `n_obs` levels with no added noise.
+
+    `system` is anything exposing `initial_state`, `flow`, `kick`, `observable`,
+    `metric` and `obs_range`. The chain, the belief and the binning are identical
+    across systems, so a difference in the results is a difference in the
+    physics rather than in the pipeline.
     """
 
     chain: MessKProcess = field(default_factory=MessKProcess)
+    system: object = field(default_factory=Pendulum)
     delta_v: float = 0.3
     m: int = 16  # chain ticks
     n_steps: int = 10  # physics steps per tick
     dt: float = 0.02
-    gamma: float = 0.5
-    g: float = 9.8
-    length: float = 1.0
-    initial_theta: float = 0.0
-    initial_omega: float = 1.0
-    theta_limit_deg: int = 90
+    n_obs: int = 181
 
     @property
     def kicks(self) -> tuple[float, ...]:
         return tuple((l + 1) * self.delta_v for l in range(self.chain.n_states))
-
-    @property
-    def n_obs(self) -> int:
-        return 2 * self.theta_limit_deg + 1
 
     @property
     def seq_len(self) -> int:
@@ -184,37 +182,38 @@ class MessPendulum:
     def n_actions(self) -> int:
         return self.chain.n_states
 
-    def _pendulum(self) -> Pendulum:
-        return Pendulum(g=self.g, length=self.length, gamma=self.gamma, kicks=self.kicks)
+    def discretise(self, value: np.ndarray) -> np.ndarray:
+        """Uniform bins over `system.obs_range`, rounded and clipped.
 
-    def discretise(self, theta: np.ndarray) -> np.ndarray:
-        deg = np.rint(np.degrees(theta))
-        return np.clip(deg, -self.theta_limit_deg, self.theta_limit_deg).astype(np.int64) + self.theta_limit_deg
+        Rounding rather than flooring, so for the pendulum with range +-pi/2 and
+        181 bins this is exactly their scheme: theta to the nearest whole degree,
+        clamped to +-90.
+        """
+        lo, hi = self.system.obs_range
+        scaled = (value - lo) / (hi - lo) * (self.n_obs - 1)
+        return np.clip(np.rint(scaled), 0, self.n_obs - 1).astype(np.int64)
 
     def sample_batch(self, rng: np.random.Generator, n: int) -> dict:
-        """tokens (n, L), beliefs (n, L, K), letters/states (n, m), omega (n, L)."""
+        """tokens (n, L), beliefs (n, L, K), metric (n, L), moods (n, L)."""
         states, letters = self.chain.sample(rng, n, self.m)
         tick_beliefs = self.chain.beliefs(letters)
 
-        pend = self._pendulum()
-        z = np.stack(
-            [np.full(n, self.initial_theta), np.full(n, self.initial_omega)], axis=-1
-        )
-        theta = np.empty((n, self.seq_len))
-        omega = np.empty((n, self.seq_len))
+        sys_, kicks = self.system, np.array(self.kicks)
+        z = sys_.initial_state(n)
+        obs = np.empty((n, self.seq_len))
+        metric = np.empty((n, self.seq_len))
         for t in range(self.m):
             # The impulse lands once per tick, before that tick's steps.
-            dv = np.array(self.kicks)[letters[:, t]]
-            z = np.stack([z[:, 0], z[:, 1] + dv], axis=-1)
+            z = sys_.kick(z, kicks[letters[:, t]])
             for s in range(self.n_steps):
-                z = pend.flow(z, self.dt, 1)
-                theta[:, t * self.n_steps + s] = z[:, 0]
-                omega[:, t * self.n_steps + s] = z[:, 1]
+                z = sys_.flow(z, self.dt)
+                obs[:, t * self.n_steps + s] = sys_.observable(z)
+                metric[:, t * self.n_steps + s] = sys_.metric(z)
 
         return {
-            "tokens": self.discretise(theta),
-            "theta": theta,
-            "omega": omega,
+            "tokens": self.discretise(obs),
+            "observable": obs,
+            "metric": metric,
             "letters": letters,
             "states": states,
             # the belief is constant across a tick's steps, as in their pipeline
@@ -230,15 +229,16 @@ class MessPendulum:
         Three of them, and the separation matters. `belief` is what their
         approach is about. `mood` is the true state, so a probe that reads the
         belief but not the mood is tracking the posterior rather than the answer.
-        `velocity` is the physical quantity, kept because it is the thing the
-        model plainly needs for its actual job of predicting the next angle.
+        `velocity` is the system's own physical quantity, kept because it is the
+        thing the model plainly needs for its actual job of predicting the next
+        observation.
         """
         k = self.chain.n_states
         feats = np.concatenate(
             [
                 batch["beliefs"],
                 np.eye(k, dtype=np.float64)[batch["moods"]],
-                batch["omega"][..., None],
+                batch["metric"][..., None],
             ],
             axis=-1,
         ).astype(np.float32)
@@ -283,7 +283,7 @@ def _demo() -> None:
     acc = (m4.beliefs(letters).argmax(-1) == states[:, 1:]).mean()
     assert acc > 1 / 4, f"belief no better than chance at recovering the mood: {acc}"
 
-    proc = MessPendulum(chain=m4)
+    proc = MessDriven(chain=m4)
     batch = proc.sample_batch(rng, 4)
     assert batch["tokens"].shape == (4, proc.seq_len)
     assert batch["tokens"].max() < proc.n_obs and batch["tokens"].min() >= 0
