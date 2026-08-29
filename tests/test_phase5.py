@@ -151,6 +151,40 @@ def test_scaled_kick_changes_only_the_magnitude():
         }
 
 
+def test_symmetrised_pairs_leak_when_the_split_ignores_both_endpoints():
+    """E1b symmetrises each pair, so the two copies are exact negations and an
+    affine fit maps one onto the other. A split that separates the copies
+    therefore reports the *in-sample* fit as if it were held out.
+
+    The size of that leak is the in-sample optimism, about d / n, so it is
+    negligible at the experiment's own scale (d_model = 128 against ~80k pairs)
+    and this test has to force d close to n to make it visible at all. The guard
+    is still correct to have: the optimism is not bounded when a future variant
+    uses fewer pairs or a wider stream.
+    """
+    from models.bootstrap import r2_columns
+    from models.probe import fit_probe
+
+    rng = np.random.default_rng(0)
+    n, d = 300, 200
+    dx = rng.normal(size=(n, d))
+    dy = rng.normal(size=(n, 3))  # unrelated to dx by construction
+    both_x, both_y = np.concatenate([dx, -dx]), np.concatenate([dy, -dy])
+
+    # Naive: copy 1 trains, copy 2 is "held out". It is the same information.
+    leaked = r2_columns(fit_probe(both_x[:n], both_y[:n])(both_x[n:]), both_y[n:])
+    in_sample = r2_columns(fit_probe(both_x[:n], both_y[:n])(both_x[:n]), both_y[:n])
+    assert abs(leaked - in_sample) < 0.02, (leaked, in_sample)
+    assert leaked > 0.4, leaked  # pure noise, scored as if it were signal
+
+    # Honest: both copies of a pair stay on the same side.
+    order = rng.permutation(n)
+    tr, te = order[: int(0.7 * n)], order[int(0.7 * n) :]
+    idx = lambda s: np.concatenate([s, s + n])
+    honest = r2_columns(fit_probe(both_x[idx(tr)], both_y[idx(tr)])(both_x[idx(te)]), both_y[idx(te)])
+    assert honest < leaked - 0.3, (honest, leaked)
+
+
 def test_intervened_loss_per_position_reduces_to_the_scalar():
     torch.manual_seed(0)
     cfg = ModelConfig(vocab_size=8, n_ctx=10, n_layers=2, n_heads=1, d_model=16, d_mlp=32)

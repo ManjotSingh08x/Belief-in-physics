@@ -1,5 +1,27 @@
 # Results -- belief simplex probes
 
+> **Superseded in part by phase 5.** A review of this document found three
+> defects that make several of its headlines unreadable rather than merely
+> uncertain, and `docs/PHASE5-RESULTS.md` reports what survived:
+>
+> - **"The representation sharpens after the loss converges" is refuted.** The
+>   loss had not converged. Measured against the exact Bayes floor (1.7966 for
+>   the pendulum), excess loss falls 95% across the same window, so the belief
+>   R^2 and the loss improve together.
+> - **The whole erasure section below is withdrawn.** The depth was re-chosen per
+>   checkpoint by an argmax over near-equal numbers (pendulum won by 0.0016), the
+>   sign of every result tracks that argmax moving, and at the depth used the
+>   erasure costs 0.0009 nats because at most `vocab_size - 1` of 128 directions
+>   can move the loss there at all. Separately, an MLP recovers the belief at
+>   0.852 after an erasure that drops the linear probe to 0.052, so the feature
+>   was never removed.
+> - **"Metric arrives before belief because it couples more to p(next)" is not
+>   supported** by a controlled test across matched targets.
+>
+> What survived and strengthened: the belief is not recoverable from the optimal
+> next-token distribution, `z0` is not learned anywhere, and the subspaces
+> overlap far above chance. Read `PHASE5-RESULTS.md` first.
+
 Kaggle T4, 500M tokens per system. `03_train_branch.py` -> `04_probe_branch.py` ->
 `06_analyse_checkpoints.py`. Raw JSON in `experiments/results-branch/`; figures in
 `figures/simplex_*.png` and `figures/analysis/`. Metric definitions in `METRICS.md`.

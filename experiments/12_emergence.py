@@ -56,7 +56,12 @@ N_EVAL = int(os.environ.get("N_EVAL", 384))
 WIDTH = 3
 ALPHAS = (0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)
 N_SEEDS = 2
-THRESHOLDS = (0.10, 0.20, 0.30)
+# Thresholds on the *learned gain* R^2(t) - R^2(untrained), not on R^2 itself.
+# A random projection of the residual stream already predicts some targets, so an
+# absolute threshold reports "emerged at 0 tokens" for anything whose untrained
+# baseline clears it, which is not emergence at all.
+THRESHOLDS = (0.05, 0.10, 0.20)
+MIN_LEARNED_GAIN = 0.10  # below this the target is never learned and has no emergence time
 TRAIN_FRAC = 0.7
 EVAL_SEED = 20_260_828
 KICK_SCALE = float(os.environ.get("KICK_SCALE", 1.0))
@@ -118,8 +123,13 @@ def target_values(process, tokens, tables, chunk=64) -> np.ndarray:
 
 
 def _crossing(tokens_axis, series, threshold):
-    """Token count at which the curve first reaches `threshold`, interpolated."""
-    y = np.asarray(series)
+    """Tokens at which the learned gain first reaches `threshold`, interpolated.
+
+    The gain is measured from the untrained model at the same seed, which is the
+    first point on the axis, so a target the random initialisation already
+    predicts does not register as emerging instantly.
+    """
+    y = np.asarray(series) - series[0]
     hit = np.flatnonzero(y >= threshold)
     if hit.size == 0:
         return None
@@ -197,6 +207,7 @@ def main() -> None:
             rows.append({
                 "target": g, **spec, "coupling_to_p": coupling[g],
                 "final_r2": curves[g][-1], "untrained_r2": curves[g][0],
+                "learned_gain": curves[g][-1] - curves[g][0],
                 "crossings": {str(t): _crossing(axis, curves[g], t) for t in THRESHOLDS},
                 "curve": curves[g],
             })
@@ -205,6 +216,7 @@ def main() -> None:
                 "target": g, "alpha": None, "seed": None,
                 "coupling_to_p": coupling[g], "final_r2": curves[g][-1],
                 "untrained_r2": curves[g][0],
+                "learned_gain": curves[g][-1] - curves[g][0],
                 "crossings": {str(t): _crossing(axis, curves[g], t) for t in THRESHOLDS},
                 "curve": curves[g],
             })
@@ -214,14 +226,28 @@ def main() -> None:
         # dominate the fit.
         report = {}
         for t in THRESHOLDS:
+            # A target that never gets learned has no emergence time, and
+            # including it as a censored point would let the threshold choice
+            # decide the correlation.
             pts = [(r["coupling_to_p"], r["crossings"][str(t)])
-                   for r in rows if r["alpha"] is not None and r["crossings"][str(t)] is not None]
+                   for r in rows
+                   if r["alpha"] is not None
+                   and r["learned_gain"] > MIN_LEARNED_GAIN
+                   and r["crossings"][str(t)] is not None]
             if len(pts) >= 5:
                 x = np.array([a for a, _ in pts])
                 y = np.log10(np.maximum([b for _, b in pts], 1.0))
                 rx, ry = x.argsort().argsort(), y.argsort().argsort()
                 rho = float(np.corrcoef(rx, ry)[0, 1])
-                report[str(t)] = {"n": len(pts), "spearman_coupling_vs_log_tokens": rho}
+                report[str(t)] = {
+                    "n": len(pts),
+                    "n_targets_learned": sum(
+                        1 for r in rows if r["alpha"] is not None and r["learned_gain"] > MIN_LEARNED_GAIN
+                    ),
+                    "spearman_coupling_vs_log_tokens": rho,
+                    "note": "positive rho means higher coupling emerges LATER, "
+                            "which is the opposite of the phase-4 claim",
+                }
             else:
                 report[str(t)] = {"n": len(pts), "spearman_coupling_vs_log_tokens": None}
 
@@ -229,6 +255,7 @@ def main() -> None:
             c = r["crossings"][str(THRESHOLDS[0])]
             print(f"  {r['target']:<18} alpha={str(r['alpha']):>5}  coupling={r['coupling_to_p']:+.3f}  "
                   f"final={r['final_r2']:+.3f}  untr={r['untrained_r2']:+.3f}  "
+                  f"gain={r['learned_gain']:+.3f}  "
                   f"cross@{THRESHOLDS[0]}={'never' if c is None else f'{c:,.0f}'}", flush=True)
         print(f"  Spearman(coupling, log tokens to reach threshold): "
               + "  ".join(f"{t}:{v['spearman_coupling_vs_log_tokens']}" for t, v in report.items()), flush=True)

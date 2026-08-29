@@ -59,6 +59,7 @@ N_EVAL = int(os.environ.get("N_EVAL", 512))
 N_BOOT = int(os.environ.get("N_BOOT", 1000))
 TRAIN_FRAC = 0.7
 EVAL_SEED = 20_260_828
+TAG = os.environ.get("TAG", "")
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-03"))
 SYSTEMS = os.environ.get("SYSTEMS", ",".join(BRANCH_CONFIGS)).split(",")
 
@@ -109,6 +110,35 @@ def v1_impossible_probe(streams, features, groups, episodes, process, train_idx,
                 "r2_impossible": ci["point"], "ci": [ci["lo"], ci["hi"]],
                 "r2_real_target": ci_real["point"],
             }
+        )
+    return out
+
+
+def position_only_baseline(process, features, groups, train_idx, test_idx) -> dict:
+    """How much of the belief is predictable from position alone.
+
+    The stratified read in 5.2 shows the belief R^2 varying strongly with belief
+    entropy, and entropy is almost a function of the phase in segment. If a
+    position-only feature could predict the belief, the pooled R^2 would be
+    partly the model knowing where it is in the sequence rather than what has
+    happened, so this has to be zero for the headline to mean anything.
+    """
+    from models.bootstrap import r2_columns
+    from models.probe import fit_probe
+
+    n, L = features.shape[0], process.seq_len
+    b = features[:, :, groups["action_lag0"]].astype(np.float64)
+    phase = np.zeros((n, L, process.steps_per_segment))
+    phase[:, np.arange(L), np.arange(L) % process.steps_per_segment] = 1.0
+    absolute = np.zeros((n, L, L))
+    absolute[:, np.arange(L), np.arange(L)] = 1.0
+
+    flat = lambda x, i: x[i].reshape(-1, x.shape[-1])
+    out = {}
+    for label, feat in (("phase_in_segment", phase), ("absolute_position", absolute)):
+        out[label] = r2_columns(
+            fit_probe(flat(feat, train_idx), flat(b, train_idx))(flat(feat, test_idx)),
+            flat(b, test_idx),
         )
     return out
 
@@ -182,7 +212,7 @@ def from_phase4(phase4: dict) -> dict:
 
 def main() -> None:
     device = pick_device()
-    training = json.loads((OUTPUT_DIR / "phase2_branch_training.json").read_text())
+    training = json.loads((OUTPUT_DIR / f"phase2_branch_training{TAG}.json").read_text())
     phase4 = json.loads((OUTPUT_DIR / "phase4_checkpoint_analysis.json").read_text())
     print(f"device={device}  systems={SYSTEMS}  n_eval={N_EVAL}", flush=True)
 
@@ -214,7 +244,7 @@ def main() -> None:
 
         config = ModelConfig(**training[name]["model"])
         model = TinyTransformer(config)
-        model.load_state_dict(torch.load(OUTPUT_DIR / f"{name}_trained.pt", map_location=device))
+        model.load_state_dict(torch.load(OUTPUT_DIR / f"{name}{TAG}_trained.pt", map_location=device))
         model = model.to(device).eval()
         streams = residual_streams_batched(model, episodes.tokens, device)
 
@@ -224,6 +254,11 @@ def main() -> None:
               f"CI {worst['ci'][0]:+.4f}..{worst['ci'][1]:+.4f} @{worst['name']}  "
               f"(real target at that depth {worst['r2_real_target']:.3f})  "
               f"{'PASS' if worst['ci'][1] < 0.05 else '*** FAIL ***'}", flush=True)
+
+        position_only = position_only_baseline(process, features, groups, train_idx, test_idx)
+        print(f"  position-only baseline for the belief: phase="
+              f"{position_only['phase_in_segment']:+.4f}  "
+              f"absolute={position_only['absolute_position']:+.4f}", flush=True)
 
         c21 = c21_recovery_by_phase(process, features, episodes, groups)
         print("  C21 recovery vs observations since kick: "
@@ -237,10 +272,11 @@ def main() -> None:
             "v1_impossible_probe": v1,
             "v1_pass": bool(worst["ci"][1] < 0.05),
             "c21_recovery_by_phase": c21,
+            "position_only_baseline": position_only,
             "wall_seconds": time.perf_counter() - t0,
         }
 
-    out = OUTPUT_DIR / "phase5_00_validity.json"
+    out = OUTPUT_DIR / f"phase5_00_validity{TAG}.json"
     out.write_text(json.dumps(results, indent=2, default=float))
     print(f"\nwrote {out}", flush=True)
 

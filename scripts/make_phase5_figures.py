@@ -251,6 +251,35 @@ def fig_causal(causal) -> Path:
     return out
 
 
+def fig_kick_sweep(sweep) -> Path:
+    """E6/C6: is claim 1 a property of the model, or of the phase-1 threshold?"""
+    rows = sweep["pendulum"]
+    x = [r["kick"] for r in rows]
+    fig, ax = plt.subplots(figsize=(6.6, 4.4))
+    ax.plot(x, [r["belief_from_p_linear"] for r in rows], "o-", ms=5, color="0.35",
+            label="coupling: belief from the optimal p(next)")
+    ax.plot(x, [r["belief_from_stream"] for r in rows], "o-", ms=5,
+            color=COLOUR["action_lag0"], label="belief from the residual stream (pooled)")
+    ax.plot(x, [r["paired_r2"] for r in rows], "s--", ms=5, color=COLOUR["action_lag0"],
+            alpha=0.6, label="belief from the residual stream (matched pairs)")
+    ax.plot(x, [r["paired_r2_shuffled"] for r in rows], ":", lw=1.0, color="0.6",
+            label="shuffled control")
+    base = next(r for r in rows if r["kick_scale"] == 1.0)
+    ax.axvline(base["kick"], color="0.8", lw=6, zorder=0)
+    ax.annotate("phase-1 choice\n(smallest kick clearing TV>=0.15)", (base["kick"], 0.9),
+                fontsize=7, ha="center", color="0.4")
+    ax.set_xlabel("perturbation magnitude")
+    ax.set_ylabel("R² of the belief simplex")
+    ax.set_title("E6: the gap between what p(next) supplies and what the stream carries\n"
+                 "persists across the magnitude range, and is widest at the smallest kick",
+                 fontsize=10)
+    ax.set_ylim(-0.05, 1.0); ax.grid(alpha=0.25); ax.legend(fontsize=8)
+    fig.tight_layout()
+    out = FIGDIR / "kick_sweep.png"
+    fig.savefig(out, dpi=150); plt.close(fig)
+    return out
+
+
 def fig_emergence(emergence) -> Path:
     """E5: emergence time against measured coupling, within one model."""
     systems = list(emergence)
@@ -293,6 +322,7 @@ def main() -> None:
         ("phase5_01_ablation_grid.json", (fig_ablation_grid, fig_controls)),
         ("phase5_03_myopic.json", (fig_myopic,)),
         ("phase5_05_causal.json", (fig_causal,)),
+        ("phase5_06_kick_sweep.json", (fig_kick_sweep,)),
         ("phase5_07_emergence.json", (fig_emergence,)),
     ]
     for filename, fns in jobs:

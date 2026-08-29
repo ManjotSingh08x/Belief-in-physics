@@ -129,31 +129,48 @@ def e1b_matched_pairs(p, belief, stream, seq_id, rng) -> dict:
     if pairs.shape[0] < 200:
         return {**power, "runnable": False}
 
-    # Sign is arbitrary in a difference, so symmetrise: every pair enters twice.
-    dx = np.concatenate([stream[pairs[:, 0]] - stream[pairs[:, 1]],
-                         stream[pairs[:, 1]] - stream[pairs[:, 0]]])
-    dy = np.concatenate([belief[pairs[:, 0]] - belief[pairs[:, 1]],
-                         belief[pairs[:, 1]] - belief[pairs[:, 0]]])
-    owner = np.concatenate([seq_id[pairs[:, 0]], seq_id[pairs[:, 1]]])
-
-    held = rng.permutation(np.unique(owner))
+    # Split by sequence, and keep a pair only when BOTH of its endpoints fall on
+    # the same side. A pair straddling the split would leak: the difference is
+    # symmetrised below, so the held-out copy is the exact negation of a training
+    # example and a linear map fits it for free.
+    held = rng.permutation(np.unique(np.concatenate([seq_id[pairs[:, 0]], seq_id[pairs[:, 1]]])))
     cut = int(0.7 * held.size)
-    tr = np.isin(owner, held[:cut])
-    te = ~tr
-    if tr.sum() < 100 or te.sum() < 100:
+    train_seqs, test_seqs = set(held[:cut].tolist()), set(held[cut:].tolist())
+    in_train = np.array([a in train_seqs and b in train_seqs
+                         for a, b in zip(seq_id[pairs[:, 0]], seq_id[pairs[:, 1]])])
+    in_test = np.array([a in test_seqs and b in test_seqs
+                        for a, b in zip(seq_id[pairs[:, 0]], seq_id[pairs[:, 1]])])
+    if in_train.sum() < 100 or in_test.sum() < 100:
         return {**power, "runnable": False}
 
-    r2 = _fit_r2(dx[tr], dy[tr], dx[te], dy[te])
+    def diffs(sel):
+        # Sign is arbitrary in a difference, so every pair enters twice -- but
+        # both copies stay on the same side of the split.
+        p0, p1 = pairs[sel, 0], pairs[sel, 1]
+        dx = np.concatenate([stream[p0] - stream[p1], stream[p1] - stream[p0]])
+        dy = np.concatenate([belief[p0] - belief[p1], belief[p1] - belief[p0]])
+        return dx, dy
+
+    dx_tr, dy_tr = diffs(in_train)
+    dx_te, dy_te = diffs(in_test)
+
+    r2 = _fit_r2(dx_tr, dy_tr, dx_te, dy_te)
     # A shuffled control on the same pairs: if the pairing itself manufactures
     # structure, this will find it too.
-    shuffled = _fit_r2(dx[tr], dy[tr][rng.permutation(tr.sum())], dx[te], dy[te])
+    shuffled = _fit_r2(dx_tr, dy_tr[rng.permutation(dy_tr.shape[0])], dx_te, dy_te)
     return {
         **power, "runnable": True,
-        "n_pairs_used": int(pairs.shape[0]),
+        "n_pairs_used": int(in_train.sum() + in_test.sum()),
+        "n_pairs_train": int(in_train.sum()),
+        "n_pairs_test": int(in_test.sum()),
+        "n_pairs_dropped_straddling_split": int(pairs.shape[0] - in_train.sum() - in_test.sum()),
         "paired_r2": r2,
         "paired_r2_shuffled_control": shuffled,
         "mean_tv_of_used_pairs": float(0.5 * np.abs(p[pairs[:, 0]] - p[pairs[:, 1]]).sum(1).mean()),
         "mean_belief_gap_of_used_pairs": float(np.linalg.norm(belief[pairs[:, 0]] - belief[pairs[:, 1]], axis=1).mean()),
+        # A held-out sequence contributes to many pairs, so the effective n is
+        # the number of test sequences, not the number of test pairs.
+        "n_test_sequences": int(len(test_seqs)),
     }
 
 
@@ -295,7 +312,7 @@ def main() -> None:
             "n_positions_full_horizon": int(live.sum()),
             "wall_seconds": time.perf_counter() - t0,
         }
-        (OUTPUT_DIR / "phase5_03_myopic.json").write_text(json.dumps(results, indent=2, default=float))
+        (OUTPUT_DIR / f"phase5_03_myopic{TAG}.json").write_text(json.dumps(results, indent=2, default=float))
 
     print(f"\nwrote {OUTPUT_DIR / 'phase5_03_myopic.json'}", flush=True)
 

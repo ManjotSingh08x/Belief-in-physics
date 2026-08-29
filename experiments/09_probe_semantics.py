@@ -63,6 +63,7 @@ N_BOOT = int(os.environ.get("N_BOOT", 1000))
 MLP_EPOCHS = int(os.environ.get("MLP_EPOCHS", 400))
 TRAIN_FRAC = 0.7
 EVAL_SEED = 20_260_828
+TAG = os.environ.get("TAG", "")
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-03"))
 SYSTEMS = os.environ.get("SYSTEMS", ",".join(BRANCH_CONFIGS)).split(",")
 HEADLINE = "action_lag0"
@@ -116,7 +117,7 @@ def v2_belief_or_label(streams, belief, onehot, train_idx, test_idx, rng):
 
 def main() -> None:
     device = pick_device()
-    training = json.loads((OUTPUT_DIR / "phase2_branch_training.json").read_text())
+    training = json.loads((OUTPUT_DIR / f"phase2_branch_training{TAG}.json").read_text())
     print(f"device={device} systems={SYSTEMS}", flush=True)
     results = {}
 
@@ -159,7 +160,7 @@ def main() -> None:
         print(f"  V3 token-window baseline ({bag.shape[-1]} features vs d_model={config.d_model}): "
               f"belief={v3[HEADLINE]:.3f} metric={v3['metric']:.3f} z0={v3['z0']:.3f}", flush=True)
 
-        for tag, filename in (("trained", f"{name}_trained.pt"), ("untrained", f"{name}_random_init.pt")):
+        for tag, filename in (("trained", f"{name}{TAG}_trained.pt"), ("untrained", f"{name}{TAG}_random_init.pt")):
             model = TinyTransformer(config)
             model.load_state_dict(torch.load(OUTPUT_DIR / filename, map_location=device))
             model = model.to(device).eval()
@@ -246,7 +247,7 @@ def main() -> None:
 
         record["wall_seconds"] = time.perf_counter() - t0
         results[name] = record
-        (OUTPUT_DIR / "phase5_02_probe_semantics.json").write_text(
+        (OUTPUT_DIR / f"phase5_02_probe_semantics{TAG}.json").write_text(
             json.dumps(results, indent=2, default=float)
         )
 

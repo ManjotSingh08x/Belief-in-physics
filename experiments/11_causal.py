@@ -78,6 +78,7 @@ N_CONTROL = int(os.environ.get("N_CONTROL", 20))
 TRAIN_FRAC = 0.7
 EVAL_SEED = 20_260_828
 GROUPS = ("action_lag0", "metric")
+TAG = os.environ.get("TAG", "")
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-03"))
 SYSTEMS = os.environ.get("SYSTEMS", ",".join(BRANCH_CONFIGS)).split(",")
 DEPTHS = os.environ.get("DEPTHS")
@@ -254,7 +255,7 @@ def e2c_patching(model, tokens_t, depth, basis, readout, stream, predictive, rng
 
 def main() -> None:
     device = pick_device()
-    training = json.loads((OUTPUT_DIR / "phase2_branch_training.json").read_text())
+    training = json.loads((OUTPUT_DIR / f"phase2_branch_training{TAG}.json").read_text())
     print(f"device={device} systems={SYSTEMS} k_max={K_MAX}", flush=True)
     results = {}
 
@@ -272,7 +273,7 @@ def main() -> None:
         predictive = predictive_stack(process, episodes.tokens, horizon=1).astype(np.float64)
 
         model = TinyTransformer(config)
-        model.load_state_dict(torch.load(OUTPUT_DIR / f"{name}_trained.pt", map_location=device))
+        model.load_state_dict(torch.load(OUTPUT_DIR / f"{name}{TAG}_trained.pt", map_location=device))
         model = model.to(device).eval()
         streams = residual_streams_batched(model, episodes.tokens, device)
 
@@ -370,7 +371,7 @@ def main() -> None:
                                   for r in b2["by_offset"] if r["block_len"] == 4), flush=True)
 
         results[name] = {**record, "wall_seconds": time.perf_counter() - t0}
-        (OUTPUT_DIR / "phase5_05_causal.json").write_text(json.dumps(results, indent=2, default=float))
+        (OUTPUT_DIR / f"phase5_05_causal{TAG}.json").write_text(json.dumps(results, indent=2, default=float))
 
     print(f"\nwrote {OUTPUT_DIR / 'phase5_05_causal.json'}", flush=True)
 
