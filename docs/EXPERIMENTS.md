@@ -60,7 +60,7 @@ No auxiliary belief loss, physical supervision, action token, or reseeded run is
 ### `01_train.py`
 
 Trains one model per system and saves the random initialization, final model, loss history, and all eight checkpoints.
-GPU bundles write distinct training reports, which are merged into `messk_01_training.json` before CPU analysis.
+Each GPU job writes a distinct training report, and the four reports are merged into `messk_01_training.json` before CPU analysis.
 
 ### `02_probe.py`
 
@@ -92,9 +92,10 @@ Each panel reports test R2 and the fraction of predicted points outside the simp
 
 ## Compute and outputs
 
-Training runs on Kaggle T4 GPUs, while all probing and plotting run on `staging-entity` CPU.
-Kaggle permits two concurrent GPU sessions for the authenticated account, so the four models run as two two-model bundles.
-The complete CPU stage takes approximately 10-20 minutes after the checkpoints arrive.
+Training runs on four Kaggle T4 GPUs across two authenticated accounts, with one physical system per kernel.
+Pendulum and sphere run under `chayanaggarwal45`, while predator-prey and double pendulum run under `chayanagiuwdhwekj`.
+All four seed-0 models therefore train concurrently.
+All probing and plotting run on `staging-entity` CPU and take approximately 10-20 minutes after the checkpoints arrive.
 
 | Output | Contents |
 |---|---|

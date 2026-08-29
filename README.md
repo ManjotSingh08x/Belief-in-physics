@@ -81,4 +81,4 @@ GPU work in `01_train.py` runs on Kaggle T4.
 All probing and plotting runs on the staging CPU host after the checkpoints land.
 
 Environment knobs are `OUTPUT_DIR`, `CONFIGS`, `TOTAL_TOKENS`, `N_EVAL`, `SEED`, `TAG`, `REPORT_NAME`, `WINDOWS`, and `FRACTIONS`.
-When training is split across GPU bundles, each bundle writes a distinct report name and the reports are merged before CPU analysis.
+Each GPU job writes a distinct report name, and the reports are merged before CPU analysis.
