@@ -214,6 +214,35 @@ about use: the model can still reach the belief through the nonlinear path that
 survived. This is the most important caveat in phase 5 and it applies to the
 causal section below.
 
+**R6, the rank ladder: no rank erases the feature.** The single-rank result above
+leaves one escape -- perhaps the chosen rank was simply too small. It was not.
+Sweeping the erasure rank from 2 up to the full basis, the linear probe falls
+monotonically toward zero while the MLP does not move.
+
+| system | intact | r=2 | r=8 | r=16 | r=32 | r=48 | r=64 |
+|---|---|---|---|---|---|---|---|
+| pendulum linear | 0.590 | 0.523 | 0.343 | 0.208 | **0.062** | -- | -- |
+| pendulum MLP | 0.872 | 0.874 | 0.869 | 0.866 | **0.858** | -- | -- |
+| predator_prey linear | 0.681 | 0.648 | 0.602 | 0.537 | 0.425 | 0.300 | **0.193** |
+| predator_prey MLP | 0.858 | 0.857 | 0.856 | 0.856 | 0.849 | 0.846 | **0.834** |
+
+The pendulum's linear probe loses **89%** of its R^2 across the ladder while its
+MLP loses **1.6%**. predator_prey: linear -72%, MLP -2.8%, at an erasure spanning
+half of `d_model`. The two weak systems behave the same way (sphere MLP
+0.124 -> 0.130 at rank 16, double_pendulum 0.290 -> 0.265).
+
+The variance fractions say why this is not a rank problem. The pendulum's rank-32
+erasure removes **2.7%** of the residual stream's variance. The belief is not
+hiding in a low-variance subspace that a larger erasure would catch; it is
+distributed such that projecting out every linear read of it leaves a nonlinear
+read untouched.
+
+**This retires the instrument, not just the phase-4 result.** INLP guarantees
+linear non-decodability and nothing more, and here that guarantee is the entire
+effect. Every ablation number in phases 4 and 5, including the positive ones,
+measures the cost of deleting a linearly readable component of the belief rather
+than the cost of deleting the belief.
+
 **C17.** Scoring the free coordinates of the simplex rather than the dependent
 columns moves the pendulum from 0.590 to 0.627 and predator_prey from 0.681 to
 0.690. Real but small; the phase-4 numbers were not distorted by this.
