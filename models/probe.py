@@ -9,8 +9,8 @@ git projects with separate environments and different owners.
 
 Added here: `grouped_r2`. The upstream `probe_quality` pools the residual over
 every target column, which is fine for one homogeneous dictionary but wrong for
-our feature map -- marginal probabilities live in [0, 1] while a metric like the
-predator/prey rate ratio ranges over [-20, 20], so a pooled R^2 is dominated by
+our feature map -- belief probabilities live in [0, 1] while a physical quantity
+like angular velocity ranges over several units, so a pooled R^2 is dominated by
 whichever block has the largest scale and can hide a total failure on the other.
 `grouped_r2` scores each column on its own variance and averages within a group.
 """

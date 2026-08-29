@@ -1,4 +1,4 @@
-"""Phase 2 training: next-token cross entropy, nothing else.
+"""Training: next-token cross entropy, nothing else.
 
 Two things worth stating because they change how the loss curve should be read.
 
@@ -95,11 +95,10 @@ def train(
 ) -> dict:
     """Stream batches from `sampler(rng, n) -> tokens` and fit next-token loss.
 
-    `sampler` rather than a simulator object so the same loop serves both the
-    Ulam pipeline (where perturbations are observed tokens) and the exact branch
-    pipeline (where they are hidden and the vocabulary is observations only).
-    `action_mask_fn` is only meaningful for the former; without it the split
-    loss is not reported because there are no action positions to split on.
+    `sampler` rather than a process object, so the loop stays indifferent to how
+    the tokens were generated. `action_mask_fn` matters only when the vocabulary
+    carries positions that are not observations; without it the split loss is
+    not reported, because there is nothing to split on.
 
     `on_checkpoint(tokens_seen, model)` fires the first time the token count
     passes each entry of `config.checkpoint_at`. The LR schedule is defined over

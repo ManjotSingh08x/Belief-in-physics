@@ -4,7 +4,7 @@ The claim under test is about what *ordinary* next-token pretraining produces,
 so nothing here is clever: no auxiliary loss, no belief supervision, no physics
 prior. The model never sees a belief, a latent bin, or a metric -- only tokens.
 
-Plain torch rather than transformer_lens. The only thing Phase 3 needs from the
+Plain torch rather than transformer_lens. The only thing the probes need from the
 model is the residual stream after each block, which `residual_streams` returns
 directly; transformer_lens would pull transformers/tokenizers/wandb (40+
 packages) to provide hooks for a 1M-parameter model with a custom vocabulary

@@ -1,4 +1,4 @@
-"""Phase 3: fit linear probes from the residual stream to belief features.
+"""Fit linear probes from the residual stream to belief features.
 
 The control ordering is the point of this file, so it is worth stating plainly.
 A linear probe with d_model=128 free parameters per target, fitted on

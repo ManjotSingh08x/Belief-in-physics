@@ -1,9 +1,7 @@
-"""Mess-K: a K-state chain driving a pendulum, in the style of ManjotSingh08x/Belief-Physics.
+"""Mess-K: a K-state chain driving a pendulum.
 
-This is a deliberate change of approach. In the branch process the hidden thing
-was the pendulum's own history and the belief was conditioned on the pendulum's
-(blurred) angles. Here the hidden thing is a separate K-state chain sitting in
-front of the pendulum, and the belief is conditioned on the chain's OWN letters:
+The hidden thing is a K-state chain sitting in front of the pendulum, and the
+belief is conditioned on the chain's OWN letters:
 
     mood_1 -> mood_2 -> ...          hidden, persists and drifts
       |          |
@@ -20,8 +18,8 @@ and it is unchanged. And because the chain is stationary and mixing, the belief
 is a contractive function of recent letters, so it forgets its past at a fixed
 rate; `memory_length` reports that rate.
 
-K = 3 with alpha=0.7, stay=0.7 reproduces their Mess3 exactly, which is what
-makes the classic triangle the reference picture to check against.
+K = 3 with alpha=0.7, stay=0.7 is the Mess3 case, whose belief simplex is the
+familiar triangle and therefore the reference picture to check a K=4 run against.
 """
 
 from __future__ import annotations
@@ -31,6 +29,23 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .systems.pendulum import Pendulum
+
+
+def simplex_embedding(k: int) -> np.ndarray:
+    """Vertices of a regular (k-1)-simplex, so a belief plots by barycentric coords.
+
+    k=3 gives the upright triangle the reference picture uses; k=4 a tetrahedron
+    in 3-D; beyond that the simplex needs more than three dimensions and only the
+    first three are returned, which is a projection rather than a faithful shape.
+    """
+    if k == 3:
+        ang = np.array([90.0, 210.0, 330.0]) * np.pi / 180.0
+        return np.stack([np.cos(ang), np.sin(ang)], axis=1)
+    if k == 4:
+        v = np.array([[1.0, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]])
+        return v / np.sqrt(3.0)
+    centred = np.eye(k) - 1.0 / k
+    return (centred @ np.linalg.svd(centred)[2][: k - 1].T)[:, :3]
 
 
 @dataclass(frozen=True)
@@ -71,19 +86,37 @@ class MessKProcess:
         return np.stack([self.T * E[:, l].reshape(-1, 1) for l in range(self.n_states)])
 
     def sample(self, rng: np.random.Generator, n: int, m: int) -> tuple[np.ndarray, np.ndarray]:
-        """(states, letters), each (n, m). Vectorised over the batch."""
+        """(states, letters) of shapes (n, m+1) and (n, m).
+
+        States carries one extra column: `states[:, t]` is the mood that emitted
+        `letters[:, t]`, and `states[:, t+1]` is the mood the belief at step t is
+        about. See `beliefs` for why those differ.
+        """
         T_cdf, E_cdf = np.cumsum(self.T, axis=1), np.cumsum(self.E, axis=1)
-        states = np.empty((n, m), dtype=np.int64)
+        states = np.empty((n, m + 1), dtype=np.int64)
         letters = np.empty((n, m), dtype=np.int64)
         s = rng.integers(0, self.n_states, size=n)
         for t in range(m):
             states[:, t] = s
             letters[:, t] = (rng.random((n, 1)) > E_cdf[s]).sum(axis=1)
             s = (rng.random((n, 1)) > T_cdf[s]).sum(axis=1)
+        states[:, m] = s
         return states, letters
 
     def beliefs(self, letters: np.ndarray) -> np.ndarray:
-        """Exact P(mood_t | letters_1..t), shape (n, m, K). The forward algorithm."""
+        """Exact P(mood_{t+1} | letters_1..t), shape (n, m, K).
+
+        This is the PREDICTIVE belief, one transition ahead of the mood that
+        emitted the last letter, and it is what their `optimal` computes: the
+        operator is `T * E[:, letter]` with the emission indexed on the SOURCE
+        state, so each step emits from the current mood and then moves on.
+
+        The distinction is not pedantry. The predictive belief is the thing that
+        determines the next letter, hence the next impulse, hence the next angle
+        -- so it is the sufficient statistic for the model's actual task, and it
+        is the object whose reachable set is the fractal. The filtered belief
+        P(mood_t | letters_1..t) is a different quantity.
+        """
         n, m = letters.shape
         joint, out = self.joint, np.empty((n, m, self.n_states))
         b = np.full((n, self.n_states), 1.0 / self.n_states)
@@ -186,7 +219,49 @@ class MessPendulum:
             "states": states,
             # the belief is constant across a tick's steps, as in their pipeline
             "beliefs": np.repeat(tick_beliefs, self.n_steps, axis=1),
+            # the mood the belief is about, so probe target and belief line up
+            "moods": np.repeat(states[:, 1:], self.n_steps, axis=1),
+            "emitting_moods": np.repeat(states[:, :-1], self.n_steps, axis=1),
         }
+
+    def features_and_groups(self, batch: dict) -> tuple[np.ndarray, dict[str, slice]]:
+        """Probe targets, in one matrix, with the column block for each.
+
+        Three of them, and the separation matters. `belief` is what their
+        approach is about. `mood` is the true state, so a probe that reads the
+        belief but not the mood is tracking the posterior rather than the answer.
+        `velocity` is the physical quantity, kept because it is the thing the
+        model plainly needs for its actual job of predicting the next angle.
+        """
+        k = self.chain.n_states
+        feats = np.concatenate(
+            [
+                batch["beliefs"],
+                np.eye(k, dtype=np.float64)[batch["moods"]],
+                batch["omega"][..., None],
+            ],
+            axis=-1,
+        ).astype(np.float32)
+        groups = {"belief": slice(0, k), "mood": slice(k, 2 * k), "velocity": slice(2 * k, 2 * k + 1)}
+        return feats, groups
+
+
+def token_window_features(tokens: np.ndarray, n_obs: int, window: int) -> np.ndarray:
+    """One-hot of the last `window` tokens at each position, (n, L, window*n_obs).
+
+    The myopic control. Their belief is a contractive function of recent letters,
+    so if this predicts the belief as well as the residual stream does, then
+    "the model encodes the belief" and "the model remembers its recent input"
+    are the same statement and the first one claims nothing.
+    """
+    n, L = tokens.shape
+    out = np.zeros((n, L, window * n_obs), dtype=np.float32)
+    rows, cols = np.arange(n)[:, None], np.arange(L)[None, :]
+    for w in range(window):
+        past = np.clip(cols - w, 0, None)
+        out[rows, cols, w * n_obs + tokens[rows, past]] = 1.0
+        out[:, :w, w * n_obs : (w + 1) * n_obs] = 0.0  # nothing that far back yet
+    return out
 
 
 def _demo() -> None:
@@ -205,7 +280,7 @@ def _demo() -> None:
 
     # Recovering the mood from the belief must beat guessing.
     states, letters = m4.sample(rng, 256, 60)
-    acc = (m4.beliefs(letters).argmax(-1) == states).mean()
+    acc = (m4.beliefs(letters).argmax(-1) == states[:, 1:]).mean()
     assert acc > 1 / 4, f"belief no better than chance at recovering the mood: {acc}"
 
     proc = MessPendulum(chain=m4)
@@ -213,6 +288,17 @@ def _demo() -> None:
     assert batch["tokens"].shape == (4, proc.seq_len)
     assert batch["tokens"].max() < proc.n_obs and batch["tokens"].min() >= 0
     assert batch["beliefs"].shape == (4, proc.seq_len, 4)
+    assert simplex_embedding(3).shape == (3, 2) and simplex_embedding(4).shape == (4, 3)
+
+    feats, groups = proc.features_and_groups(batch)
+    assert feats.shape == (4, proc.seq_len, 2 * 4 + 1)
+    assert np.allclose(feats[:, :, groups["belief"]].sum(-1), 1)
+    assert np.allclose(feats[:, :, groups["mood"]].sum(-1), 1)
+
+    tw = token_window_features(batch["tokens"], proc.n_obs, window=3)
+    assert tw.shape == (4, proc.seq_len, 3 * proc.n_obs)
+    assert tw[0, 5].sum() == 3, "three one-hots once the window is full"
+    assert tw[0, 0].sum() == 1, "only the current token exists at position 0"
     print(f"messk ok (mood recovery {acc:.2f} vs chance {1/4:.2f}, "
           f"memory {m4.memory_length()} letters)")
 

@@ -1,28 +1,28 @@
 """Probes that the linear one cannot stand in for, and the coordinates it should
 have been scored in.
 
-Four instruments, each answering a specific objection to the phase-4 numbers.
+Four instruments, each answering a specific objection to a linear probe's number.
 
 **`mlp_probe`** -- "not linearly decodable" and "not represented" are different
-statements, and only a nonlinear probe separates them. Two uses: a ceiling for
-`sphere`, whose flat R^2 is currently unfalsifiable, and a check on erasure,
-because iterative nullspace projection guarantees linear non-decodability and
-nothing more. If an MLP recovers a target after INLP, "erased" is the wrong word.
+statements, and only a nonlinear probe separates them. Two uses: a ceiling for a
+target whose flat linear R^2 would otherwise be unfalsifiable, and a check on
+erasure, because iterative nullspace projection guarantees linear
+non-decodability and nothing more. If an MLP recovers a target after INLP,
+"erased" is the wrong word.
 
 **`token_window_features`** -- a bag of the last W observation tokens plus the
-position in segment. For the pendulum that is 8 x 16 + 8 = 136 features against
-`d_model` = 128, so if this reaches the transformer's R^2 then the transformer's
-number is not evidence of a learned belief, it is evidence that the belief is a
-simple function of recent tokens.
+position in the tick. If that reaches the transformer's R^2 then the
+transformer's number is not evidence of a learned belief, it is evidence that
+the belief is a simple function of recent tokens.
 
 **`simplex_coords`** -- a block of A marginals has A - 1 degrees of freedom, so
 averaging A per-column R^2 scores a dependent coordinate and understates or
 overstates depending on the geometry. Helmert contrasts give an orthonormal
 basis of the centred simplex, which is where R^2 should be read.
 
-**`stratified_r2`** -- the belief is near-uniform just after a kick and near-
-collapsed at the end of a segment. Pooling over positions lets the collapsed
-end, where the target is effectively a discrete label, carry the headline.
+**`stratified_r2`** -- the belief is not equally uncertain at every position in a
+tick. Pooling over positions lets the sharpest end, where the target is close to
+a discrete label, carry the headline.
 """
 
 from __future__ import annotations

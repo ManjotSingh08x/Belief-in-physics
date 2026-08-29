@@ -249,12 +249,12 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------------
-# Phase 5: generic interventions.
+# Generic interventions.
 #
 # Everything above edits the stream one way (mean-ablate a basis at every
-# position). Phase 5 needs four more edits, and they differ only in the function
-# applied to the stream at one depth, so they share `intervened_loss` rather than
-# each getting a near-duplicate forward pass.
+# position). These edits differ only in the function applied to the stream at one
+# depth, so they share `intervened_loss` rather than each getting a near-duplicate
+# forward pass.
 # ---------------------------------------------------------------------------
 
 

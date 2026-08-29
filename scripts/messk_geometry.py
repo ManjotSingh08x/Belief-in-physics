@@ -22,8 +22,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from mess4_geometry import simplex_embedding  # noqa: E402
-from physics.messk import MessKProcess  # noqa: E402
+from physics.messk import MessKProcess, simplex_embedding  # noqa: E402
 
 OUT = Path("experiments/outputs-messk")
 N_SEQ, N_TICKS, BURN = 400, 520, 20  # burn-in so the cloud is the attractor, not the prior
@@ -34,7 +33,7 @@ def collect(k: int, alpha: float = 0.7, stay: float = 0.7, seed: int = 0) -> dic
     rng = np.random.default_rng(seed)
     states, letters = chain.sample(rng, N_SEQ, N_TICKS)
     beliefs = chain.beliefs(letters)[:, BURN:].reshape(-1, k)
-    truth = states[:, BURN:].reshape(-1)
+    truth = states[:, 1:][:, BURN:].reshape(-1)
     ent = -(beliefs * np.log(np.clip(beliefs, 1e-12, None))).sum(1) / np.log(k)
     return {
         "n_states": k, "alpha": alpha, "stay": stay, "x": chain.x,
