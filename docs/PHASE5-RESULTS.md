@@ -513,61 +513,75 @@ the network consults to predict several tokens ahead, the cost of removing it
 should grow with k. In the two systems where it is decodable, the cost is
 negative and grows *more* negative with k.
 
-## 5.7 E5: coupling does order emergence
+## 5.7 E5: the emergence ORDER replicates, the coupling explanation does not
 
-*This section reverses what the pilot said.* The pilot ran one system (pendulum),
-one target family, and scored emergence at an **absolute** learned-gain threshold.
-All three of those were wrong, and fixing them flips the sign.
+Read this section as two separate questions. Claim 4 asserted an observation
+(the metric is learned before the belief) and an explanation (because it couples
+more to `p(next)`). Four seeds settle both, in opposite directions.
 
-**Two families, because one is not a control.** The first family built each target
-by interpolating a random functional of the belief toward `p(next)`. Every member
-is an arbitrary functional the model has no reason to build, so a null there says
-little. The second family interpolates from the *actual* belief marginal instead:
-at `alpha = 0` the target IS `action_lag0`, and `alpha` walks it toward `p`.
+### The observation replicates, 16 cells out of 16
 
-**Absolute thresholds are confounded.** Higher-`alpha` targets do not merely emerge
-sooner, they end higher: in predator_prey the `alpha = 1.0` target reaches a final
-learned gain of 0.291 and `alpha = 0.0` reaches 0.101. A target with three times
-the asymptote crosses a fixed gain of 0.05 sooner almost mechanically. The
-confound-free emergence time is the crossing at a **fraction of each target's own
-final gain**.
+Tokens for each real target to reach 75% of its own final learned gain, across
+the main run and three replication seeds trained on Kaggle:
 
-Spearman(coupling, log emergence time); negative means higher coupling emerges
-earlier. `n` is the targets clearing `learned_gain > 0.10`.
-
-| system | frac | random family | belief family | pooled |
+| system | run | metric | belief | order |
 |---|---|---|---|---|
-| pendulum | 0.50 | -0.49 (8) | -0.68 (7) | -0.56 (15) |
-| pendulum | 0.75 | -0.71 (8) | -0.96 (7) | -0.83 (15) |
-| predator_prey | 0.50 | -0.97 (14) | -1.00 (7) | -0.98 (21) |
-| predator_prey | 0.75 | -0.95 (14) | -1.00 (7) | -0.94 (21) |
-| sphere | 0.50 | -0.21 (9) | -1.00 (4) | -0.35 (13) |
-| sphere | 0.75 | -0.53 (9) | -0.80 (4) | -0.56 (13) |
-| double_pendulum | 0.50 | -0.88 (9) | -1.00 (5) | -0.87 (14) |
-| double_pendulum | 0.75 | -0.97 (9) | -1.00 (5) | -0.95 (14) |
+| pendulum | seed 0-3 | 8.1-10.0M | 60.6-77.2M | **metric first, 4/4** |
+| predator_prey | seed 0-3 | 4.4-5.3M | 69.2-175.6M | **metric first, 4/4** |
+| sphere | seed 0-3 | 9.5-13.9M | never | belief never learned, 4/4 |
+| double_pendulum | seed 0-3 | 7.9-10.3M | never, 19.0M, never, 33.9M | metric first where belief learns |
 
-**Every cell is negative**: 24 of 24 across four systems, two families and two
-normalisations. The belief family, the one anchored at a quantity the model
-actually represents, is at or near -1.00 in three of four systems. Claim 4's
-direction is supported.
+The gap is an order of magnitude and never inverts. The underlying R^2 values are
+just as stable across seeds:
 
-Two limits keep this from being decisive. The sphere's random family is weak
-(-0.21 at frac 0.50), and the sphere is the system where nothing else is learned
-either. And the design is correlational within a family: `alpha` moves coupling,
-but it also moves how much of the target is a linear image of `p`, and those are
-not separable by construction -- a target more nearly equal to `p` is both more
-coupled and more nearly free. So the honest statement is that **coupling to
-`p(next)` predicts emergence order, and this experiment cannot show it causes it.**
+| target | pendulum | predator_prey | sphere | double_pendulum |
+|---|---|---|---|---|
+| belief | [0.593, 0.614] | [0.683, 0.786] | [0.082, 0.085] | [0.125, 0.136] |
+| metric | [0.876, 0.898] | [0.670, 0.686] | [0.542, 0.570] | [0.408, 0.438] |
+| z0 | [0.058, 0.073] | [0.377, 0.414] | [0.602, 0.649] | [0.156, 0.197] |
 
-The real-target couplings that motivated claim 4 are consistent with it but do not
-sit on the fitted line. In pendulum the metric couples at 0.153 and crosses at
-0.4M while the belief couples at 0.015 and crosses at 3.7M -- the right order. In
-sphere the belief couples at 0.019 and is never learned. But the pendulum's own
-synthetic targets at coupling 0.025 cross between "never" and 2.4M, a spread wider
-than the gap being explained, so coupling alone does not fix the timing.
+Every headline decodability number in this project is now an n = 4 range rather
+than an n = 1 observation, and the ranges are tight.
 
-V3 gives a second variable that is not the same thing: a causal bag of the last 8
+### The explanation does not replicate
+
+The main run gave Spearman(coupling, log emergence time) of -0.83, -0.94, -0.56,
+-0.95 at 75% of own gain -- 24 of 24 cells negative across two families and two
+normalisations. **That does not survive a change of seed.**
+
+| system | seed 0 (main) | seed 1 | seed 2 | seed 3 |
+|---|---|---|---|---|
+| pendulum | -0.83 (n=15) | **+0.15** (10) | **+0.59** (10) | **+0.57** (10) |
+| predator_prey | -0.94 (n=21) | -0.03 (12) | -0.03 (12) | -0.03 (12) |
+| sphere | -0.56 (n=13) | -0.15 (10) | **+0.95** (10) | **+0.43** (10) |
+| double_pendulum | -0.95 (n=14) | **+0.87** (10) | **+0.95** (10) | +0.15 (10) |
+
+Seeds 1-3 use an **identical target set** -- the coupling values match to 1e-9 --
+and differ only in the trained model. So the pendulum's +0.15 to +0.59 spread is
+produced by the model seed alone, on the same targets. A statistic whose
+seed-driven spread is as large as its own magnitude is not measuring anything.
+
+Two candidate explanations were checked and rejected:
+
+*Not the coupling range.* Seeds 1-3 retain only high-coupling targets, because
+with the random family alone the low-`alpha` targets never clear
+`learned_gain > 0.10` and are filtered out. Restricting the main run to each
+seed run's own coupling range still leaves it at -0.67, -0.91, -0.44, -0.92. The
+narrower range is not what flips the sign.
+
+*Not the normalisation.* The same instability appears at frac 0.50 and at the
+absolute gain thresholds.
+
+What remains is the target draw and the model seed, and the seeds-1-to-3 contrast
+shows the model seed alone is enough.
+
+**Claim 4's explanation is therefore unsupported, and my earlier report of "24 of
+24 negative" was a single-seed result stated as though it were general.** The
+ordering it was invented to explain is real and robust; the proposed mechanism is
+not established by this experiment.
+
+V3 offers the alternative that phase 5 did not test: a causal bag of the last 8
 tokens recovers **93%** of the pendulum's metric R^2 but only **44%** of its
 belief R^2. How directly the recent observation window reveals a quantity is a
-distinct axis from how much that quantity overlaps the next-token distribution,
-and this phase did not separate them.
+different axis from how much it overlaps the next-token distribution, and it
+predicts the same ordering.

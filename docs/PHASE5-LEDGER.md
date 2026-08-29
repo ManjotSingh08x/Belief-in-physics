@@ -79,8 +79,10 @@ phase recovers only 0.260 / 0.215 / 0.052 / 0.028 of the belief, against the
 model's 0.590 / 0.681 / 0.074 / 0.137. (It does get 93% of the *metric*, which is
 why the metric is the weaker claim.)
 
-**P5. Coupling to `p(next)` orders emergence.** 24 of 24 cells negative across four
-systems, two target families and two normalisations.
+**P5. The metric is learned before the belief, and this replicates.** 16 of 16
+cells across four systems and four seeds: metric crosses 75% of its own final
+gain at 4-14M tokens, belief at 60-176M or never. The *explanation* offered for
+it -- coupling to `p(next)` -- does **not** replicate (see N9).
 
 **P6. Methodological gates pass.** The impossible probe (`y - b`) scores -0.004 to
 -0.011 with CIs below zero in all four systems, and a position-only baseline
@@ -142,6 +144,12 @@ a control sd of 0.004.
 
 **N8. `z0` is not learned anywhere.** sphere scores 0.617 trained against 0.624
 untrained; predator_prey 0.403 against 0.422.
+
+**N9. The E5 coupling correlation is seed-unstable.** Spearman(coupling, log
+emergence) is -0.83 / -0.94 / -0.56 / -0.95 in the main run and +0.15 / -0.03 /
++0.95 / +0.87 in seed 1, on the four systems. Seeds 1-3 share an identical target
+set and differ only in the trained model, and the pendulum still moves +0.15 to
++0.59 across them. The statistic's seed spread is as large as its magnitude.
 
 ## The negatives split into four classes, and only two are about parameters
 
