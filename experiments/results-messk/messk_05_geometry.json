@@ -1,0 +1,1518 @@
+{
+  "pendulum_mess4": {
+    "n_eval": 256,
+    "n_train_sequences": 153,
+    "n_validation_sequences": 51,
+    "n_test_sequences": 52,
+    "n_plot_points": 2500,
+    "figure": "figures/transformer-belief/pendulum_mess4_checkpoint_layers.png",
+    "checkpoints": [
+      {
+        "tokens_seen": 0,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.05027055292597049,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06494889563065069,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.05383192394077455,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06788958731646781,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.055951252723510016,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06928425214144014,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.055215254884235655,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06887444332614423,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.05728767012859611,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.07138295440509046,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 2000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.05111014708223138,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06585971663393413,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.06094443004278708,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.07425592817960869,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.06820427448401956,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.08396238936753642,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.07678951692388285,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0938816219996637,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.07920858942352856,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10170089811098364,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 5000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.061671577110194296,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.07719921101593308,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.08902999672870733,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10224474879501137,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.10298751467024887,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.11488216782657723,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.11102851351669107,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.12708186289704637,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.12031594274420672,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.14166960341181078,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 12000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.07276705010428501,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.08913044493542417,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10587661062944471,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.12029955963877552,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.11625830407548805,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.13391521200529685,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.12911955991354154,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.13858423424059577,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.12563797292158385,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.13431074215504915,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 30000000,
+        "best_depth": "resid_post_1",
+        "depths": [
+          {
+            "r2": 0.07912034438523356,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.09582810849522046,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10798498912510268,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.1210613644445931,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.12139053532624178,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 9.492328165018765e-08,
+            "r2_validation": 0.13990430480103344,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.12976042235932192,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 1.0930593183970566e-06,
+            "r2_validation": 0.13861573615650016,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.10715159370515259,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10371847631237623,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 120000000,
+        "best_depth": "resid_post_1",
+        "depths": [
+          {
+            "r2": 0.08440499738181047,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10236492400974917,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10439829220152745,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.12037461053476346,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.12826042301761206,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.14276118488213876,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.11860965584735461,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 1.223998124969137e-06,
+            "r2_validation": 0.12642333571201467,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.0850648399338823,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 7.367140957848936e-07,
+            "r2_validation": 0.0882638486144437,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 250000000,
+        "best_depth": "resid_post_1",
+        "depths": [
+          {
+            "r2": 0.0864070228952406,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10469224572451052,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10264113716058194,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.1181008870455706,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.13251038351714908,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 1.4204312433859067e-06,
+            "r2_validation": 0.1483973189028471,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.11757211020174378,
+            "outside_simplex_fraction": 0.0003605769230769231,
+            "mean_negative_mass": 3.998498480066148e-06,
+            "r2_validation": 0.12691009920567511,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.08656089280332713,
+            "outside_simplex_fraction": 0.0002403846153846154,
+            "mean_negative_mass": 2.190481794324326e-06,
+            "r2_validation": 0.09620024985569131,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 500000000,
+        "best_depth": "resid_post_1",
+        "depths": [
+          {
+            "r2": 0.08785997528634222,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.10632407960715784,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10318685013133577,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.1180606708760374,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.13670947134405045,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 2.2263639257722008e-07,
+            "r2_validation": 0.1532870806021314,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.12191827457180486,
+            "outside_simplex_fraction": 0.0008413461538461539,
+            "mean_negative_mass": 1.4351621785242625e-05,
+            "r2_validation": 0.13044501886980395,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.0872304412046847,
+            "outside_simplex_fraction": 0.0002403846153846154,
+            "mean_negative_mass": 2.481881929309921e-06,
+            "r2_validation": 0.09631611010934309,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      }
+    ],
+    "wall_seconds": 9.156154273543507
+  },
+  "predator_prey_mess4": {
+    "n_eval": 256,
+    "n_train_sequences": 153,
+    "n_validation_sequences": 51,
+    "n_test_sequences": 52,
+    "n_plot_points": 2500,
+    "figure": "figures/transformer-belief/predator_prey_mess4_checkpoint_layers.png",
+    "checkpoints": [
+      {
+        "tokens_seen": 0,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.038702320198326756,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0230857714159326,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.042143132082906876,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.026217590529777235,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.04253984371529651,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.02871467632137133,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.04437510608107017,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.029023872311613852,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.04685163354191343,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.02884947769328498,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 2000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.039284932316272246,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.023440530988994124,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.046368696161327404,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.02952241739070997,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.0530785803659097,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.038248386828027746,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.06184336491150255,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.04638229066781796,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.07026048926323396,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05090893640643187,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 5000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.04607492934443672,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.02819223183824345,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.06677163876044727,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.04306626209819634,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.07529838014806345,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05153918108772922,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.08326384061016416,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05895982267343691,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.09003336207428188,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06319550997299166,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 12000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.05821881753971081,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.036698314201669434,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.08539212467981883,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05974051805722336,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.11363527500971644,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.08019228078971863,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.12250631235505187,
+            "outside_simplex_fraction": 0.0014423076923076924,
+            "mean_negative_mass": 2.4781157010091054e-05,
+            "r2_validation": 0.08340170642397633,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.10061788641213283,
+            "outside_simplex_fraction": 0.0008413461538461539,
+            "mean_negative_mass": 9.662143567542962e-06,
+            "r2_validation": 0.07572378609624508,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 30000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.06765413636000998,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0442003458729043,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.09205575977939084,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 2.2790270754557895e-06,
+            "r2_validation": 0.06732401663375365,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.11824191417600032,
+            "outside_simplex_fraction": 0.0003605769230769231,
+            "mean_negative_mass": 1.8515280608872807e-06,
+            "r2_validation": 0.09149911967250801,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.1183549082234668,
+            "outside_simplex_fraction": 0.0013221153846153847,
+            "mean_negative_mass": 1.994029871897403e-05,
+            "r2_validation": 0.10407465834758567,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.0890327820914399,
+            "outside_simplex_fraction": 0.0002403846153846154,
+            "mean_negative_mass": 9.425587523311057e-06,
+            "r2_validation": 0.07834233361232153,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 120000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.08147385260413775,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05795474376153875,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.10054178909353528,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 8.005775409745125e-07,
+            "r2_validation": 0.07641236322772509,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.12100551604458136,
+            "outside_simplex_fraction": 0.0009615384615384616,
+            "mean_negative_mass": 1.14685143973958e-05,
+            "r2_validation": 0.10567352632299216,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.13944826683614178,
+            "outside_simplex_fraction": 0.0019230769230769232,
+            "mean_negative_mass": 4.261283334185189e-05,
+            "r2_validation": 0.1377834709233482,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.10020559451898148,
+            "outside_simplex_fraction": 0.0004807692307692308,
+            "mean_negative_mass": 1.1571248565927393e-05,
+            "r2_validation": 0.10180749885312146,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 250000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.09019021976951547,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06633620483777918,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.1107521069759942,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 1.6931561839697906e-06,
+            "r2_validation": 0.08613575879886733,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.12593130970155023,
+            "outside_simplex_fraction": 0.0013221153846153847,
+            "mean_negative_mass": 1.9165527742378864e-05,
+            "r2_validation": 0.11603674489441351,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.14786837983458564,
+            "outside_simplex_fraction": 0.0018028846153846155,
+            "mean_negative_mass": 4.7446575596208405e-05,
+            "r2_validation": 0.15545216344172608,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.10269191031993825,
+            "outside_simplex_fraction": 0.0009615384615384616,
+            "mean_negative_mass": 4.065977788539224e-05,
+            "r2_validation": 0.10753495142753056,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 500000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": 0.09364581611035194,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0697500367044196,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.11222932501235805,
+            "outside_simplex_fraction": 0.0006009615384615385,
+            "mean_negative_mass": 5.2265397266677146e-06,
+            "r2_validation": 0.08793426184343212,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.12645216896403277,
+            "outside_simplex_fraction": 0.0013221153846153847,
+            "mean_negative_mass": 3.0234283251728227e-05,
+            "r2_validation": 0.12085144851904428,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.14954709547859693,
+            "outside_simplex_fraction": 0.002403846153846154,
+            "mean_negative_mass": 6.915348556414336e-05,
+            "r2_validation": 0.16171210596184352,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.09736516460641535,
+            "outside_simplex_fraction": 0.0013221153846153847,
+            "mean_negative_mass": 7.143406794958123e-05,
+            "r2_validation": 0.10586888427546155,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      }
+    ],
+    "wall_seconds": 9.785589581821114
+  },
+  "sphere_mess4": {
+    "n_eval": 256,
+    "n_train_sequences": 153,
+    "n_validation_sequences": 51,
+    "n_test_sequences": 52,
+    "n_plot_points": 2500,
+    "figure": "figures/transformer-belief/sphere_mess4_checkpoint_layers.png",
+    "checkpoints": [
+      {
+        "tokens_seen": 0,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.030631957439944624,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0331229149688557,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.034212061414708304,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.03618193177265864,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.03559921252808592,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.037627864617404826,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.037657226476162986,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0404819166208541,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.04168310306891684,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.042758455941032704,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 2000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.030917962654131048,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0333150930014815,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.0365741218282597,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.03696022920476808,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.039493030442576016,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.03849138208227032,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.04315272295431031,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.042291420679725245,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.0474347952467595,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.045372049273101865,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 5000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.03398982838585544,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.03617839925754518,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.04501090192918522,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.04578275191053338,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.04974772648578729,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0514399754113423,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.05317709449527327,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05677722489789224,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.0600179011119788,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.058520273217880635,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 12000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.038720108261246576,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0402349997401014,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.050564447591978166,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05119780241923977,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.05096665149352938,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.054744609494248565,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.06209486657586675,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05958196590691086,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.06258678973894356,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06212739535020554,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 30000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": 0.0458852616758895,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.04724437305968746,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.06112661762189823,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06224070969959398,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.05775290104572021,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06115666553929063,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.06761645061872339,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06339370809640947,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.06075654440857673,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06593506676468601,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 120000000,
+        "best_depth": "resid_post_0",
+        "depths": [
+          {
+            "r2": 0.05228076927142015,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.055375578960207096,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.07234973127072652,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 4.970075196063493e-07,
+            "r2_validation": 0.07404328053969193,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.06347754162611881,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 5.807723805566665e-07,
+            "r2_validation": 0.06662314423305153,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.07117162745488725,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.06792029751067179,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.06090771150054771,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.059263750701217664,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 250000000,
+        "best_depth": "resid_post_0",
+        "depths": [
+          {
+            "r2": 0.054742525922421494,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.058665700471002204,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.0774325805166078,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 3.3151790226898367e-06,
+            "r2_validation": 0.0792821195209485,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.06466106580802888,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 1.8535293597581421e-06,
+            "r2_validation": 0.06771181058242377,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.07380155825169143,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.07232248414415698,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.05471492827856602,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05435865557070685,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 500000000,
+        "best_depth": "resid_post_0",
+        "depths": [
+          {
+            "r2": 0.05514837805106058,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05939005059212684,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": 0.07821672227528746,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 4.7626931640099665e-06,
+            "r2_validation": 0.08066262381558838,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": 0.06527115843174543,
+            "outside_simplex_fraction": 0.0001201923076923077,
+            "mean_negative_mass": 7.285068130417344e-07,
+            "r2_validation": 0.06878338437405962,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": 0.07808420843169628,
+            "outside_simplex_fraction": 0.0002403846153846154,
+            "mean_negative_mass": 3.7880980667083416e-06,
+            "r2_validation": 0.07669243866790532,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": 0.05044793669477939,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.05005098292641563,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      }
+    ],
+    "wall_seconds": 9.205460206139833
+  },
+  "double_pendulum_mess4": {
+    "n_eval": 256,
+    "n_train_sequences": 153,
+    "n_validation_sequences": 51,
+    "n_test_sequences": 52,
+    "n_plot_points": 2500,
+    "figure": "figures/transformer-belief/double_pendulum_mess4_checkpoint_layers.png",
+    "checkpoints": [
+      {
+        "tokens_seen": 0,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.009776719329265568,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0037843798318436908,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.011236404630893038,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.006490161210785901,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.010468804198543383,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.00720666782793596,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.009620497988618157,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01023539682614046,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.009205653669840016,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.010820560275453972,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 2000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.009797086531954177,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0037918701711535294,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.010572373352596939,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.006974134081710215,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.007998898992934933,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.009030575867983984,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.0062852168429901045,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.011615907536682438,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.003764845407820294,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.014759559474931497,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 5000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.010037719357917974,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.004043534701933416,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.011253597937119256,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.005996766848841613,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.013443566448267052,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.010693354246549899,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.012163144625430888,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.010896758914780036,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.014513465340181275,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01374427647764894,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 12000000,
+        "best_depth": "resid_post_2",
+        "depths": [
+          {
+            "r2": -0.010445550464265393,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.004316713244969628,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.008721873950658932,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.008151378728039097,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.011678210497737318,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.005881516869203389,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.005973018552275204,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.011558443864980728,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.006194877718173138,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01125588702645445,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 30000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.011385725603923,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0036923832028587325,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.008478960481586842,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.010262104352143475,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.011028033388717162,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.00747498123962335,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.006556387367125864,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01403396797917685,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.003184044178992059,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.014373550863635823,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 120000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.0120717506142769,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0031607760940327947,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.007839838779083378,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.008280660748276084,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.013330999297460325,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.005151786651942973,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.009630169585685374,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.009724289900296798,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.0037711196744311857,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.015220199810173085,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 250000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.012038726683196352,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0030892244847272967,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.009009085673697662,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.008177112838551825,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.014418408013681328,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.005899791063590547,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.00607841883688387,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01002316538605752,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.0012250623162079661,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.012730114766950443,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      },
+      {
+        "tokens_seen": 500000000,
+        "best_depth": "resid_post_3",
+        "depths": [
+          {
+            "r2": -0.012054174114664326,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.003070234638841559,
+            "depth": 0,
+            "name": "embedding"
+          },
+          {
+            "r2": -0.00990819809528302,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.007622117438453276,
+            "depth": 1,
+            "name": "resid_post_0"
+          },
+          {
+            "r2": -0.015306369695996969,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.0059806866660390146,
+            "depth": 2,
+            "name": "resid_post_1"
+          },
+          {
+            "r2": -0.007018969508864381,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.010113690319426624,
+            "depth": 3,
+            "name": "resid_post_2"
+          },
+          {
+            "r2": -0.0017356929309975493,
+            "outside_simplex_fraction": 0.0,
+            "mean_negative_mass": -0.0,
+            "r2_validation": 0.01170484712275103,
+            "depth": 4,
+            "name": "resid_post_3"
+          }
+        ]
+      }
+    ],
+    "wall_seconds": 9.162348359823227
+  }
+}
