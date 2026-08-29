@@ -1,9 +1,8 @@
-"""Belief geometry of the Mess-K chains, their way.
+"""Exact predictive-belief geometry of the shared Mess-4 chain.
 
-The belief here is P(mood | letters) from the chain's own forward algorithm, so
-these pictures are properties of (n_states, alpha, stay) and owe nothing to the
-pendulum. K=3 is included because it reproduces the reference triangle, which is
-the only way to know the Mess-4 picture is being drawn correctly.
+All four physical experiments use this same chain, so there is one exact
+geometric target: the reachable set of P(mood_{t+1} | letters_1..t) inside a
+regular tetrahedron. The physics does not enter this calculation.
 
 Run:  uv run python scripts/messk_geometry.py
 """
@@ -12,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from itertools import combinations
 from pathlib import Path
 
 import matplotlib
@@ -19,110 +19,136 @@ import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from physics.messk import MessKProcess, simplex_embedding  # noqa: E402
 
-OUT = Path("experiments/outputs-messk")
-N_SEQ, N_TICKS, BURN = 400, 520, 20  # burn-in so the cloud is the attractor, not the prior
+RESULT_OUT = Path("experiments/outputs-messk")
+FIGURE_OUT = Path("figures/messk")
+N_SEQ, N_TICKS, BURN = 400, 520, 20
+MAX_POINTS = 60_000
+SURFACE = "#fcfcfb"
+INK = "#0b0b0b"
+MUTED = "#898781"
+EDGE = "#c3c2b7"
+STATE_COLOURS = ("#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7")
 
 
-def collect(k: int, alpha: float = 0.7, stay: float = 0.7, seed: int = 0) -> dict:
-    chain = MessKProcess(n_states=k, alpha=alpha, stay=stay)
+def collect(seed: int = 0) -> dict:
+    chain = MessKProcess(n_states=4, alpha=0.7, stay=0.7)
     rng = np.random.default_rng(seed)
     states, letters = chain.sample(rng, N_SEQ, N_TICKS)
-    beliefs = chain.beliefs(letters)[:, BURN:].reshape(-1, k)
+    beliefs = chain.beliefs(letters)[:, BURN:].reshape(-1, 4)
     truth = states[:, 1:][:, BURN:].reshape(-1)
-    ent = -(beliefs * np.log(np.clip(beliefs, 1e-12, None))).sum(1) / np.log(k)
+    entropy = -(beliefs * np.log(np.clip(beliefs, 1e-12, None))).sum(1) / np.log(4)
     return {
-        "n_states": k, "alpha": alpha, "stay": stay, "x": chain.x,
+        "n_states": 4,
+        "alpha": chain.alpha,
+        "stay": chain.stay,
+        "x": chain.x,
         "memory_letters": chain.memory_length(),
         "mood_recovery": float((beliefs.argmax(1) == truth).mean()),
-        "chance": 1.0 / k,
-        "entropy_normalised": float(ent.mean()),
-        "n_points": int(beliefs.shape[0]),
-        "_b": beliefs, "_truth": truth,
+        "chance": 0.25,
+        "entropy_normalised": float(entropy.mean()),
+        "n_points": int(len(beliefs)),
+        "_beliefs": beliefs,
+        "_truth": truth,
     }
 
 
-def _cloud(ax, d, view=None, dims=(0, 1)):
-    xy = d["_b"] @ simplex_embedding(d["n_states"])
-    colours = ["#E41A1C", "#4DAF4A", "#377EB8", "#FF8C00", "#984EA3"][: d["n_states"]]
-    c = [colours[t] for t in d["_truth"][:: max(1, len(d["_truth"]) // 60000)]]
-    step = max(1, len(d["_truth"]) // 60000)
-    if view is not None:
-        v = simplex_embedding(d["n_states"])
-        for i in range(len(v)):
-            for j in range(i + 1, len(v)):
-                ax.plot(*zip(v[i], v[j]), color="0.85", lw=0.6, zorder=1)
-        ax.scatter(xy[::step, 0], xy[::step, 1], xy[::step, 2], c=c, s=0.35, alpha=0.25, lw=0)
-        ax.set_axis_off()
-        ax.view_init(elev=view[0], azim=view[1])
-    else:
-        if d["n_states"] == 3:
-            v = simplex_embedding(3)
-            for i in range(3):
-                ax.plot(*zip(v[i], v[(i + 1) % 3]), color="0.75", lw=1.0, zorder=1)
-        ax.scatter(xy[::step, dims[0]], xy[::step, dims[1]], c=c, s=0.35, alpha=0.25, lw=0)
-        ax.set_aspect("equal")
-        ax.axis("off")
+def _sample(data: dict) -> tuple[np.ndarray, np.ndarray]:
+    step = max(1, data["n_points"] // MAX_POINTS)
+    vertices = simplex_embedding(4)
+    return data["_beliefs"][::step] @ vertices, data["_truth"][::step]
+
+
+def _edges_3d(ax, vertices: np.ndarray) -> None:
+    for i, j in combinations(range(4), 2):
+        ax.plot(*zip(vertices[i], vertices[j]), color=EDGE, lw=0.7, zorder=1)
+    ax.set_box_aspect((1, 1, 1))
+    ax.set_axis_off()
+
+
+def _cloud_3d(ax, points: np.ndarray, labels: np.ndarray, view: tuple[int, int]) -> None:
+    vertices = simplex_embedding(4)
+    for state in range(4):
+        mask = labels == state
+        ax.scatter(*points[mask].T, c=STATE_COLOURS[state], s=0.45, alpha=0.22,
+                   linewidths=0, depthshade=False, rasterized=True)
+    _edges_3d(ax, vertices)
+    ax.view_init(elev=view[0], azim=view[1])
+
+
+def _cloud_2d(ax, points: np.ndarray, labels: np.ndarray, dims: tuple[int, int]) -> None:
+    vertices = simplex_embedding(4)
+    for i, j in combinations(range(4), 2):
+        ax.plot(*zip(vertices[i, list(dims)], vertices[j, list(dims)]), color=EDGE, lw=0.7)
+    for state in range(4):
+        mask = labels == state
+        ax.scatter(points[mask, dims[0]], points[mask, dims[1]], c=STATE_COLOURS[state],
+                   s=0.45, alpha=0.22, linewidths=0, rasterized=True)
+    ax.set_aspect("equal")
+    ax.axis("off")
 
 
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    m3, m4 = collect(3), collect(4)
-    for d in (m3, m4):
-        print(
-            f"Mess-{d['n_states']}  alpha={d['alpha']} stay={d['stay']} x={d['x']:.3f}  "
-            f"memory={d['memory_letters']} letters  "
-            f"mood recovery={d['mood_recovery']:.3f} ({d['mood_recovery'] / d['chance']:.2f}x chance)  "
-            f"entropy={d['entropy_normalised']:.3f}  points={d['n_points']:,}",
-            flush=True,
-        )
+    RESULT_OUT.mkdir(parents=True, exist_ok=True)
+    FIGURE_OUT.mkdir(parents=True, exist_ok=True)
+    data = collect()
+    points, labels = _sample(data)
 
-    fig = plt.figure(figsize=(14, 9))
-    fig.suptitle(
-        "Belief geometry, their way: P(mood | letters) for a K-mood chain\n"
-        f"alpha={m3['alpha']} (a mood emits its own letter {m3['alpha']:.0%} of the time), "
-        f"stay={m3['stay']} -- the physics does not enter",
-        fontsize=11,
+    print(
+        f"Mess-4 alpha={data['alpha']} stay={data['stay']} x={data['x']:.3f}  "
+        f"memory={data['memory_letters']} letters  mood recovery={data['mood_recovery']:.3f} "
+        f"({data['mood_recovery'] / data['chance']:.2f}x chance)  "
+        f"entropy={data['entropy_normalised']:.3f}  points={data['n_points']:,}",
+        flush=True,
     )
 
-    ax = fig.add_subplot(2, 3, 1)
-    _cloud(ax, m3)
-    ax.set_title(
-        f"Mess-3, the reference triangle\n"
-        f"memory {m3['memory_letters']} letters, recovery {m3['mood_recovery'] / m3['chance']:.1f}x chance",
-        fontsize=9,
+    fig = plt.figure(figsize=(14, 8.6), facecolor=SURFACE)
+    fig.suptitle("Exact Mess-4 predictive-belief geometry", y=0.985, fontsize=15, color=INK)
+    fig.text(
+        0.5, 0.955,
+        "the same tetrahedral target is used for pendulum, predator-prey, sphere, and double pendulum",
+        ha="center", va="top", fontsize=9, color=MUTED,
+    )
+    fig.legend(
+        handles=[
+            Line2D([], [], marker="o", linestyle="none", markersize=5,
+                   color=STATE_COLOURS[state], label=f"true next mood {state}")
+            for state in range(4)
+        ],
+        loc="upper center", bbox_to_anchor=(0.5, 0.935), ncol=4,
+        frameon=False, fontsize=8,
     )
 
-    for i, view in enumerate(((18, 35), (18, 125))):
-        ax = fig.add_subplot(2, 3, 2 + i, projection="3d")
-        _cloud(ax, m4, view=view)
-        ax.set_title(f"Mess-4 tetrahedron, view {i + 1}", fontsize=9)
+    for index, view in enumerate(((18, 35), (18, 125), (65, 45)), 1):
+        ax = fig.add_subplot(2, 3, index, projection="3d", facecolor=SURFACE)
+        _cloud_3d(ax, points, labels, view)
+        ax.set_title(f"3D view {index}", fontsize=9, color=INK)
 
-    for i, dims in enumerate(((0, 1), (0, 2), (1, 2))):
-        ax = fig.add_subplot(2, 3, 4 + i)
-        _cloud(ax, m4, dims=dims)
-        ax.set_title(f"Mess-4, flattened ({'xyz'[dims[0]]}{'xyz'[dims[1]]})", fontsize=9)
+    for index, dims in enumerate(((0, 1), (0, 2), (1, 2)), 4):
+        ax = fig.add_subplot(2, 3, index, facecolor=SURFACE)
+        _cloud_2d(ax, points, labels, dims)
+        ax.set_title(f"flattened {'xyz'[dims[0]]}{'xyz'[dims[1]]}", fontsize=9, color=INK)
 
     fig.text(
-        0.5, 0.02,
-        f"Mess-4: memory {m4['memory_letters']} letters, "
-        f"mood recovery {m4['mood_recovery']:.2f} vs {m4['chance']:.2f} chance "
-        f"({m4['mood_recovery'] / m4['chance']:.1f}x), normalised entropy {m4['entropy_normalised']:.2f}",
-        ha="center", fontsize=9,
+        0.5, 0.015,
+        f"memory {data['memory_letters']} letters   |   mood recovery "
+        f"{data['mood_recovery']:.3f} vs {data['chance']:.2f} chance   |   "
+        f"normalised entropy {data['entropy_normalised']:.3f}",
+        ha="center", fontsize=9, color=INK,
     )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.92))
-    fig.savefig(OUT / "messk_belief_geometry.png", dpi=170)
+    fig.tight_layout(rect=(0.01, 0.04, 0.99, 0.90))
+
+    figure_path = FIGURE_OUT / "mess4_belief_geometry.png"
+    fig.savefig(figure_path, dpi=180, facecolor=SURFACE)
     plt.close(fig)
 
-    (OUT / "messk_geometry.json").write_text(
-        json.dumps([{k: v for k, v in d.items() if not k.startswith("_")} for d in (m3, m4)],
-                   indent=2, default=float)
-    )
-    print(f"wrote {OUT}/messk_belief_geometry.png")
+    record = {key: value for key, value in data.items() if not key.startswith("_")}
+    (RESULT_OUT / "mess4_geometry.json").write_text(json.dumps(record, indent=2, default=float))
+    print(f"wrote {figure_path}")
 
 
 if __name__ == "__main__":

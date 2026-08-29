@@ -6,9 +6,10 @@ dy/dt = d*x*y - c*y                    no explicit friction, but it turns the
                                        Lotka-Volterra into a spiral converging
                                        on a fixed point)
 
-The chain's letter arrives as a boost to the prey population, in log space so a
-fixed impulse is a fixed multiplicative factor regardless of the current level.
-Every letter's boost is different and non-zero.
+The four letters respectively decrease prey, increase prey, decrease predators,
+and increase predators in log space. A fixed impulse is therefore a fixed
+multiplicative factor regardless of the current population. Every action is
+non-zero, and the four-action set is directionally balanced.
 """
 from __future__ import annotations
 
@@ -27,7 +28,11 @@ class PredatorPrey:
     log_bound: float = 3.5
 
     obs_range: tuple[float, float] = (0.0, 1.0)
-    metric_name: str = "dx_dt"
+    metric_names: tuple[str, ...] = ("dx_dt", "dy_dt")
+
+    def actions(self, scale: float) -> np.ndarray:
+        """Prey down/up, then predator down/up, in log-population space."""
+        return scale * np.array([[-1.0, 0.0], [1.0, 0.0], [0.0, -1.0], [0.0, 1.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
         return np.stack([np.full(n, np.log(3.0)), np.full(n, np.log(2.0))], axis=-1)
@@ -48,10 +53,11 @@ class PredatorPrey:
             ly = np.clip(ly + h / 6 * (k1y + 2 * k2y + 2 * k3y + k4y), -self.log_bound, self.log_bound)
         return np.stack([lx, ly], axis=-1)
 
-    def kick(self, z: np.ndarray, dv: np.ndarray) -> np.ndarray:
-        """Restock the prey, one log-magnitude per row."""
-        lx = np.clip(z[..., 0] + dv, -self.log_bound, self.log_bound)
-        return np.stack([lx, z[..., 1]], axis=-1)
+    def kick(self, z: np.ndarray, action: np.ndarray) -> np.ndarray:
+        """Apply a two-population log-space action to each row."""
+        lx = np.clip(z[..., 0] + action[..., 0], -self.log_bound, self.log_bound)
+        ly = np.clip(z[..., 1] + action[..., 1], -self.log_bound, self.log_bound)
+        return np.stack([lx, ly], axis=-1)
 
     def observable(self, z: np.ndarray) -> np.ndarray:
         """Prey share x/(x+y), which is bounded and so bins without a clip."""
@@ -59,8 +65,8 @@ class PredatorPrey:
         return x / (x + y)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
-        dlx, _ = self._rhs(z[..., 0], z[..., 1])
-        return dlx * np.exp(z[..., 0])
+        dlx, dly = self._rhs(z[..., 0], z[..., 1])
+        return np.stack([dlx * np.exp(z[..., 0]), dly * np.exp(z[..., 1])], axis=-1)
 
     def energy(self, z: np.ndarray) -> np.ndarray:
         """Lotka-Volterra Lyapunov function, strictly conserved only as kappa -> inf.
@@ -88,7 +94,9 @@ def _demo() -> None:
 
     obs = pp.observable(z)
     assert 0.0 < obs[0] < 1.0, "prey share must stay in the unit interval"
-    assert pp.kick(z, np.array([0.4]))[0, 0] > z[0, 0], "a boost must raise the prey"
+    prey_up = pp.kick(z, np.array([[0.4, 0.0]]))
+    predator_up = pp.kick(z, np.array([[0.0, 0.4]]))
+    assert prey_up[0, 0] > z[0, 0] and predator_up[0, 1] > z[0, 1]
     print("predator_prey ok")
 
 

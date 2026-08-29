@@ -9,9 +9,9 @@ guard against reading that as a result:
    residual stream is a fixed random projection of the token history, which is
    genuinely informative -- a random network is not a zero baseline, and the
    trained model has to beat it, not merely beat chance.
-2. **Sequence-level train/test splits.** Positions inside one sequence share a
-   belief history, so splitting positions at random leaks the test set into the
-   training set and inflates every number.
+2. **Sequence-level train/validation/test splits.** Positions inside one sequence
+   share a belief history, so splitting positions at random leaks information.
+   Validation chooses depth; the test split is scored once.
 3. **Shuffled targets**, which must collapse the fit.
 
 Reported per feature group rather than pooled, because the marginals and the
@@ -28,10 +28,15 @@ from .probe import fit_probe, grouped_r2, probe_quality, shuffled_control
 from .transformer import TinyTransformer
 
 
-def _sequence_split(n: int, train_frac: float, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+def _sequence_split(
+    n: int, train_frac: float, validation_frac: float, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if train_frac <= 0 or validation_frac <= 0 or train_frac + validation_frac >= 1:
+        raise ValueError("train and validation fractions must be positive and sum to less than one")
     order = rng.permutation(n)
-    cut = int(n * train_frac)
-    return order[:cut], order[cut:]
+    train_end = int(n * train_frac)
+    validation_end = train_end + int(n * validation_frac)
+    return order[:train_end], order[train_end:validation_end], order[validation_end:]
 
 
 def residual_streams_batched(
@@ -52,20 +57,29 @@ def probe_layers(
     features: np.ndarray,
     groups: dict[str, slice],
     device: str,
-    train_frac: float = 0.7,
+    train_frac: float = 0.6,
+    validation_frac: float = 0.2,
     seed: int = 0,
 ) -> list[dict]:
-    """One record per depth: held-out R^2 overall, per group, and the shuffled control."""
+    """One record per depth with separate validation and test R^2.
+
+    Validation chooses a layer; the untouched test score is the reported number.
+    All three partitions are sequence-level, never position-level.
+    """
     rng = np.random.default_rng(seed)
-    train_idx, test_idx = _sequence_split(tokens.shape[0], train_frac, rng)
+    train_idx, validation_idx, test_idx = _sequence_split(
+        tokens.shape[0], train_frac, validation_frac, rng
+    )
     streams = residual_streams_batched(model, tokens, device)
 
     records = []
     for depth, activations in enumerate(streams):
         d_model = activations.shape[-1]
         a_train = activations[train_idx].reshape(-1, d_model).astype(np.float64)
+        a_validation = activations[validation_idx].reshape(-1, d_model).astype(np.float64)
         a_test = activations[test_idx].reshape(-1, d_model).astype(np.float64)
         f_train = features[train_idx].reshape(-1, features.shape[-1]).astype(np.float64)
+        f_validation = features[validation_idx].reshape(-1, features.shape[-1]).astype(np.float64)
         f_test = features[test_idx].reshape(-1, features.shape[-1]).astype(np.float64)
 
         probe = fit_probe(a_train, f_train)
@@ -73,10 +87,15 @@ def probe_layers(
             {
                 "depth": depth,
                 "name": "embedding" if depth == 0 else f"resid_post_{depth - 1}",
+                "r2_pooled_validation": probe_quality(probe, a_validation, f_validation),
+                "r2_by_group_validation": grouped_r2(
+                    probe, a_validation, f_validation, groups
+                ),
                 "r2_pooled": probe_quality(probe, a_test, f_test),
                 "r2_by_group": grouped_r2(probe, a_test, f_test, groups),
                 "r2_shuffled_control": shuffled_control(rng, a_train, f_train),
                 "n_train": int(a_train.shape[0]),
+                "n_validation": int(a_validation.shape[0]),
                 "n_test": int(a_test.shape[0]),
             }
         )
@@ -84,8 +103,10 @@ def probe_layers(
 
 
 def best_layer(records: list[dict], group: str = "metric") -> dict:
-    live = [r for r in records if not np.isnan(r["r2_by_group"].get(group, np.nan))]
-    return max(live, key=lambda r: r["r2_by_group"][group]) if live else records[-1]
+    """Choose depth on validation data; callers report its separate test score."""
+    key = "r2_by_group_validation"
+    live = [r for r in records if not np.isnan(r[key].get(group, np.nan))]
+    return max(live, key=lambda r: r[key][group]) if live else records[-1]
 
 
 def _demo() -> None:

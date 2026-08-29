@@ -1,17 +1,9 @@
-"""Training: next-token cross entropy, nothing else.
+"""Next-observation-token training, with no auxiliary objective.
 
-Two things worth stating because they change how the loss curve should be read.
-
-**Action tokens are unpredictable by construction.** `DiscreteHMM.sample_batch`
-draws each perturbation uniformly at random, so no model can do better than
-`log(n_actions)` on those positions. They are kept in the loss because the claim
-is about ordinary next-token pretraining, but the number that carries signal is
-the loss restricted to observation positions, so both are reported.
-
-**Data is streamed, never reused.** The generator is an HMM, so training data is
-unlimited and every step sees a fresh batch. There is no train/test gap to
-manage and no memorisation to control for -- which is exactly why a probe result
-here cannot be explained by the model having memorised a finite corpus.
+The generator is unlimited and every optimisation step sees a fresh batch, so
+there is no finite training corpus to memorise. The model receives only the 181
+observation bins and is never shown the chain letter, physical action, mood, or
+belief used to produce them.
 """
 
 from __future__ import annotations
@@ -21,7 +13,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from tqdm.auto import tqdm
 
 from .transformer import TinyTransformer
@@ -68,37 +59,18 @@ def pick_device() -> str:
     return "cpu"
 
 
-def _split_loss(logits: torch.Tensor, tokens: torch.Tensor, is_action: torch.Tensor) -> tuple[float, float]:
-    """(observation-position loss, action-position loss) on the next-token targets."""
-    flat_logits = logits[:, :-1].reshape(-1, logits.shape[-1])
-    targets = tokens[:, 1:].reshape(-1)
-    per_token = F.cross_entropy(flat_logits, targets, reduction="none")
-    action_mask = is_action[:, 1:].reshape(-1)
-
-    obs = per_token[~action_mask]
-    act = per_token[action_mask]
-    return (
-        float(obs.mean()) if obs.numel() else float("nan"),
-        float(act.mean()) if act.numel() else float("nan"),
-    )
-
-
 def train(
     model: TinyTransformer,
     sampler,
     seq_len: int,
     config: TrainConfig,
     device: str | None = None,
-    action_mask_fn=None,
-    action_loss_floor: float = float("nan"),
     on_checkpoint=None,
 ) -> dict:
     """Stream batches from `sampler(rng, n) -> tokens` and fit next-token loss.
 
-    `sampler` rather than a process object, so the loop stays indifferent to how
-    the tokens were generated. `action_mask_fn` matters only when the vocabulary
-    carries positions that are not observations; without it the split loss is
-    not reported, because there is nothing to split on.
+    `sampler` rather than a process object keeps the loop indifferent to which
+    physical system generated the observation tokens.
 
     `on_checkpoint(tokens_seen, model)` fires the first time the token count
     passes each entry of `config.checkpoint_at`. The LR schedule is defined over
@@ -127,11 +99,6 @@ def train(
     eval_rng = np.random.default_rng(config.seed + 99_999)
     eval_np = sampler(eval_rng, 256)
     eval_tokens = torch.as_tensor(eval_np, dtype=torch.long, device=device)
-    eval_actions = (
-        torch.as_tensor(action_mask_fn(eval_np), dtype=torch.bool, device=device)
-        if action_mask_fn is not None
-        else None
-    )
 
     history: list[dict] = []
     tokens_per_step = config.batch_size * seq_len
@@ -161,19 +128,10 @@ def train(
         if step % config.log_every == 0 or step == steps - 1:
             model.eval()
             with torch.no_grad():
-                logits = model(eval_tokens)
-                if eval_actions is not None:
-                    obs_loss, act_loss = _split_loss(logits, eval_tokens, eval_actions)
-                else:
-                    obs_loss = float(
-                        F.cross_entropy(
-                            logits[:, :-1].reshape(-1, logits.shape[-1]), eval_tokens[:, 1:].reshape(-1)
-                        )
-                    )
-                    act_loss = float("nan")
+                eval_loss = float(model.loss(eval_tokens))
             model.train()
             history.append(
-                {"step": step, "train_loss": float(loss.item()), "eval_obs_loss": obs_loss, "eval_action_loss": act_loss}
+                {"step": step, "train_loss": float(loss.item()), "eval_loss": eval_loss}
             )
 
     model.eval()
@@ -189,6 +147,5 @@ def train(
         "seq_len": seq_len,
         "tokens_seen": steps * config.batch_size * seq_len,
         "device": device,
-        "action_loss_floor": action_loss_floor,
         "final": history[-1] if history else None,
     }

@@ -35,36 +35,50 @@ In each experiment file, we should define constants and variables at the beginni
 
 ## The process under test
 
-The hidden process is a K-mood chain sitting in front of a damped pendulum. A
-mood emits a letter (its own, 70% of the time), the letter becomes a velocity
-impulse, and the pendulum's angle is rounded to whole degrees and clamped to
-+-90, giving 181 tokens. **The transformer sees nothing but those angle bins.**
+The complete concise specification is in [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
 
-The belief is `P(next mood | the letters so far)` from the chain's own forward
-algorithm. It is computed before the pendulum and does not depend on it. Two
-consequences are worth holding onto:
+The hidden process is the same four-mood Markov chain in front of each of four damped physical systems: a pendulum, a predator-prey oscillator, a spherical pendulum, and a double pendulum.
+A mood remains unchanged with probability 0.7 and otherwise moves to each of the other moods with probability 0.1.
+Mood `i` emits letter `i` with probability 0.7 and each other letter with probability 0.1.
+The physical system then evolves for ten integration steps and its scalar observable is quantised into 181 tokens.
+**The transformer sees only those observation tokens.**
 
-- the belief's reachable set is a fixed shape -- a triangle for K=3, a
-  tetrahedron for K=4 -- which gives a ground-truth picture to check against;
-- the belief forgets its own prior after about six letters, so it is close to a
-  function of recent input. `experiments/03_myopic.py` exists to measure how
-  close, because without that number "the model encodes the belief" cannot be
-  told apart from "the model remembers what it just saw".
+Every system assigns the four letters to distinct, balanced, non-zero physical actions:
 
-`mess3` is the canonical three-mood case and is kept as the reference, since a
-Mess-4 number is only readable against a Mess-3 one from the same pipeline.
-`mess4` differs only in having four moods.
+| System | Letter 0 | Letter 1 | Letter 2 | Letter 3 |
+|---|---|---|---|---|
+| Pendulum | strong negative omega kick | weak negative omega kick | weak positive omega kick | strong positive omega kick |
+| Predator-prey | prey down | prey up | predator down | predator up |
+| Spherical pendulum | north | south | west | east |
+| Double pendulum | joint 1 negative | joint 1 positive | joint 2 negative | joint 2 positive |
+
+The pendulum actions are the variance-matched ladder `{-1.643, -0.548, +0.548, +1.643}`.
+The other three action sets are opposite directions along their two physical axes.
+No HMM letter is a no-op, and every four-action set sums to zero.
+
+The exact analysis target is the predictive belief `P(next mood | letters so far)` from the chain's forward algorithm.
+It is computed before the physical system and therefore has the same tetrahedral ground-truth geometry for all four systems.
+The comparison asks how much of that common hidden geometry survives each physical channel and becomes linearly readable from the transformer's residual stream.
+
+The Mess-4 belief forgets its prior after approximately seven letters.
+`experiments/03_myopic.py` therefore compares the residual-stream probe against a raw recent-token window, because without that control "the model encodes the belief" cannot be separated from "the model remembers what it just saw".
+
+There are four trained models, one per physical system, all at seed 0.
+No reseeded runs are part of this experiment.
+The model has four transformer blocks, and every analysis reports the embedding plus all four residual-stream depths.
+Training checkpoints are saved at 0%, 0.4%, 1%, 2.4%, 6%, 24%, 50%, and 100% of the 500M-token run.
 
 ```bash
-uv run python scripts/messk_geometry.py    # belief geometry, no training needed
-uv run python experiments/01_train.py      # GPU
-uv run python experiments/02_probe.py      # belief / mood / velocity by depth
-uv run python experiments/03_myopic.py     # the token-window control
-uv run python experiments/04_emergence.py  # what is learned, and when
+uv run python scripts/messk_geometry.py    # exact Mess-4 tetrahedron
+uv run python experiments/01_train.py      # four GPU training runs
+uv run python experiments/02_probe.py      # belief / mood / physical metrics by depth
+uv run python experiments/03_myopic.py     # raw-token-window control
+uv run python experiments/04_emergence.py  # target R2 over training time
+uv run python experiments/05_geometry.py   # predicted geometry by checkpoint and layer
 ```
 
-GPU work (`01_train.py`) runs on Kaggle T4. Everything else is CPU and runs on
-the staging host.
+GPU work in `01_train.py` runs on Kaggle T4.
+All probing and plotting runs on the staging CPU host after the checkpoints land.
 
-Env knobs: `OUTPUT_DIR`, `CONFIGS`, `TOTAL_TOKENS`, `N_EVAL`, `SEED`, `TAG`,
-`WINDOWS`, `FRACTIONS`.
+Environment knobs are `OUTPUT_DIR`, `CONFIGS`, `TOTAL_TOKENS`, `N_EVAL`, `SEED`, `TAG`, `REPORT_NAME`, `WINDOWS`, and `FRACTIONS`.
+When training is split across GPU bundles, each bundle writes a distinct report name and the reports are merged before CPU analysis.

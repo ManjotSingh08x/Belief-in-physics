@@ -17,12 +17,16 @@ import numpy as np
 class Pendulum:
     g: float = 9.8
     length: float = 1.0
-    gamma: float = 0.5
+    gamma: float = 1.2
     omega_max: float = 8.0
 
     #: (lo, hi) of the binned observable, and the name of the metric column.
     obs_range: tuple[float, float] = (-np.pi / 2, np.pi / 2)
-    metric_name: str = "omega"
+    metric_names: tuple[str, ...] = ("omega",)
+
+    def actions(self, scale: float) -> np.ndarray:
+        """Balanced weak/strong angular-velocity kicks, with no zero action."""
+        return scale * np.array([[-3.0], [-1.0], [1.0], [3.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
         return np.stack([np.zeros(n), np.ones(n)], axis=-1)
@@ -43,16 +47,16 @@ class Pendulum:
             omega = np.clip(omega, -self.omega_max, self.omega_max)
         return np.stack([theta, omega], axis=-1)
 
-    def kick(self, z: np.ndarray, dv: np.ndarray) -> np.ndarray:
-        """Velocity impulse, one magnitude per row."""
-        omega = np.clip(z[..., 1] + dv, -self.omega_max, self.omega_max)
+    def kick(self, z: np.ndarray, action: np.ndarray) -> np.ndarray:
+        """Angular-velocity impulse, one one-dimensional action per row."""
+        omega = np.clip(z[..., 1] + action[..., 0], -self.omega_max, self.omega_max)
         return np.stack([z[..., 0], omega], axis=-1)
 
     def observable(self, z: np.ndarray) -> np.ndarray:
         return z[..., 0]
 
     def metric(self, z: np.ndarray) -> np.ndarray:
-        return z[..., 1]
+        return z[..., 1:2]
 
     def energy(self, z: np.ndarray) -> np.ndarray:
         return 0.5 * z[..., 1] ** 2 - (self.g / self.length) * np.cos(z[..., 0])
@@ -72,7 +76,7 @@ def _demo() -> None:
         z = p.flow(z, 0.01)
     assert p.energy(z)[0] < e0, "damped energy must decrease"
 
-    kicked = p.kick(z0, np.array([0.6]))
+    kicked = p.kick(z0, np.array([[0.6]]))
     assert abs(kicked[0, 1] - 0.6) < 1e-12 and kicked[0, 0] == z0[0, 0]
     assert p.initial_state(5).shape == (5, 2)
     print("pendulum ok")

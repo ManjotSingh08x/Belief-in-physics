@@ -10,10 +10,11 @@ erasure, because iterative nullspace projection guarantees linear
 non-decodability and nothing more. If an MLP recovers a target after INLP,
 "erased" is the wrong word.
 
-**`token_window_features`** -- a bag of the last W observation tokens plus the
-position in the tick. If that reaches the transformer's R^2 then the
-transformer's number is not evidence of a learned belief, it is evidence that
-the belief is a simple function of recent tokens.
+**`token_window_features`** -- ordered one-hots of the last W observation tokens
+plus position in the tick. `sparse_token_window_features` is the same control at
+the 80-token window needed to cover the full belief memory without allocating a
+dense multi-gigabyte matrix. If that reaches the transformer's R^2, the number is
+evidence that the belief is a simple function of recent observations.
 
 **`simplex_coords`** -- a block of A marginals has A - 1 degrees of freedom, so
 averaging A per-column R^2 scores a dependent coordinate and understates or
@@ -28,6 +29,7 @@ a discrete label, carry the headline.
 from __future__ import annotations
 
 import numpy as np
+import scipy.sparse as sp
 import torch
 from torch import nn
 
@@ -70,6 +72,39 @@ def token_window_features(
     phase = np.arange(L) % steps_per_segment
     out[:, np.arange(L), window * vocab_size + phase] = 1.0
     return out
+
+
+def sparse_token_window_features(
+    tokens: np.ndarray, vocab_size: int, window: int, steps_per_tick: int
+) -> sp.csr_matrix:
+    """Sparse ordered one-hots of the last W tokens plus position in the tick.
+
+    A window of 80 observation tokens spans the Mess-4 belief's seven-letter
+    memory without allocating the multi-gigabyte dense array that 80 * 181
+    columns would require.
+    """
+    n, length = tokens.shape
+    if not 1 <= window <= length:
+        raise ValueError(f"window must be in [1, {length}], got {window}")
+    if tokens.min() < 0 or tokens.max() >= vocab_size:
+        raise ValueError("tokens fall outside the declared vocabulary")
+
+    flat_rows = np.arange(n * length).reshape(n, length)
+    rows, columns = [], []
+    for lag in range(window):
+        rows.append(flat_rows[:, lag:].reshape(-1))
+        columns.append(lag * vocab_size + tokens[:, : length - lag].reshape(-1))
+
+    rows.append(flat_rows.reshape(-1))
+    phase = np.broadcast_to(np.arange(length) % steps_per_tick, (n, length))
+    columns.append(window * vocab_size + phase.reshape(-1))
+    row = np.concatenate(rows)
+    column = np.concatenate(columns)
+    data = np.ones(len(row), dtype=np.float32)
+    return sp.csr_matrix(
+        (data, (row, column)),
+        shape=(n * length, window * vocab_size + steps_per_tick),
+    )
 
 
 class _MLP(nn.Module):

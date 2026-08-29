@@ -1,25 +1,24 @@
-"""Mess-K: a K-state chain driving a pendulum.
+"""Mess-K: a K-state chain driving a physical system.
 
-The hidden thing is a K-state chain sitting in front of the pendulum, and the
-belief is conditioned on the chain's OWN letters:
+The K-state chain sits in front of a physical system, and the exact belief is
+conditioned on the chain's letters:
 
     mood_1 -> mood_2 -> ...          hidden, persists and drifts
       |          |
-    letter     letter                hidden from the model; the belief conditions on THESE
+    letter     letter                hidden from the model
       |          |
-    shove      shove
-              pendulum
-                |
-             angle bins               the only thing the model ever sees
+    action     action
+               physical system
+                     |
+              observation bins       the only thing the model sees
 
-Two consequences follow, and both are properties of the approach rather than
-bugs. The belief does not depend on the physics at all -- delete the pendulum
-and it is unchanged. And because the chain is stationary and mixing, the belief
-is a contractive function of recent letters, so it forgets its past at a fixed
-rate; `memory_length` reports that rate.
+The exact belief does not depend on the physics, so all four systems share one
+geometric target. Because the chain is stationary and mixing, the belief is a
+contractive function of recent letters and forgets its prior at a fixed rate;
+`memory_length` reports that rate.
 
-K = 3 with alpha=0.7, stay=0.7 is the Mess3 case, whose belief simplex is the
-familiar triangle and therefore the reference picture to check a K=4 run against.
+The four experiments use K=4 with alpha=0.7 and stay=0.7, so their common exact
+belief geometry is a tetrahedron.
 """
 
 from __future__ import annotations
@@ -52,10 +51,8 @@ def simplex_embedding(k: int) -> np.ndarray:
 class MessKProcess:
     """K moods, K letters. A mood emits its own letter with probability `alpha`.
 
-    Their code parameterises the transition by `x`, the chance of moving to each
-    specific other state, so the stay probability is `1 - (K-1)x` and changes
-    with K. Parameterising by `stay` instead holds persistence fixed as K grows,
-    which is what makes Mess-3 and Mess-4 comparable; `x` is derived.
+    `x` is the chance of moving to each specific other state, derived from the
+    total stay probability as `(1-stay)/(K-1)`.
     """
 
     n_states: int = 4
@@ -106,9 +103,9 @@ class MessKProcess:
     def beliefs(self, letters: np.ndarray) -> np.ndarray:
         """Exact P(mood_{t+1} | letters_1..t), shape (n, m, K).
 
-        This is the PREDICTIVE belief, one transition ahead of the mood that
-        emitted the last letter, and it is what their `optimal` computes: the
-        operator is `T * E[:, letter]` with the emission indexed on the SOURCE
+        This is the predictive belief, one transition ahead of the mood that
+        emitted the last letter. The operator is `T * E[:, letter]`, with the
+        emission indexed on the source
         state, so each step emits from the current mood and then moves on.
 
         The distinction is not pedantry. The predictive belief is the thing that
@@ -151,13 +148,14 @@ class MessKProcess:
 class MessDriven:
     """The chain's letters become impulses on a physical system.
 
-    Their mapping is all-positive and graded -- letter l becomes (l+1)*delta_v --
-    so every letter displaces the state and none of them is a no-op. The
-    observation is the system's scalar observable, binned uniformly over its own
-    range into `n_obs` levels with no added noise.
+    Each system defines four balanced, non-zero action vectors: weak/strong
+    negative and positive angular kicks for the pendulum, and opposite directions
+    along each of two physical axes for the other systems. `delta_v` sets their
+    scale. The observation is the system's scalar observable, binned uniformly
+    over its own range into `n_obs` levels with no added noise.
 
-    `system` is anything exposing `initial_state`, `flow`, `kick`, `observable`,
-    `metric` and `obs_range`. The chain, the belief and the binning are identical
+    `system` exposes `actions`, `initial_state`, `flow`, `kick`, `observable`,
+    `metric`, `metric_names` and `obs_range`. The chain, belief and binning are identical
     across systems, so a difference in the results is a difference in the
     physics rather than in the pipeline.
     """
@@ -171,8 +169,18 @@ class MessDriven:
     n_obs: int = 181
 
     @property
-    def kicks(self) -> tuple[float, ...]:
-        return tuple((l + 1) * self.delta_v for l in range(self.chain.n_states))
+    def actions(self) -> np.ndarray:
+        actions = np.asarray(self.system.actions(self.delta_v), dtype=np.float64)
+        if actions.ndim != 2 or actions.shape[0] != self.chain.n_states:
+            raise ValueError(
+                f"system returned actions with shape {actions.shape}; expected "
+                f"({self.chain.n_states}, action_dim)"
+            )
+        if np.any(np.linalg.norm(actions, axis=1) == 0.0):
+            raise ValueError("every HMM letter must have a non-zero physical action")
+        if len(np.unique(actions, axis=0)) != len(actions):
+            raise ValueError("every HMM letter must have a distinct physical action")
+        return actions
 
     @property
     def seq_len(self) -> int:
@@ -185,9 +193,8 @@ class MessDriven:
     def discretise(self, value: np.ndarray) -> np.ndarray:
         """Uniform bins over `system.obs_range`, rounded and clipped.
 
-        Rounding rather than flooring, so for the pendulum with range +-pi/2 and
-        181 bins this is exactly their scheme: theta to the nearest whole degree,
-        clamped to +-90.
+        Rounding rather than flooring means the pendulum with range +-pi/2 and
+        181 bins maps theta to the nearest whole degree and clamps it to +-90.
         """
         lo, hi = self.system.obs_range
         scaled = (value - lo) / (hi - lo) * (self.n_obs - 1)
@@ -198,13 +205,13 @@ class MessDriven:
         states, letters = self.chain.sample(rng, n, self.m)
         tick_beliefs = self.chain.beliefs(letters)
 
-        sys_, kicks = self.system, np.array(self.kicks)
+        sys_, actions = self.system, self.actions
         z = sys_.initial_state(n)
         obs = np.empty((n, self.seq_len))
-        metric = np.empty((n, self.seq_len))
+        metric = np.empty((n, self.seq_len, len(sys_.metric_names)))
         for t in range(self.m):
             # The impulse lands once per tick, before that tick's steps.
-            z = sys_.kick(z, kicks[letters[:, t]])
+            z = sys_.kick(z, actions[letters[:, t]])
             for s in range(self.n_steps):
                 z = sys_.flow(z, self.dt)
                 obs[:, t * self.n_steps + s] = sys_.observable(z)
@@ -216,7 +223,7 @@ class MessDriven:
             "metric": metric,
             "letters": letters,
             "states": states,
-            # the belief is constant across a tick's steps, as in their pipeline
+            # the chain advances once per tick, so its belief is constant inside that tick
             "beliefs": np.repeat(tick_beliefs, self.n_steps, axis=1),
             # the mood the belief is about, so probe target and belief line up
             "moods": np.repeat(states[:, 1:], self.n_steps, axis=1),
@@ -226,30 +233,38 @@ class MessDriven:
     def features_and_groups(self, batch: dict) -> tuple[np.ndarray, dict[str, slice]]:
         """Probe targets, in one matrix, with the column block for each.
 
-        Three of them, and the separation matters. `belief` is what their
-        approach is about. `mood` is the true state, so a probe that reads the
-        belief but not the mood is tracking the posterior rather than the answer.
-        `velocity` is the system's own physical quantity, kept because it is the
+        Three of them, and the separation matters. `belief` is represented in
+        the K-1 independent coordinates of its regular simplex, rather than K
+        redundant probabilities. `mood` is the true state, so a probe that reads
+        the belief but not the mood is tracking the posterior rather than the answer.
+        `metric` is the system's own physical quantity, kept because it is the
         thing the model plainly needs for its actual job of predicting the next
         observation.
         """
         k = self.chain.n_states
+        belief_dim = k - 1
+        belief_coords = batch["beliefs"] @ simplex_embedding(k)
         feats = np.concatenate(
             [
-                batch["beliefs"],
+                belief_coords,
                 np.eye(k, dtype=np.float64)[batch["moods"]],
-                batch["metric"][..., None],
+                batch["metric"],
             ],
             axis=-1,
         ).astype(np.float32)
-        groups = {"belief": slice(0, k), "mood": slice(k, 2 * k), "velocity": slice(2 * k, 2 * k + 1)}
+        metric_dim = batch["metric"].shape[-1]
+        groups = {
+            "belief": slice(0, belief_dim),
+            "mood": slice(belief_dim, belief_dim + k),
+            "metric": slice(belief_dim + k, belief_dim + k + metric_dim),
+        }
         return feats, groups
 
 
 def token_window_features(tokens: np.ndarray, n_obs: int, window: int) -> np.ndarray:
     """One-hot of the last `window` tokens at each position, (n, L, window*n_obs).
 
-    The myopic control. Their belief is a contractive function of recent letters,
+    The myopic control. The exact belief is a contractive function of recent letters,
     so if this predicts the belief as well as the residual stream does, then
     "the model encodes the belief" and "the model remembers its recent input"
     are the same statement and the first one claims nothing.
@@ -267,7 +282,7 @@ def token_window_features(tokens: np.ndarray, n_obs: int, window: int) -> np.nda
 def _demo() -> None:
     m3 = MessKProcess(n_states=3, alpha=0.7, stay=0.7)
     assert np.allclose(m3.T.sum(1), 1) and np.allclose(m3.E.sum(1), 1)
-    assert abs(m3.x - 0.15) < 1e-12, "K=3, stay=0.7 must reproduce their x=0.15"
+    assert abs(m3.x - 0.15) < 1e-12, "K=3 and stay=0.7 imply x=0.15"
 
     m4 = MessKProcess(n_states=4)
     assert np.allclose(m4.T.sum(1), 1) and np.allclose(m4.E.sum(1), 1)
@@ -291,8 +306,8 @@ def _demo() -> None:
     assert simplex_embedding(3).shape == (3, 2) and simplex_embedding(4).shape == (4, 3)
 
     feats, groups = proc.features_and_groups(batch)
-    assert feats.shape == (4, proc.seq_len, 2 * 4 + 1)
-    assert np.allclose(feats[:, :, groups["belief"]].sum(-1), 1)
+    assert feats.shape == (4, proc.seq_len, (4 - 1) + 4 + 1)
+    assert np.allclose(feats[:, :, groups["belief"]], batch["beliefs"] @ simplex_embedding(4))
     assert np.allclose(feats[:, :, groups["mood"]].sum(-1), 1)
 
     tw = token_window_features(batch["tokens"], proc.n_obs, window=3)

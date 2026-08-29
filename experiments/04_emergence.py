@@ -1,6 +1,8 @@
 """When does each target appear, as training proceeds.
 
-One probe per checkpoint per target, giving an R^2 curve against tokens seen.
+One probe per checkpoint per target gives an R^2 curve against tokens seen.
+At each checkpoint, residual depth is selected on validation sequences and only
+that depth's untouched test score enters the curve.
 The reported crossing is the point where a target first reaches a fraction of
 its OWN final learned gain, not an absolute R^2: an absolute threshold conflates
 "learned sooner" with "learned more", because a target that ends higher crosses
@@ -27,7 +29,7 @@ import time
 import numpy as np
 import torch
 
-from models.analysis import probe_layers
+from models.analysis import best_layer, probe_layers
 from models.train import pick_device
 from models.transformer import ModelConfig, TinyTransformer
 from physics.messk_configs import MESSK_CONFIGS, make_process
@@ -71,6 +73,8 @@ def main() -> None:
 
         axis = sorted(training[name]["checkpoint_tokens"])
         curves = {g: [] for g in groups}
+        validation_curves = {g: [] for g in groups}
+        selected_depths = {g: [] for g in groups}
         for seen in axis:
             path = ckpt_dir / f"{name}_{seen}.pt"
             if not path.exists():
@@ -79,16 +83,26 @@ def main() -> None:
             model.load_state_dict(torch.load(path, map_location=device))
             records = probe_layers(model.to(device).eval(), batch["tokens"], features,
                                    groups, device)
-            for g in groups:  # the depth that reads this target best, per checkpoint
-                curves[g].append(max(r["r2_by_group"][g] for r in records))
+            for g in groups:
+                selected = best_layer(records, group=g)
+                curves[g].append(selected["r2_by_group"][g])
+                validation_curves[g].append(selected["r2_by_group_validation"][g])
+                selected_depths[g].append(selected["name"])
             print(f"  {seen:>12,}  " + "  ".join(f"{g} {curves[g][-1]:+.3f}" for g in groups),
                   flush=True)
 
         targets = []
         for g, curve in curves.items():
             gain = curve[-1] - curve[0]
-            entry = {"target": g, "curve": curve, "learned_gain": gain,
-                     "final": curve[-1], "untrained": curve[0]}
+            entry = {
+                "target": g,
+                "curve": curve,
+                "validation_curve": validation_curves[g],
+                "selected_depths": selected_depths[g],
+                "learned_gain": gain,
+                "final": curve[-1],
+                "untrained": curve[0],
+            }
             for f in FRACTIONS:
                 entry[f"cross@{f}"] = (
                     crossing(axis, curve, f * gain) if gain > MIN_GAIN else None

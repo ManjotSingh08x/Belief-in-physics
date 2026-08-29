@@ -1,13 +1,13 @@
-"""Train one transformer per Mess-K config on the pendulum's angle bins.
+"""Train one transformer per physical-system and Mess-K pair.
 
-The model sees nothing but binned angles. It is never shown the chain's moods,
-its letters, the impulses, or the belief. The whole claim under test is that a
-model trained only to predict the next angle builds the belief anyway, because
-predicting the next angle requires anticipating the next impulse, and that
+The model sees nothing but the system's binned scalar observable. It is never
+shown the chain's moods, its letters, the impulses, or the belief. The whole
+claim under test is that next-token prediction builds the belief anyway, because
+predicting the next observation requires anticipating the next impulse, and that
 requires inferring what mood the chain is in.
 
 Run:  uv run python experiments/01_train.py
-Env:  OUTPUT_DIR, CONFIGS, TOTAL_TOKENS, SEED, TAG.
+Env:  OUTPUT_DIR, CONFIGS, TOTAL_TOKENS, SEED, TAG, REPORT_NAME.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ LEARNING_RATE = 1e-3
 TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 500_000_000))
 SEED = int(os.environ.get("SEED", 0))
 TAG = os.environ.get("TAG", "")
+REPORT_NAME = os.environ.get("REPORT_NAME", "messk_01_training.json")
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-messk"))
 CONFIGS = os.environ.get("CONFIGS", ",".join(MESSK_CONFIGS)).split(",")
 
@@ -59,7 +60,7 @@ def main() -> None:
         chain = proc.chain
         print(
             f"vocab={proc.n_obs}  seq_len={proc.seq_len}  moods={chain.n_states}  "
-            f"alpha={chain.alpha}  stay={chain.stay}  kicks={[round(k, 2) for k in proc.kicks]}  "
+            f"alpha={chain.alpha}  stay={chain.stay}  actions={np.round(proc.actions, 3).tolist()}  "
             f"belief memory={chain.memory_length()} letters",
             flush=True,
         )
@@ -97,12 +98,14 @@ def main() -> None:
 
         report |= {
             "config": name,
+            "system": name.rsplit("_mess", 1)[0],
+            "metrics": list(proc.system.metric_names),
             "vocab_size": proc.n_obs,
             "seq_len": proc.seq_len,
             "n_states": chain.n_states,
             "alpha": chain.alpha,
             "stay": chain.stay,
-            "kicks": [float(k) for k in proc.kicks],
+            "actions": proc.actions.tolist(),
             "belief_memory_letters": chain.memory_length(),
             "uniform_token_loss": float(np.log(proc.n_obs)),
             "checkpoint_tokens": [0, *schedule],
@@ -113,13 +116,13 @@ def main() -> None:
         }
         summary[name] = report
         print(
-            f"{name}: eval loss={report['final']['eval_obs_loss']:.4f} "
+            f"{name}: eval loss={report['final']['eval_loss']:.4f} "
             f"(uniform baseline {report['uniform_token_loss']:.4f})  "
             f"{report['wall_seconds']:.0f}s",
             flush=True,
         )
 
-    path = OUTPUT_DIR / f"messk_01_training{TAG}.json"
+    path = OUTPUT_DIR / REPORT_NAME
     path.write_text(json.dumps(summary, indent=2, default=float))
     print(f"\nwrote {path}", flush=True)
 

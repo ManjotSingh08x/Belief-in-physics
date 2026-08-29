@@ -1,13 +1,15 @@
-"""Probe the residual stream for the belief, the true mood, and the velocity.
+"""Probe the residual stream for the belief, the true mood, and a physical metric.
 
 Three targets, because the difference between them is where the evidence is.
 `belief` is P(next mood | letters), the headline object. `mood` is the
 true state one-hot: a model that reads the belief well but the mood less well is
 tracking the posterior rather than the answer, which is the interesting case.
-`velocity` is the physical quantity the model plainly needs for its actual job.
+`metric` is the physical quantity the model plainly needs for its actual job.
 
-Every number is measured against the same architecture left untrained. If the
-random-init probe matches the trained one, the training showed nothing.
+Every number is measured against the same architecture left untrained. Layer
+selection uses validation sequences, while the reported R2 is measured once on
+a separate test split. If the random-init probe matches the trained one, the
+training showed nothing.
 
 Run:  uv run python experiments/02_probe.py
 Env:  OUTPUT_DIR, CONFIGS, N_EVAL.
@@ -33,7 +35,8 @@ from models.transformer import ModelConfig, TinyTransformer
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
 N_EVAL = int(os.environ.get("N_EVAL", 512))
-TRAIN_FRAC = 0.7
+TRAIN_FRAC = 0.6
+VALIDATION_FRAC = 0.2
 EVAL_SEED = 20_260_829
 HEADLINE = "belief"
 
@@ -63,7 +66,7 @@ def main() -> None:
 
         # How uncertain the belief actually is, so a high R^2 cannot be explained
         # by the target having collapsed onto a corner of the simplex.
-        b = features[:, :, groups["belief"]].reshape(-1, k)
+        b = batch["beliefs"].reshape(-1, k)
         entropy = float(-(b * np.log(np.clip(b, 1e-12, None))).sum(1).mean() / np.log(k))
         recovery = float((b.argmax(1) == batch["moods"].reshape(-1)).mean())
 
@@ -81,16 +84,19 @@ def main() -> None:
         for tag, filename in (("trained", f"{name}_trained.pt"),
                               ("random_init", f"{name}_random_init.pt")):
             model = _load(OUTPUT_DIR / filename, config, device)
-            record[tag] = probe_layers(model, batch["tokens"], features, groups, device,
-                                       train_frac=TRAIN_FRAC)
+            record[tag] = probe_layers(
+                model, batch["tokens"], features, groups, device,
+                train_frac=TRAIN_FRAC, validation_frac=VALIDATION_FRAC,
+            )
 
         tb = best_layer(record["trained"], group=HEADLINE)
         rb = best_layer(record["random_init"], group=HEADLINE)
         record["verdict"] = {
+            "belief_r2_validation_trained": tb["r2_by_group_validation"]["belief"],
             "belief_r2_trained": tb["r2_by_group"]["belief"],
             "belief_r2_random_init": rb["r2_by_group"]["belief"],
             "mood_r2_trained": tb["r2_by_group"]["mood"],
-            "velocity_r2_trained": tb["r2_by_group"]["velocity"],
+            "metric_r2_trained": tb["r2_by_group"]["metric"],
             "best_depth_trained": tb["name"],
             "shuffled_control": tb["r2_shuffled_control"],
             "baseline_intact": bool(
@@ -102,7 +108,7 @@ def main() -> None:
         v = record["verdict"]
         print(
             f"  belief R2 {v['belief_r2_trained']:.3f} (random-init {v['belief_r2_random_init']:.3f})  "
-            f"mood {v['mood_r2_trained']:.3f}  velocity {v['velocity_r2_trained']:.3f}  "
+            f"mood {v['mood_r2_trained']:.3f}  metric {v['metric_r2_trained']:.3f}  "
             f"at {v['best_depth_trained']}  intact={v['baseline_intact']}",
             flush=True,
         )

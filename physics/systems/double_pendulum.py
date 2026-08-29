@@ -6,8 +6,9 @@ sequence carries the least usable trace of the chain -- which is exactly why it
 is worth running: if the belief is still recoverable here, it is not an artefact
 of an easy observable.
 
-The chain's letter arrives as an impulse on the first joint's angular velocity.
-Every letter's impulse is different and non-zero.
+The four letters respectively kick joint 1 negatively, joint 1 positively,
+joint 2 negatively, and joint 2 positively. Every action is non-zero, and the
+four-action set is directionally balanced.
 """
 from __future__ import annotations
 
@@ -26,13 +27,24 @@ class DoublePendulum:
     gamma1: float = 0.5
     gamma2: float = 0.5
     omega_max: float = 10.0
+    joint1_action_gain: float = 2.0
 
     obs_range: tuple[float, float] = (-np.pi, np.pi)
-    metric_name: str = "omega1"
+    metric_names: tuple[str, ...] = ("omega1", "omega2")
+
+    def actions(self, scale: float) -> np.ndarray:
+        """Joint 1 negative/positive, then joint 2 negative/positive.
+
+        Theta2 sees joint 1 only indirectly, so its kicks are amplified enough
+        for all four actions to produce distinct 181-bin observation sequences.
+        """
+        gain = self.joint1_action_gain
+        return scale * np.array([[-gain, 0.0], [gain, 0.0], [0.0, -1.0], [0.0, 1.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
+        """An asymmetric release, so kicks to either joint are observable."""
         return np.stack(
-            [np.zeros(n), np.zeros(n), np.ones(n), np.zeros(n)], axis=-1
+            [np.full(n, 0.9), np.full(n, -0.4), np.zeros(n), np.zeros(n)], axis=-1
         )
 
     def _accel(self, th1, th2, w1, w2):
@@ -66,17 +78,18 @@ class DoublePendulum:
             w2 = np.clip(w2 + h / 6 * (k1b + 2 * k2b + 2 * k3b + k4b), -self.omega_max, self.omega_max)
         return np.stack([th1, th2, w1, w2], axis=-1)
 
-    def kick(self, z: np.ndarray, dv: np.ndarray) -> np.ndarray:
-        """Impulse on the first joint, one magnitude per row."""
-        w1 = np.clip(z[..., 2] + dv, -self.omega_max, self.omega_max)
-        return np.stack([z[..., 0], z[..., 1], w1, z[..., 3]], axis=-1)
+    def kick(self, z: np.ndarray, action: np.ndarray) -> np.ndarray:
+        """Apply a two-joint angular-velocity action to each row."""
+        w1 = np.clip(z[..., 2] + action[..., 0], -self.omega_max, self.omega_max)
+        w2 = np.clip(z[..., 3] + action[..., 1], -self.omega_max, self.omega_max)
+        return np.stack([z[..., 0], z[..., 1], w1, w2], axis=-1)
 
     def observable(self, z: np.ndarray) -> np.ndarray:
         """theta2, wrapped -- the far joint, which is the chaotic one."""
         return (z[..., 1] + np.pi) % (2 * np.pi) - np.pi
 
     def metric(self, z: np.ndarray) -> np.ndarray:
-        return z[..., 2]
+        return z[..., 2:4]
 
     def energy(self, z: np.ndarray) -> np.ndarray:
         th1, th2, w1, w2 = (z[..., i] for i in range(4))
@@ -102,8 +115,10 @@ def _demo() -> None:
         z = dp.flow(z, 0.002)
     assert dp.energy(z)[0] < e0, "damped energy must decrease"
 
-    kicked = dp.kick(np.zeros((1, 4)), np.array([1.2]))
-    assert abs(kicked[0, 2] - 1.2) < 1e-12 and kicked[0, 3] == 0.0
+    joint1 = dp.kick(np.zeros((1, 4)), np.array([[1.2, 0.0]]))
+    joint2 = dp.kick(np.zeros((1, 4)), np.array([[0.0, -1.2]]))
+    assert abs(joint1[0, 2] - 1.2) < 1e-12 and joint1[0, 3] == 0.0
+    assert joint2[0, 2] == 0.0 and abs(joint2[0, 3] + 1.2) < 1e-12
     lo, hi = dp.obs_range
     assert lo <= dp.observable(np.array([[0.0, 7.0, 0.0, 0.0]]))[0] <= hi, "theta2 must wrap"
     print("double_pendulum ok")

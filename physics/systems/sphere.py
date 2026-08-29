@@ -3,18 +3,17 @@ State z = (theta, psi, theta_dot, psi_dot), theta measured from the downward
 vertical and psi the azimuth around it.
 
     theta'' = sin(theta) cos(theta) psi'^2 - (g/L) sin(theta) - gamma theta'
-    psi''   = -2 cot(theta) theta' psi'                       - gamma psi'
+    psi''   = -2 cot(theta) theta' psi'
 
-Gravity is the point. A ball on a *gravity-free* sphere has no restoring force,
-so the graded all-positive impulses accumulate and drive it into the pole; with
-gravity it is an oscillator, the impulses pump the swing instead of displacing
-it permanently, and theta stays inside its turning points on its own rather than
-against a clip. The second term of theta'' is the centrifugal support that keeps
-a rotating ball from falling to the bottom, and it is why psi' matters to the
-observable at all.
+Gravity makes the constrained ball an oscillator instead of a freely drifting
+geodesic. Theta therefore stays inside physical turning points rather than being
+held against a coordinate clip. The first term of theta'' is the centrifugal
+support that keeps a rotating ball from falling to the bottom, and it is why
+psi' matters to the observable at all.
 
-The chain's letter arrives as an impulse on theta_dot, the swing rate. Every
-letter's impulse is different and non-zero.
+The four letters respectively kick the local tangent velocity north, south,
+west, and east. Every action is non-zero, and opposite directions are paired so
+the action set has no directional drift.
 """
 from __future__ import annotations
 
@@ -36,7 +35,11 @@ class SphereBall:
     #: The band theta actually visits under the driving impulses, not the full
     #: coordinate range -- otherwise most of the 181 bins would never be used.
     obs_range: tuple[float, float] = (0.05, 1.25)
-    metric_name: str = "theta_dot"
+    metric_names: tuple[str, ...] = ("v_meridional", "v_azimuthal")
+
+    def actions(self, scale: float) -> np.ndarray:
+        """North/south and west/east impulses in the local tangent plane."""
+        return scale * np.array([[-1.0, 0.0], [1.0, 0.0], [0.0, -1.0], [0.0, 1.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
         """A conical swing: off the bottom, already going round."""
@@ -72,16 +75,22 @@ class SphereBall:
             th = np.clip(th_new, THETA_MIN, THETA_MAX)
         return np.stack([th, (psi + np.pi) % (2 * np.pi) - np.pi, dth, dpsi], axis=-1)
 
-    def kick(self, z: np.ndarray, dv: np.ndarray) -> np.ndarray:
-        """Impulse on the swing rate, one magnitude per row."""
-        dth = np.clip(z[..., 2] + dv, -self.rate_max, self.rate_max)
-        return np.stack([z[..., 0], z[..., 1], dth, z[..., 3]], axis=-1)
+    def kick(self, z: np.ndarray, action: np.ndarray) -> np.ndarray:
+        """Apply a physical two-dimensional tangent impulse to each row."""
+        th = z[..., 0]
+        dth = np.clip(z[..., 2] + action[..., 0] / self.length, -self.rate_max, self.rate_max)
+        radius = self.length * np.clip(np.sin(th), 1e-3, None)
+        dpsi = np.clip(z[..., 3] + action[..., 1] / radius, -self.rate_max, self.rate_max)
+        return np.stack([th, z[..., 1], dth, dpsi], axis=-1)
 
     def observable(self, z: np.ndarray) -> np.ndarray:
         return z[..., 0]  # polar angle from the bottom
 
     def metric(self, z: np.ndarray) -> np.ndarray:
-        return z[..., 2]  # swing rate
+        th, dth, dpsi = z[..., 0], z[..., 2], z[..., 3]
+        return np.stack(
+            [self.length * dth, self.length * np.sin(th) * dpsi], axis=-1
+        )
 
     def energy(self, z: np.ndarray) -> np.ndarray:
         th, dth, dpsi = z[..., 0], z[..., 2], z[..., 3]
@@ -113,8 +122,11 @@ def _demo() -> None:
     )
     assert abs(conical[0, 0] - th0) < 1e-3, f"conical swing drifted: {conical[0, 0]} vs {th0}"
 
-    kicked = s.kick(s.initial_state(1), np.array([0.7]))
-    assert abs(kicked[0, 2] - 0.7) < 1e-12
+    start = s.initial_state(1)
+    north = s.kick(start, np.array([[-0.7, 0.0]]))
+    east = s.kick(start, np.array([[0.0, 0.7]]))
+    assert abs(north[0, 2] + 0.7) < 1e-12
+    assert east[0, 3] > start[0, 3]
     print("sphere ok")
 
 
