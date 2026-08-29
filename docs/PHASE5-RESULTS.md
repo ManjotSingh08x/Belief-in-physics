@@ -412,6 +412,54 @@ large enough to saturate or wrap the observable, at which point the kick would b
 trivially detectable for the wrong reason, which is what the phase-1 threshold
 was protecting against.
 
+## 5.6c E2d, multi-step rollout: the belief buys nothing at longer horizons
+
+The strongest form of the causal question. Erase the belief subspace, roll the
+model forward k tokens, and compare the resulting predictive law against the
+exact HMM law for the same prefix. Marginals are Rao-Blackwellised -- 32 sampled
+continuations, averaging the *distribution* at step k rather than the samples --
+so the estimator noise is far below the effect being looked for. The reference is
+a random subspace of the same rank, with the same rollout seed on both arms.
+
+Excess KL over the matched-rank random control, at each depth's own erasure rank.
+Negative means erasing the belief hurt the k-step law **less** than erasing a
+random subspace of the same size.
+
+| system | depth | rank | intact KL (k=1) | k=1 | k=2 | k=4 | k=6 |
+|---|---|---|---|---|---|---|---|
+| pendulum | resid_post_0 | 62 | 0.0051 | -0.093 (-1.2sd) | -0.142 (-1.8) | -0.118 (-1.7) | -0.050 (-0.6) |
+| pendulum | resid_post_2 | 49 | 0.0051 | -0.120 (-7.2sd) | -0.139 (-8.6) | -0.176 (-6.8) | -0.149 (-5.1) |
+| predator_prey | resid_post_1 | 64 | 0.0019 | -0.044 (-2.7sd) | -0.056 (-2.9) | -0.064 (-2.5) | -0.051 (-1.7) |
+| predator_prey | resid_post_2 | 65 | 0.0019 | -0.082 (-2.8sd) | -0.116 (-2.9) | -0.159 (-3.0) | -0.172 (-3.0) |
+| sphere | resid_post_0 | 29 | 0.0743 | **+0.072 (+9.5sd)** | +0.083 (+8.8) | +0.110 (+8.4) | +0.124 (+6.6) |
+| sphere | resid_post_2 | 17 | 0.0743 | -0.007 (-2.7sd) | -0.011 (-2.8) | -0.015 (-2.4) | -0.020 (-2.4) |
+| double_pendulum | resid_post_0 | 38 | 0.0880 | -0.013 (-0.4sd) | -0.016 (-0.8) | -0.022 (-1.3) | -0.021 (-0.9) |
+| double_pendulum | resid_post_2 | 17 | 0.0880 | **+0.055 (+5.7sd)** | +0.063 (+6.3) | +0.061 (+5.9) | +0.044 (+7.0) |
+
+**Where the belief is well decoded, erasing it is cheaper than erasing noise, and
+the gap widens with the horizon.** Pendulum and predator_prey are negative at
+every depth and every k, most sharply at `resid_post_2` where the probe is
+strongest. This is the same pattern as the loss-based ablation in 5.1, now with
+the failure mode that most plausibly hid an effect -- a myopic single-token
+readout -- removed. It does not.
+
+**The two positives are in the two systems where the belief is barely there.**
+Sphere at `resid_post_0` (+9.5 sd) and double_pendulum at `resid_post_2`
+(+5.7 sd) are the same two systems whose belief probes score 0.074 and 0.137, and
+double_pendulum is the only system that cleared the variance-matched null in 5.1.
+Two readings are available and this experiment does not separate them. Either a
+small, genuinely used belief representation exists in exactly the systems where a
+linear probe reads it worst, or -- more likely -- the erasure in those systems is
+removing something else the model needs, and the belief basis is merely the
+vehicle. Note that their **intact** KL is 15 to 45 times the pendulum's (0.074
+and 0.088 against 0.0051), so the models whose rollouts are already far from the
+exact law are the ones with room for an erasure to look damaging.
+
+The horizon result is the part worth keeping. If the belief were a forward model
+the network consults to predict several tokens ahead, the cost of removing it
+should grow with k. In the two systems where it is decodable, the cost is
+negative and grows *more* negative with k.
+
 ## 5.7 E5: coupling does order emergence
 
 *This section reverses what the pilot said.* The pilot ran one system (pendulum),
