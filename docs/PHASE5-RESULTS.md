@@ -381,6 +381,30 @@ The full erasure basis is not load-bearing because it is dominated by redundant
 low-variance directions the loss does not depend on; the unique 20 of its 60
 directions are.
 
+**R4 by patching, not erasure: split, and weaker than it looks.** The same
+belief-minus-metric complement, at `resid_post_0`, driven the other way -- patch
+the complement from a donor sequence and ask whether the logits move where the
+HMM says they should. Alignment cosine at the full complement rank:
+
+| system | rank | belief complement | matched random | excess |
+|---|---|---|---|---|
+| pendulum | 19 | +0.427 | +0.612 ± 0.053 | **-3.5 sd** |
+| predator_prey | 39 | +0.937 | +0.839 ± 0.004 | +22.3 sd (**+0.098 absolute**) |
+| sphere | 24 | +0.330 | +0.415 ± 0.031 | **-2.7 sd** |
+| double_pendulum | 29 | +0.548 | +0.426 ± 0.037 | +3.3 sd (+0.122 absolute) |
+
+Two positive, two negative, and the sd units are misleading in the one large
+cell: predator_prey's random control has a standard deviation of 0.004, so a
+0.098 absolute gap becomes "+22 sd". Read the absolute column.
+
+This matters for how much weight the erasure result above can carry. Erasure and
+patching ask different questions -- *is this subspace load-bearing* versus *does
+moving it move the model the way the generative model says it should* -- and the
+belief complement passes the first in 10 of 14 cells while passing the second in
+2 of 4. A representation the model genuinely used as a belief should do both.
+The honest summary is that the complement contrast is a real effect on the loss
+and an inconsistent one on the logit direction.
+
 This is the contrast phase 4 should have run. It does not rescue claim 3 as
 stated -- the phase-4 numbers remain unusable -- but it replaces the null with a
 positive result at the right depth and the right rank.
