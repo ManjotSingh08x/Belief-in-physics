@@ -95,7 +95,7 @@ Each panel reports test R2 and the fraction of predicted points outside the simp
 Training runs on four Kaggle T4 GPUs across two authenticated accounts, with one physical system per kernel.
 Pendulum and sphere run under `chayanaggarwal45`, while predator-prey and double pendulum run under `chayanagiuwdhwekj`.
 All four seed-0 models therefore train concurrently.
-All probing and plotting run on `staging-entity` CPU and take approximately 10-20 minutes after the checkpoints arrive.
+All probing and plotting ran on `staging-entity` CPU and completed in `218` seconds.
 
 | Output | Contents |
 |---|---|
