@@ -6,7 +6,8 @@ perturbations occurred from the observation stream alone. That inference is
 what makes the belief a non-trivial point in a simplex rather than a delta.
 
 Run:  uv run python experiments/03_train_branch.py
-Env:  OUTPUT_DIR (default experiments/outputs-03), SYSTEMS, TOTAL_TOKENS.
+Env:  OUTPUT_DIR (default experiments/outputs-03), SYSTEMS, TOTAL_TOKENS,
+      SEED, KICK_SCALE, TAG.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ import torch
 
 from models.train import TrainConfig, pick_device, train
 from models.transformer import ModelConfig, TinyTransformer
-from physics.branch_configs import BRANCH_CONFIGS, make_branch_process
+from physics.branch_configs import BRANCH_CONFIGS, make_branch_process, scaled_kick
 
 EMBED_DIM = 128
 NUM_LAYERS = 4
@@ -33,7 +34,16 @@ D_MLP = 4 * EMBED_DIM
 BATCH_SIZE = 128
 TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 500_000_000))
 LEARNING_RATE = 1e-3
-SEED = 0
+SEED = int(os.environ.get("SEED", 0))
+
+# Replication and the kick-magnitude sweep run the same code path as the
+# original: a different seed, or a different perturbation magnitude, and an
+# output tag so the runs land beside each other instead of overwriting.
+# KICK_SCALE multiplies the per-system `kick` that phase 1 chose as the smallest
+# value clearing its separability threshold, which is exactly the knob claim 1's
+# headline number is sensitive to.
+KICK_SCALE = float(os.environ.get("KICK_SCALE", 1.0))
+TAG = os.environ.get("TAG", "")
 
 # Log-spaced snapshots so the probe curves have resolution early, where the
 # interesting reorganisation happens. Fractions of TOTAL_TOKENS rather than
@@ -53,7 +63,7 @@ def main() -> None:
     for name in SYSTEMS:
         print(f"\n=== {name} ===", flush=True)
         t0 = time.perf_counter()
-        process = make_branch_process(name)
+        process = make_branch_process(name, **scaled_kick(name, KICK_SCALE))
         print(
             f"vocab={process.n_obs}  seq_len={process.seq_len}  "
             f"branches={process.n_branches(process.M):,}  n_actions={process.n_actions}",
@@ -71,7 +81,7 @@ def main() -> None:
         )
         # Saved before training so Phase 3 probes the same initialisation.
         random_init = TinyTransformer(model_cfg)
-        torch.save(random_init.state_dict(), OUTPUT_DIR / f"{name}_random_init.pt")
+        torch.save(random_init.state_dict(), OUTPUT_DIR / f"{name}{TAG}_random_init.pt")
         model = TinyTransformer(model_cfg)
         model.load_state_dict(random_init.state_dict())
 
@@ -79,7 +89,7 @@ def main() -> None:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         def save(tokens_seen: int, m: TinyTransformer, _name=name, _dir=ckpt_dir) -> None:
-            torch.save(m.state_dict(), _dir / f"{_name}_{tokens_seen}.pt")
+            torch.save(m.state_dict(), _dir / f"{_name}{TAG}_{tokens_seen}.pt")
 
         schedule = tuple(sorted({int(f * TOTAL_TOKENS) for f in CHECKPOINT_FRACTIONS}))
         save(0, random_init)  # the untrained control lives on the same axis
@@ -98,7 +108,7 @@ def main() -> None:
             device=device,
             on_checkpoint=save,
         )
-        torch.save(model.state_dict(), OUTPUT_DIR / f"{name}_trained.pt")
+        torch.save(model.state_dict(), OUTPUT_DIR / f"{name}{TAG}_trained.pt")
 
         report |= {
             "system": name,
@@ -112,6 +122,10 @@ def main() -> None:
             "checkpoint_tokens": [0, *schedule],
             "model": model_cfg.__dict__,
             "wall_seconds": time.perf_counter() - t0,
+            "seed": SEED,
+            "kick_scale": KICK_SCALE,
+            "kick": float(BRANCH_CONFIGS[name]["system_kwargs"]["kick"] * KICK_SCALE),
+            "tag": TAG,
         }
         summary[name] = report
         print(
@@ -121,7 +135,7 @@ def main() -> None:
             flush=True,
         )
 
-    (OUTPUT_DIR / "phase2_branch_training.json").write_text(json.dumps(summary, indent=2, default=str))
+    (OUTPUT_DIR / f"phase2_branch_training{TAG}.json").write_text(json.dumps(summary, indent=2, default=str))
     print(f"\nwrote {OUTPUT_DIR / 'phase2_branch_training.json'}", flush=True)
 
 

@@ -246,3 +246,207 @@ def _demo_erasure() -> None:
 
 if __name__ == "__main__":
     _demo_erasure()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: generic interventions.
+#
+# Everything above edits the stream one way (mean-ablate a basis at every
+# position). Phase 5 needs four more edits, and they differ only in the function
+# applied to the stream at one depth, so they share `intervened_loss` rather than
+# each getting a near-duplicate forward pass.
+# ---------------------------------------------------------------------------
+
+
+@torch.no_grad()
+def intervened_loss(model, tokens: torch.Tensor, depth: int, edit=None, reduce: bool = True):
+    """Next-token cross entropy with `edit` applied to the stream at `depth`.
+
+    `edit(x) -> x` is a torch callable on `(batch, pos, d_model)`. `depth`
+    indexes as `residual_streams` does, so the edit lands *before* block `depth`.
+    With `reduce=False` the per-position losses come back as `(batch, pos - 1)`,
+    which is what a position-restricted intervention needs.
+    """
+    x = model._embed(tokens)
+    for i, block in enumerate(model.blocks):
+        if edit is not None and i == depth:
+            x = edit(x)
+        x = block(x)
+    if edit is not None and depth == len(model.blocks):
+        x = edit(x)
+
+    logits = model.unembed(model.ln_f(x))
+    flat = F.cross_entropy(
+        logits[:, :-1].reshape(-1, logits.shape[-1]), tokens[:, 1:].reshape(-1), reduction="none"
+    )
+    return float(flat.mean()) if reduce else flat.view(tokens.shape[0], -1)
+
+
+def _to_torch(basis, mean, like: torch.Tensor):
+    b = torch.as_tensor(basis, dtype=like.dtype, device=like.device)
+    m = torch.as_tensor(
+        np.zeros(like.shape[-1]) if mean is None else mean, dtype=like.dtype, device=like.device
+    )
+    return b, m
+
+
+def mean_ablate(basis, mean):
+    """Replace the component along `basis` with its dataset mean."""
+    def edit(x):
+        b, m = _to_torch(basis, mean, x)
+        return _project_out(x, b, m)
+    return edit
+
+
+def resample_ablate(basis, reference: np.ndarray):
+    """Replace the component along `basis` with another sequence's, same position.
+
+    Mean-ablation pools over positions, so it also deletes the phase-conditional
+    mean -- a real signal in a segmented process, and one the later blocks expect
+    to see. Resampling keeps the marginal at each position exactly right and
+    destroys only the correspondence with *this* sequence's history, which is the
+    thing the intervention is supposed to remove.
+    """
+    def edit(x):
+        b, _ = _to_torch(basis, None, x)
+        ref = torch.as_tensor(reference, dtype=x.dtype, device=x.device)
+        if ref.shape[0] < x.shape[0]:
+            ref = ref.repeat((x.shape[0] // ref.shape[0]) + 1, 1, 1)
+        ref = ref[: x.shape[0], : x.shape[1]]
+        return x - (x @ b) @ b.T + (ref @ b) @ b.T
+    return edit
+
+
+def restrict_to_positions(edit, positions: np.ndarray):
+    """Apply `edit` only at the given positions, leaving every other one intact.
+
+    This is what separates "the belief is stored at t for later use" from "the
+    belief is recomputed at every position": corrupt position t alone and read
+    the loss at t+1..t+k, which are themselves untouched but attend to t.
+    """
+    def wrapped(x):
+        mask = torch.zeros(x.shape[1], dtype=torch.bool, device=x.device)
+        mask[torch.as_tensor(np.asarray(positions), device=x.device)] = True
+        return torch.where(mask[None, :, None], edit(x), x)
+    return wrapped
+
+
+def patch_subspace(basis, source: np.ndarray):
+    """Overwrite the `basis` component with the one from `source`.
+
+    `source` is `(batch, pos, d_model)` aligned to the batch being run. Unlike
+    ablation this is directional: it asserts what the model's belief should
+    become, so the predicted change in logits is computable and testable.
+    """
+    def edit(x):
+        b, _ = _to_torch(basis, None, x)
+        src = torch.as_tensor(source, dtype=x.dtype, device=x.device)[: x.shape[0], : x.shape[1]]
+        return x - (x @ b) @ b.T + (src @ b) @ b.T
+    return edit
+
+
+@torch.no_grad()
+def logits_under(model, tokens: torch.Tensor, depth: int, edit=None) -> np.ndarray:
+    """Log-softmax outputs with an edit applied, for the patching alignment test."""
+    x = model._embed(tokens)
+    for i, block in enumerate(model.blocks):
+        if edit is not None and i == depth:
+            x = edit(x)
+        x = block(x)
+    if edit is not None and depth == len(model.blocks):
+        x = edit(x)
+    return torch.log_softmax(model.unembed(model.ln_f(x)), dim=-1).float().cpu().numpy()
+
+
+def variance_fraction(basis: np.ndarray, activations: np.ndarray) -> float:
+    """Share of residual-stream variance the basis spans.
+
+    An isotropic random subspace captures `r / d_model` on average, while a
+    basis fitted to a real feature sits in high-variance directions. Reporting
+    this is what makes "excess over random" interpretable rather than a
+    comparison between a targeted and an untargeted deletion.
+    """
+    if basis.shape[1] == 0:
+        return 0.0
+    centred = activations - activations.mean(axis=0)
+    total = float((centred**2).sum())
+    return float(((centred @ basis) ** 2).sum() / total) if total > 0 else float("nan")
+
+
+def complement_basis(a: np.ndarray, b: np.ndarray, tol: float = 1e-8) -> np.ndarray:
+    """The part of subspace `a` orthogonal to subspace `b`.
+
+    When two erasure bases share their leading directions -- first principal
+    angles of a few degrees -- neither ablation is about one quantity. Erasing
+    `a - b` and `b - a` is the only version of the contrast that separates them.
+    """
+    if a.shape[1] == 0 or b.shape[1] == 0:
+        return a
+    # `a` is orthonormal, so the residual's singular values are already in
+    # [0, 1] -- an absolute tolerance is correct here and a relative one is not:
+    # when `a` sits entirely inside `b` every singular value is ~1e-16 and a
+    # relative test keeps all of them.
+    residual = a - b @ (b.T @ a)
+    u, s, _ = np.linalg.svd(residual, full_matrices=False)
+    return u[:, s > tol]
+
+
+def pca_basis(activations: np.ndarray, rank: int) -> np.ndarray:
+    """Top-`rank` principal directions: a variance-matched, information-free null."""
+    centred = activations - activations.mean(axis=0)
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    return vt[:rank].T
+
+
+def _demo_interventions() -> None:
+    from .transformer import ModelConfig
+
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    cfg = ModelConfig(vocab_size=12, n_ctx=16, n_layers=2, n_heads=1, d_model=32, d_mlp=64)
+    model = TinyTransformer(cfg).eval()
+    tokens = torch.randint(0, cfg.vocab_size, (8, cfg.n_ctx))
+
+    base = intervened_loss(model, tokens, 1, None)
+    with torch.no_grad():
+        assert abs(base - float(model.loss(tokens))) < 1e-5
+
+    stream = model.residual_streams(tokens)[1]
+    mean = stream.reshape(-1, cfg.d_model).mean(axis=0)
+    basis = random_basis(rng, cfg.d_model, 4)
+
+    # mean_ablate must reproduce the older code path exactly.
+    assert abs(
+        intervened_loss(model, tokens, 1, mean_ablate(basis, mean))
+        - ablated_loss(model, tokens, 1, basis, mean)
+    ) < 1e-6, "mean_ablate must match ablated_loss"
+
+    # Restricting to zero positions is a no-op; to all positions is the full edit.
+    none_at_all = restrict_to_positions(mean_ablate(basis, mean), np.zeros(0, dtype=int))
+    assert abs(intervened_loss(model, tokens, 1, none_at_all) - base) < 1e-6
+    everywhere = restrict_to_positions(mean_ablate(basis, mean), np.arange(cfg.n_ctx))
+    assert abs(
+        intervened_loss(model, tokens, 1, everywhere)
+        - intervened_loss(model, tokens, 1, mean_ablate(basis, mean))
+    ) < 1e-6
+
+    # Per-position losses must average back to the scalar.
+    per_pos = intervened_loss(model, tokens, 1, None, reduce=False)
+    assert per_pos.shape == (8, cfg.n_ctx - 1)
+    assert abs(float(per_pos.mean()) - base) < 1e-5
+
+    # Patching from the stream itself is the identity.
+    assert abs(intervened_loss(model, tokens, 1, patch_subspace(basis, stream)) - base) < 1e-5
+
+    # Variance accounting: a rank-r isotropic basis captures about r/d.
+    frac = variance_fraction(basis, stream.reshape(-1, cfg.d_model))
+    assert 0 < frac < 1, frac
+    top = variance_fraction(pca_basis(stream.reshape(-1, cfg.d_model), 4), stream.reshape(-1, cfg.d_model))
+    assert top > frac, (top, frac)  # PCs must capture more than random of the same rank
+
+    # The complement of a subspace with itself is empty; with a disjoint one, itself.
+    q = random_basis(rng, cfg.d_model, 8)
+    assert complement_basis(q[:, :4], q[:, :4]).shape[1] == 0
+    assert complement_basis(q[:, :4], q[:, 4:]).shape[1] == 4
+    assert principal_angles(complement_basis(q[:, :4], q[:, 4:]), q[:, :4]).max() < 1e-2
+    print(f"interventions ok (random rank-4 captures {frac:.3f} of variance, top-4 PCs {top:.3f})")

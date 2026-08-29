@@ -40,7 +40,27 @@ class TrainConfig:
     checkpoint_at: tuple[int, ...] = ()  # token counts to hand to `on_checkpoint`
 
 
+def checkpoint_paths(directory, name: str, tag: str = ""):
+    """`(tokens_seen, path)` for every checkpoint of one run, sorted.
+
+    `tag` separates runs of the same system that differ in seed or in kick
+    magnitude, which all live in one directory.
+    """
+    from pathlib import Path
+
+    prefix = f"{name}{tag}_"
+    found = []
+    for path in Path(directory).glob(f"{prefix}*.pt"):
+        suffix = path.stem[len(prefix):]
+        if suffix.isdigit():
+            found.append((int(suffix), path))
+    return sorted(found)
+
+
 def pick_device() -> str:
+    forced = __import__("os").environ.get("DEVICE")
+    if forced:
+        return forced
     if torch.cuda.is_available():
         return "cuda"
     if torch.backends.mps.is_available():

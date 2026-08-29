@@ -126,3 +126,18 @@ def make_branch_process(name: str, **overrides):
         period=period,
         emission_fn=emission_fn,
     )
+
+
+def scaled_kick(name: str, scale: float) -> dict:
+    """Overrides that multiply a system's perturbation magnitude.
+
+    Phase 1 chose each `kick` as the *smallest* value clearing its separability
+    threshold, which means the coupling between the belief and the next-token
+    distribution -- the quantity claim 1 reports -- was set by that choice. This
+    is the knob for testing whether the claim is a property of the model or a
+    restatement of the threshold.
+    """
+    if scale == 1.0:
+        return {}
+    base = BRANCH_CONFIGS[name]["system_kwargs"]
+    return {"system_kwargs": {**base, "kick": base["kick"] * scale}}
