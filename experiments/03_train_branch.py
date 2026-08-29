@@ -54,6 +54,23 @@ OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-03"))
 SYSTEMS = os.environ.get("SYSTEMS", ",".join(BRANCH_CONFIGS)).split(",")
 
 
+def _kick_spec(name: str, scale: float):
+    """The perturbation magnitude actually applied, recorded for the report.
+
+    Legacy configs carry a scalar `kick`; the no-no-op ladders carry an explicit
+    `kicks` tuple instead, so there is no single number to record. Both are read
+    back through `scaled_kick` rather than rescaled here, so there is one place
+    that knows how a magnitude sweep multiplies a config.
+    """
+    kwargs = {
+        **BRANCH_CONFIGS[name]["system_kwargs"],
+        **scaled_kick(name, scale).get("system_kwargs", {}),
+    }
+    if "kicks" not in kwargs:
+        return float(kwargs["kick"])
+    return [list(map(float, k)) if hasattr(k, "__len__") else float(k) for k in kwargs["kicks"]]
+
+
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     device = pick_device()
@@ -124,7 +141,7 @@ def main() -> None:
             "wall_seconds": time.perf_counter() - t0,
             "seed": SEED,
             "kick_scale": KICK_SCALE,
-            "kick": float(BRANCH_CONFIGS[name]["system_kwargs"]["kick"] * KICK_SCALE),
+            "kick": _kick_spec(name, KICK_SCALE),
             "tag": TAG,
         }
         summary[name] = report
