@@ -127,9 +127,12 @@ excess KL over a matched-rank control, in control sd:
 | sphere | **+9.5** | positive |
 | double_pendulum | **+7.0** | positive |
 
-**N5. The erasure never removed the feature.** After INLP drops the linear probe
-from 0.590 to 0.052, an MLP still reads the belief at **0.852** (98% of intact).
-Same in predator_prey: 0.681 -> 0.193 linear, 0.857 -> 0.836 MLP.
+**N5. The erasure never removed the feature, at any rank.** Sweeping the erasure
+rank from 2 to the full basis, the pendulum's linear probe falls 0.590 -> 0.062
+(-89%) while its MLP falls 0.872 -> 0.858 (**-1.6%**). predator_prey at rank 64,
+half of `d_model`: linear -72%, MLP **-2.8%**. The rank-32 pendulum erasure
+removes 2.7% of the stream's variance, so this is not a subspace-too-small
+problem. No rank of linear erasure removes this feature.
 
 **N6. Patching the complement is split.** Two systems positive, two negative, and
 the largest sd figure (+22 sd, predator_prey) is a 0.098 absolute gap inflated by
