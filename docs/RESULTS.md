@@ -5,9 +5,11 @@ The exact target was the same four-state predictive-belief tetrahedron for every
 
 ## Headline
 
-The transformers learned the physical dynamics, but the results do not support a dedicated belief-state representation beyond recent observations.
-Pendulum and predator-prey developed belief decodability above random initialization, while sphere did not clear the preregistered `+0.05` baseline margin and double pendulum learned no belief signal.
-For every system, some raw observation-token window matched or exceeded the validation-selected residual-stream belief probe.
+The transformers learned the physical dynamics well.
+Whether they carry belief information beyond recent observations depends on how the residual stream is read, and the two readouts disagree in sign.
+Reading one layer at one token position, every system's raw-token control matched or beat the probe.
+Reading all four blocks across a whole HMM tick, every system's probe beats its raw-token control, by `+0.03` to `+0.12`.
+The honest summary is a small positive excess that is readout-sensitive at a single seed, not the clean negative result the first pass suggested.
 The predicted geometry remained a compressed central cloud rather than reconstructing the exact fractal tetrahedron.
 
 ## Training
@@ -47,7 +49,31 @@ A negative excess means raw recent observations predicted the exact belief bette
 | Sphere | `32` tokens | `0.174` | `0.076` | `-0.098` |
 | Double pendulum | `16` tokens | `0.026` | `0.017` | `-0.009` |
 
-Therefore none of the four systems provides evidence that the residual stream contains more belief information than an appropriately controlled recent-token baseline.
+Therefore, **at this readout**, none of the four systems provides evidence that the residual stream contains more belief information than an appropriately controlled recent-token baseline.
+The readout matters, and the next section shows it changes the sign of this conclusion.
+
+## Readout dependence
+
+`06_reference_probe.py` re-reads the same four checkpoints on the same held-out sequences with the feature construction used by the external Mess-3 study: one probe row per HMM tick, built from all four block outputs at all ten physics positions in that tick, so `4 * 128 * 10 = 5120` features instead of one layer at one position.
+The raw-token control is scored on the identical rows and split, with its window and ridge penalty chosen on validation.
+`6144` evaluation sequences give `11.5` training rows per feature.
+
+| System | Trained | Random init | Gain | Raw tokens (window) | Residual excess |
+|---|---:|---:|---:|---:|---:|
+| Pendulum | `0.572` | `0.366` | `+0.207` | `0.454` (`W=20`) | `+0.118` |
+| Predator-prey | `0.669` | `0.346` | `+0.323` | `0.639` (`W=40`) | `+0.029` |
+| Sphere | `0.641` | `0.420` | `+0.221` | `0.572` (`W=40`) | `+0.068` |
+| Double pendulum | `0.252` | `0.185` | `+0.067` | `0.174` (`W=20`) | `+0.077` |
+
+Under this readout the residual excess is positive for all four systems rather than negative for all four, and every system clears the `+0.05` gain-over-initialization margin.
+The excess is small, and predator-prey is within noise of its raw-token control at a single seed.
+
+Two facts constrain how these numbers should be read.
+An **untrained** network of the same shape reaches `0.366` to `0.420` on this construction, so the baseline is not zero.
+Fitting and scoring on the same rows, as the external script does, adds a further `0.06` to `0.17`: our in-sample scores are `0.662`, `0.742`, `0.724` and `0.409`.
+
+The single-position readout in `02_probe.py` and the whole-tick readout here are both legitimate measurements of different things, and the earlier tables are not withdrawn.
+What is withdrawn is the claim that the myopic control wins regardless of readout.
 
 ## Emergence
 
@@ -90,6 +116,8 @@ Double-pendulum geometry remains at initialization-level quality throughout trai
 ## Interpretation boundary
 
 These are single-seed results and therefore do not estimate run-to-run variance.
-They establish a controlled negative result for the current seed and architecture: next-token training learns useful physical state variables, but apparent belief decodability is explainable by recent observation history.
+Next-token training clearly learns useful physical state variables.
+The belief question is not settled here: the residual stream carries a small amount of belief information beyond a matched recent-token window under the whole-tick readout, and none under the single-position readout, at one seed.
+Deciding between those requires more seeds and a readout chosen before the numbers are seen, neither of which this run has.
 
 Raw machine-readable results are in [`experiments/results-messk/`](../experiments/results-messk/).
