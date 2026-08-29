@@ -23,10 +23,22 @@ class PredatorPrey:
     kappa: float = 5.0
     kick: float = 0.35
     log_bound: float = 3.5
+    kicks: tuple[tuple[float, float], ...] | None = None  # None -> legacy cross + no-op
 
     state_dim: int = field(default=2, init=False)
-    n_actions: int = field(default=5, init=False)
     dims_periodic: tuple[bool, bool] = field(default=(False, False), init=False)
+
+    @property
+    def dv_table(self) -> tuple[tuple[float, float], ...]:
+        """(d log x, d log y) per action; the legacy set's 5th entry is the no-op."""
+        if self.kicks is not None:
+            return self.kicks
+        k = self.kick
+        return ((-k, 0.0), (k, 0.0), (0.0, -k), (0.0, k), (0.0, 0.0))
+
+    @property
+    def n_actions(self) -> int:
+        return len(self.dv_table)
 
     @property
     def domain(self) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -55,11 +67,7 @@ class PredatorPrey:
 
     def apply_action(self, z: np.ndarray, action: int) -> np.ndarray:
         lx, ly = z[..., 0], z[..., 1]
-        d_lx, d_ly = {
-            0: (-self.kick, 0.0), 1: (self.kick, 0.0),
-            2: (0.0, -self.kick), 3: (0.0, self.kick),
-            4: (0.0, 0.0),
-        }[action]
+        d_lx, d_ly = self.dv_table[action]
         new_lx = np.clip(lx + d_lx, -self.log_bound, self.log_bound)
         new_ly = np.clip(ly + d_ly, -self.log_bound, self.log_bound)
         return np.stack([new_lx, new_ly], axis=-1)

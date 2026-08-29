@@ -16,10 +16,26 @@ class Pendulum:
     gamma: float = 0.15
     kick: float = 1.5
     omega_max: float = 8.0
+    kicks: tuple[float, ...] | None = None  # None -> the legacy (-kick, 0, +kick) set
 
     state_dim: int = field(default=2, init=False)
-    n_actions: int = field(default=3, init=False)
     dims_periodic: tuple[bool, bool] = field(default=(True, False), init=False)
+
+    @property
+    def dv_table(self) -> tuple[float, ...]:
+        """Velocity increment per action.
+
+        The legacy set carries a no-op, which is the exact midpoint of the other
+        two and therefore invisible to `metrics` (= omega): E[omega] moves with
+        p(+dv) - p(-dv) and does not depend on p(noop) at all. Passing `kicks`
+        replaces it with an arbitrary ladder so that every action displaces the
+        state.
+        """
+        return (-self.kick, 0.0, self.kick) if self.kicks is None else self.kicks
+
+    @property
+    def n_actions(self) -> int:
+        return len(self.dv_table)
 
     @property
     def domain(self) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -43,7 +59,7 @@ class Pendulum:
 
     def apply_action(self, z: np.ndarray, action: int) -> np.ndarray:
         theta, omega = z[..., 0], z[..., 1]
-        dv = {0: -self.kick, 1: 0.0, 2: self.kick}[action]
+        dv = self.dv_table[action]
         new_omega = np.clip(omega + dv, -self.omega_max, self.omega_max)
         return np.stack([theta, new_omega], axis=-1)
 

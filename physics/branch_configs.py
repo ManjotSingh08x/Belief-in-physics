@@ -57,6 +57,41 @@ BRANCH_CONFIGS: dict[str, dict] = {
         "n_lat_cells": 4, "n_lon_cells_equator": 8, "noise_std": 0.45,
         "action_names": ("kick0", "kick120", "kick240", "noop"),
     },
+    # --- no-no-op Mess-4 variants ------------------------------------------
+    # Both drop the no-op, so every action displaces the state, and both are
+    # variance-matched to the parent config: the per-segment variance of the
+    # kick sets how fast the belief spreads, so holding it fixed keeps the
+    # dynamical regime comparable and makes the comparison about action-set
+    # GEOMETRY rather than about a harder or easier process.
+    #
+    # They fill the 3-simplex in the two different ways available:
+    #   pendulum       4 graded kicks on one axis  -> metric image is COLLINEAR
+    #   predator_prey  4 unit kicks on two axes    -> metric image is a CROSS
+    # so together they separate "encodes the simplex" from "encodes the metric".
+    "pendulum_mess4": {
+        # {-2,-1,+1,+2}*s with 2.5*s^2 == (2/3)*1.5^2  ->  s = sqrt(0.6)
+        "system": Pendulum,
+        "system_kwargs": {"gamma": 0.15, "kicks": tuple(m * np.sqrt(0.6) for m in (-2.0, -1.0, 1.0, 2.0))},
+        "z0": [[0.4, 0.0], [-0.3, 0.5], [1.0, -0.4], [-0.8, 0.2]],
+        "K": 8, "dt": 0.02, "M": 7,  # 4^7 * 4 z0 = 65,536 branches, the proven size
+        "emission_bins": 16, "noise_std": 0.5,
+        "obs_range": (-np.pi, np.pi), "periodic": True,
+        "action_names": ("-2dv", "-dv", "+dv", "+2dv"),
+    },
+    "predator_prey_mess4": {
+        # the legacy cross with the no-op deleted; per-coordinate variance goes
+        # (2/5)k^2 -> (1/2)k'^2, so k' = k*sqrt(4/5)
+        "system": PredatorPrey,
+        "system_kwargs": {"kicks": tuple(
+            (dx * 0.4 * np.sqrt(0.8), dy * 0.4 * np.sqrt(0.8))
+            for dx, dy in ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0))
+        )},
+        "z0": np.log([[3.0, 2.0], [1.5, 0.8], [2.5, 1.5], [1.2, 1.2]]).tolist(),
+        "K": 8, "dt": 0.02, "M": 7,
+        "emission_bins": 8, "noise_std": 0.09,
+        "obs_range": (0.0, 1.0), "periodic": False,
+        "action_names": ("-prey", "+prey", "-pred", "+pred"),
+    },
     "double_pendulum": {
         "system": DoublePendulum, "system_kwargs": {"kick": 5.0},
         "z0": [[0.9, -0.4, 0.0, 0.0], [-0.6, 0.8, 0.2, -0.1], [1.2, 0.3, -0.3, 0.2], [-1.0, -0.9, 0.1, 0.3]],
@@ -140,4 +175,10 @@ def scaled_kick(name: str, scale: float) -> dict:
     if scale == 1.0:
         return {}
     base = BRANCH_CONFIGS[name]["system_kwargs"]
+    if "kicks" in base:  # explicit ladder: scale every entry, scalar or vector
+        scaled = tuple(
+            tuple(v * scale for v in k) if hasattr(k, "__len__") else k * scale
+            for k in base["kicks"]
+        )
+        return {"system_kwargs": {**base, "kicks": scaled}}
     return {"system_kwargs": {**base, "kick": base["kick"] * scale}}

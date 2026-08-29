@@ -145,9 +145,13 @@ def test_scaled_kick_changes_only_the_magnitude():
         assert scaled_kick(name, 1.0) == {}
         doubled = scaled_kick(name, 2.0)["system_kwargs"]
         base = BRANCH_CONFIGS[name]["system_kwargs"]
-        assert doubled["kick"] == base["kick"] * 2
-        assert {k: v for k, v in doubled.items() if k != "kick"} == {
-            k: v for k, v in base.items() if k != "kick"
+        key = "kicks" if "kicks" in base else "kick"
+        if key == "kick":
+            assert doubled["kick"] == base["kick"] * 2
+        else:  # ladder configs scale entrywise, scalar or vector
+            assert np.allclose(np.asarray(doubled["kicks"]), np.asarray(base["kicks"]) * 2)
+        assert {k: v for k, v in doubled.items() if k != key} == {
+            k: v for k, v in base.items() if k != key
         }
 
 
