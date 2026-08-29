@@ -251,6 +251,30 @@ def fig_causal(causal) -> Path:
     return out
 
 
+def fig_rollout(rollout) -> Path:
+    """E2d: excess KL between the model's k-step law and the exact one."""
+    systems = list(rollout)
+    fig, axes = plt.subplots(1, len(systems), figsize=(3.5 * len(systems), 4.0), squeeze=False)
+    fig.suptitle("E2d: distortion of the model's k-step law after erasing the belief,\n"
+                 "in excess of a matched-rank random subspace. Control spread recomputed at each k.",
+                 fontsize=10)
+    for ax, name in zip(axes[0], systems):
+        for dep in rollout[name]["by_depth"]:
+            ks = [r["k"] for r in dep["by_k"]]
+            ax.errorbar(ks, [r["excess"] for r in dep["by_k"]],
+                        yerr=[r["kl_control_sd"] for r in dep["by_k"]],
+                        marker="o", ms=3.5, lw=1.3, capsize=2,
+                        label=f"{dep['name']} (rank {dep['rank']})")
+        ax.axhline(0, color="0.4", ls="--", lw=1.0)
+        ax.set_xlabel("steps ahead k"); ax.set_title(name, fontsize=9)
+        ax.grid(alpha=0.25); ax.legend(fontsize=7)
+    axes[0][0].set_ylabel("excess KL(exact || model) over random\n>0 = the belief was load-bearing")
+    fig.tight_layout(rect=(0, 0, 1, 0.90))
+    out = FIGDIR / "rollout.png"
+    fig.savefig(out, dpi=150); plt.close(fig)
+    return out
+
+
 def fig_kick_sweep(sweep) -> Path:
     """E6/C6: is claim 1 a property of the model, or of the phase-1 threshold?"""
     rows = sweep["pendulum"]
@@ -323,6 +347,7 @@ def main() -> None:
         ("phase5_03_myopic.json", (fig_myopic,)),
         ("phase5_05_causal.json", (fig_causal,)),
         ("phase5_06_kick_sweep.json", (fig_kick_sweep,)),
+        ("phase5_06_rollout.json", (fig_rollout,)),
         ("phase5_07_emergence.json", (fig_emergence,)),
     ]
     for filename, fns in jobs:

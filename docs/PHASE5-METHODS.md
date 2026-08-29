@@ -19,6 +19,7 @@ stated up front.
 | `09_probe_semantics.py` | 5.2 | V2 belief-or-label, V3 token-window baseline, V5 MLP ceiling, R6 nonlinear-after-erasure, C16, C17, V6 |
 | `10_myopic.py` | 5.3-5.4 | E1a ceiling, E1b matched pairs, E1c horizon curve |
 | `11_causal.py` | 5.5-5.6 | E2a decodability horizon, E2b position-restricted, E2c patching, R4 complements |
+| `13_rollout.py` | 5.6 | E2d rollout divergence against the exact k-step law |
 | `12_emergence.py` | 5.7 | E5 matched-target coupling vs emergence |
 | `03_train_branch.py` | 5.7 | seeds and the kick sweep, via `SEED`, `KICK_SCALE`, `TAG` |
 | `scripts/make_phase5_figures.py` | - | one figure per question |
@@ -155,6 +156,17 @@ uninteresting reason. *Falsifier:* alignment at or below the matched-rank random
 subspace. Ablation asks whether removing it hurts; patching asks whether changing
 it moves the model where the interpretation says it should.
 
+**E2d, rollout divergence.** Cut every sequence at the last position of a
+segment, roll the model forward k steps autoregressively under an intervention,
+and compare its k-step marginal to the exact `p^(k)` by KL. The model's marginal
+is estimated Rao-Blackwellised: sample `k - 1` tokens, then average the
+*distribution* at step k over replicas rather than histogramming sampled tokens.
+Every arm uses the same rollout seed, so the arms differ by the intervention and
+not by which continuations were drawn. Sampling error compounds with k in every
+arm and any rank-r deletion costs something, so only `excess(k) = KL(ablated, k)
+- mean KL(random, k)` is interpretable, with the control spread recomputed at
+each k rather than carried over from k = 1.
+
 **E5, coupling versus emergence.** Within one model, a family of targets of
 matched width 3 and matched scale,
 `f_alpha = alpha * (three emission columns) + (1 - alpha) * (a random functional
@@ -186,6 +198,7 @@ uv run python experiments/08_ablation_grid.py
 uv run python experiments/09_probe_semantics.py
 uv run python experiments/10_myopic.py
 DEVICE=cpu uv run python experiments/11_causal.py
+uv run python experiments/13_rollout.py
 uv run python experiments/12_emergence.py
 uv run python scripts/make_phase5_figures.py
 ```

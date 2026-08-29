@@ -333,6 +333,15 @@ def main() -> None:
                                     mean_ablate(random_basis(rng, act.shape[-1], r), mean)) - base_loss
                     for _ in range(N_CONTROL)
                 ] if r > 0 else [0.0]
+                # R4 shows the complement is the load-bearing object, so it is
+                # also the one to patch: the full erasure basis is dominated by
+                # redundant directions the loss does not depend on, and patching
+                # 60 of 128 directions transplants the donor's computation
+                # wholesale whatever those directions mean.
+                if r > 0:
+                    cell["e2c_patching_complement"] = e2c_patching(
+                        model, tokens_t, depth, b_only[:, :r], readout, act, predictive, rng
+                    )
                 cell["r4_complements"] = {
                     "first_principal_angle_deg": float(ang.min()),
                     "n_angles_below_10deg": int((ang < 10).sum()),
@@ -359,6 +368,11 @@ def main() -> None:
             print(f"  {'':<14} E2c cosine by patch rank: "
                   + "  ".join(f"r{q['rank']}:{q['belief']['cosine']:+.2f}/{q['random_mean_cosine']:+.2f}"
                               for q in cell["e2c_patching"]["by_rank"]), flush=True)
+            if "e2c_patching_complement" in cell:
+                q = cell["e2c_patching_complement"]["by_rank"][-1]
+                print(f"  {'':<14} E2c COMPLEMENT (belief minus metric) rank {q['rank']}: "
+                      f"cos={q['belief']['transplant_cosine']:+.3f} "
+                      f"(random {q['random_mean_transplant_cosine']:+.3f})", flush=True)
             print(f"  {'':<14} E2c transplant cosine by rank: "
                   + "  ".join(f"r{q['rank']}:{q['belief']['transplant_cosine']:+.2f}/"
                               f"{q['random_mean_transplant_cosine']:+.2f}"
