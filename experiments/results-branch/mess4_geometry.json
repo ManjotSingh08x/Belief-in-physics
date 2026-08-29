@@ -1,0 +1,254 @@
+[
+  {
+    "name": "pendulum",
+    "n_actions": 3,
+    "M": 8,
+    "seq_len": 64,
+    "n_branches": 26244,
+    "chance": 0.3333333333333333,
+    "by_obs_since_kick": [
+      {
+        "obs_since_kick": 1,
+        "entropy_normalised": 0.9491114810636727,
+        "oracle_recovery": 0.42626953125
+      },
+      {
+        "obs_since_kick": 2,
+        "entropy_normalised": 0.8337767013484978,
+        "oracle_recovery": 0.5244140625
+      },
+      {
+        "obs_since_kick": 3,
+        "entropy_normalised": 0.7146249004855556,
+        "oracle_recovery": 0.61279296875
+      },
+      {
+        "obs_since_kick": 4,
+        "entropy_normalised": 0.6228680732455419,
+        "oracle_recovery": 0.68408203125
+      },
+      {
+        "obs_since_kick": 5,
+        "entropy_normalised": 0.5722951499026689,
+        "oracle_recovery": 0.7109375
+      },
+      {
+        "obs_since_kick": 6,
+        "entropy_normalised": 0.5580135113477787,
+        "oracle_recovery": 0.7138671875
+      },
+      {
+        "obs_since_kick": 7,
+        "entropy_normalised": 0.5521953780681854,
+        "oracle_recovery": 0.71826171875
+      },
+      {
+        "obs_since_kick": 8,
+        "entropy_normalised": 0.5391272278577401,
+        "oracle_recovery": 0.72705078125
+      }
+    ],
+    "entropy_mean": 0.6677515529149551,
+    "oracle_recovery_mean": 0.63970947265625,
+    "recovery_over_chance": 1.91912841796875,
+    "simplex_pc_variance_fraction": [
+      0.7742975950241089,
+      0.22570236027240753
+    ],
+    "abs_corr_pc_with_metric": [
+      0.2785804863795432,
+      0.033051700947622484
+    ]
+  },
+  {
+    "name": "pendulum_mess4",
+    "n_actions": 4,
+    "M": 7,
+    "seq_len": 56,
+    "n_branches": 65536,
+    "chance": 0.25,
+    "by_obs_since_kick": [
+      {
+        "obs_since_kick": 1,
+        "entropy_normalised": 0.9621101276924973,
+        "oracle_recovery": 0.34263392857142855
+      },
+      {
+        "obs_since_kick": 2,
+        "entropy_normalised": 0.8690657860594158,
+        "oracle_recovery": 0.4146205357142857
+      },
+      {
+        "obs_since_kick": 3,
+        "entropy_normalised": 0.7733695512352793,
+        "oracle_recovery": 0.48828125
+      },
+      {
+        "obs_since_kick": 4,
+        "entropy_normalised": 0.7066980635807175,
+        "oracle_recovery": 0.5362723214285714
+      },
+      {
+        "obs_since_kick": 5,
+        "entropy_normalised": 0.6730445326080845,
+        "oracle_recovery": 0.5479910714285714
+      },
+      {
+        "obs_since_kick": 6,
+        "entropy_normalised": 0.6604057530894731,
+        "oracle_recovery": 0.5552455357142857
+      },
+      {
+        "obs_since_kick": 7,
+        "entropy_normalised": 0.6566079680844535,
+        "oracle_recovery": 0.5496651785714286
+      },
+      {
+        "obs_since_kick": 8,
+        "entropy_normalised": 0.6480248375497648,
+        "oracle_recovery": 0.5630580357142857
+      }
+    ],
+    "entropy_mean": 0.7436658274874607,
+    "oracle_recovery_mean": 0.49972098214285715,
+    "recovery_over_chance": 1.9988839285714286,
+    "simplex_pc_variance_fraction": [
+      0.814859926700592,
+      0.14005663990974426,
+      0.04508352652192116
+    ],
+    "abs_corr_pc_with_metric": [
+      0.3074744264370764,
+      0.014610028711231677,
+      0.036921634122581114
+    ]
+  },
+  {
+    "name": "predator_prey",
+    "n_actions": 5,
+    "M": 6,
+    "seq_len": 48,
+    "n_branches": 62500,
+    "chance": 0.2,
+    "by_obs_since_kick": [
+      {
+        "obs_since_kick": 1,
+        "entropy_normalised": 0.8882726116220487,
+        "oracle_recovery": 0.33984375
+      },
+      {
+        "obs_since_kick": 2,
+        "entropy_normalised": 0.8266323261183183,
+        "oracle_recovery": 0.3815104166666667
+      },
+      {
+        "obs_since_kick": 3,
+        "entropy_normalised": 0.7904471859323637,
+        "oracle_recovery": 0.4251302083333333
+      },
+      {
+        "obs_since_kick": 4,
+        "entropy_normalised": 0.762207258968108,
+        "oracle_recovery": 0.46484375
+      },
+      {
+        "obs_since_kick": 5,
+        "entropy_normalised": 0.7361463334980277,
+        "oracle_recovery": 0.490234375
+      },
+      {
+        "obs_since_kick": 6,
+        "entropy_normalised": 0.7117725440209396,
+        "oracle_recovery": 0.5071614583333334
+      },
+      {
+        "obs_since_kick": 7,
+        "entropy_normalised": 0.6875344952621875,
+        "oracle_recovery": 0.5319010416666666
+      },
+      {
+        "obs_since_kick": 8,
+        "entropy_normalised": 0.6605381366407209,
+        "oracle_recovery": 0.5592447916666666
+      }
+    ],
+    "entropy_mean": 0.7579438615078393,
+    "oracle_recovery_mean": 0.4624837239583333,
+    "recovery_over_chance": 2.3124186197916665,
+    "simplex_pc_variance_fraction": [
+      0.6144746541976929,
+      0.2066354900598526,
+      0.14830616116523743,
+      0.030583687126636505
+    ],
+    "abs_corr_pc_with_metric": [
+      0.26716109172357594,
+      0.03315491112000802,
+      0.3670715661085954,
+      0.0321144189312837
+    ]
+  },
+  {
+    "name": "predator_prey_mess4",
+    "n_actions": 4,
+    "M": 7,
+    "seq_len": 56,
+    "n_branches": 65536,
+    "chance": 0.25,
+    "by_obs_since_kick": [
+      {
+        "obs_since_kick": 1,
+        "entropy_normalised": 0.8677962223792318,
+        "oracle_recovery": 0.38839285714285715
+      },
+      {
+        "obs_since_kick": 2,
+        "entropy_normalised": 0.79957374335406,
+        "oracle_recovery": 0.43917410714285715
+      },
+      {
+        "obs_since_kick": 3,
+        "entropy_normalised": 0.7581627334680636,
+        "oracle_recovery": 0.48270089285714285
+      },
+      {
+        "obs_since_kick": 4,
+        "entropy_normalised": 0.7261667507613352,
+        "oracle_recovery": 0.5379464285714286
+      },
+      {
+        "obs_since_kick": 5,
+        "entropy_normalised": 0.6963248189174248,
+        "oracle_recovery": 0.5725446428571429
+      },
+      {
+        "obs_since_kick": 6,
+        "entropy_normalised": 0.6670354982351812,
+        "oracle_recovery": 0.5993303571428571
+      },
+      {
+        "obs_since_kick": 7,
+        "entropy_normalised": 0.6340350655911416,
+        "oracle_recovery": 0.6171875
+      },
+      {
+        "obs_since_kick": 8,
+        "entropy_normalised": 0.6025683693273951,
+        "oracle_recovery": 0.63671875
+      }
+    ],
+    "entropy_mean": 0.7189579002542291,
+    "oracle_recovery_mean": 0.5342494419642857,
+    "recovery_over_chance": 2.136997767857143,
+    "simplex_pc_variance_fraction": [
+      0.6725144386291504,
+      0.17265354096889496,
+      0.15483200550079346
+    ],
+    "abs_corr_pc_with_metric": [
+      0.24317479497986144,
+      0.17924315194831475,
+      0.31389998473452446
+    ]
+  }
+]

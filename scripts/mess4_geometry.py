@@ -47,7 +47,12 @@ def simplex_embedding(a: int) -> np.ndarray:
     if a == 4:
         v = np.array([[1.0, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]])
         return v / np.sqrt(3.0)
-    raise ValueError(f"no embedding for {a} actions")
+    # a >= 5: the simplex needs a-1 dims, so plot the first 3 of a regular
+    # embedding. The 5-action parent is the only case, and it is shown only as
+    # the "before" panel -- the comparison of record is 4 actions against 3.
+    centred = np.eye(a) - 1.0 / a
+    basis = np.linalg.svd(centred)[2][: a - 1].T
+    return (centred @ basis)[:, :3]
 
 
 def collect(name: str, seed: int = 0) -> dict:
@@ -119,8 +124,8 @@ def _scatter_simplex(ax, d, colour, cmap, label):
         ax.set_aspect("equal")
         ax.axis("off")
     else:
-        for i in range(4):
-            for j in range(i + 1, 4):
+        for i in range(len(verts)):
+            for j in range(i + 1, len(verts)):
                 ax.plot(*zip(verts[i], verts[j]), color="0.8", lw=0.7, zorder=1)
         sc = ax.scatter(xy[:, 0], xy[:, 1], xy[:, 2], c=colour, s=1.0, cmap=cmap, alpha=0.3, lw=0)
         ax.set_axis_off()
@@ -138,7 +143,7 @@ def figure(parent: dict, child: dict, path: Path) -> None:
         fontsize=11,
     )
     for col, d in enumerate((parent, child)):
-        proj = "3d" if d["n_actions"] == 4 else None
+        proj = "3d" if simplex_embedding(d["n_actions"]).shape[1] == 3 else None
         ax = fig.add_subplot(2, 3, 1 + 3 * col, projection=proj)
         sc = _scatter_simplex(ax, d, d["_since"], "viridis", f"{d['name']}\ncoloured by obs since kick")
         fig.colorbar(sc, ax=ax, fraction=0.04, pad=0.02)
