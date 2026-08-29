@@ -309,11 +309,26 @@ Erasing only the part of each basis orthogonal to the other, at matched rank:
 | double_pendulum | resid_post_0 | 29 | +0.1027 | +0.0950 | +0.0571 ± 0.0067 |
 | double_pendulum | resid_post_2 | 16 | +0.0314 | +0.0527 | +0.0129 ± 0.0022 |
 
-The belief-specific directions are load-bearing above the matched random control
-in 13 of 14 cells, and the effect is largest at `resid_post_0`, which C12
-identifies as where the belief is being built. The full erasure basis is not
-load-bearing because it is dominated by redundant low-variance directions that
-the loss does not depend on; the unique 20 of its 60 directions are.
+Across the 14 (system, depth) cells, the belief-specific complement exceeds the
+matched random control by more than 2 sd in **10**, sits between 0 and 2 sd in 2,
+and falls below it in 2. The metric-specific complement exceeds by more than 2 sd
+in 12. The four belief cells that do not clear 2 sd are:
+
+```
+pendulum       resid_post_2   +0.0075 vs random +0.0147 +- 0.0046   z = -1.6
+predator_prey  resid_post_1   +0.0587 vs random +0.0386 +- 0.0152   z = +1.3
+predator_prey  resid_post_2   +0.0453 vs random +0.0449 +- 0.0143   z =  0.0
+sphere         resid_post_2   +0.0098 vs random +0.0146 +- 0.0021   z = -2.3
+```
+
+Three of the four are at `resid_post_2`, and the effect is largest at
+`resid_post_0`, which C12 identifies as where the belief is built. The pattern is
+consistent across the whole of phase 5: the belief-specific directions matter
+where the belief is being constructed and stop mattering downstream.
+
+The full erasure basis is not load-bearing because it is dominated by redundant
+low-variance directions the loss does not depend on; the unique 20 of its 60
+directions are.
 
 This is the contrast phase 4 should have run. It does not rescue claim 3 as
 stated -- the phase-4 numbers remain unusable -- but it replaces the null with a

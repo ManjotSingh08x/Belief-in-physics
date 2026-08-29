@@ -48,7 +48,7 @@ import time
 import numpy as np
 import torch
 
-from models.ablation import erasure_basis
+from models.ablation import erasure_basis, variance_fraction
 from models.analysis import _sequence_split, residual_streams_batched
 from models.bootstrap import bootstrap_r2, r2_columns
 from models.probe import fit_probe
@@ -220,13 +220,38 @@ def main() -> None:
                 )
                 mu = act.reshape(-1, act.shape[-1]).mean(0)
                 strip = lambda x: x - ((x - mu) @ basis) @ basis.T
+                mlp_before = mlp_probe(a_tr, b_tr, a_te, b_te, epochs=MLP_EPOCHS, device=device)["r2"]
                 record["r6_nonlinear_after_erasure"] = {
                     "depth": best["name"], "rank": int(basis.shape[1]),
                     "linear_before": intact, "linear_after": history[-1],
-                    "mlp_before": mlp_probe(a_tr, b_tr, a_te, b_te, epochs=MLP_EPOCHS, device=device)["r2"],
+                    "mlp_before": mlp_before,
                     "mlp_after": mlp_probe(strip(a_tr), b_tr, strip(a_te), b_te,
                                            epochs=MLP_EPOCHS, device=device)["r2"],
                 }
+
+                # How far the rank has to go before the feature is actually gone,
+                # rather than merely unreadable by a line. If the MLP holds up to
+                # a rank where the random control is already destroying the model,
+                # then no rank-limited linear erasure can isolate this feature and
+                # the whole ablation methodology is inapplicable to it -- which is
+                # a stronger statement than any individual ablation null.
+                ladder = []
+                for r in [x for x in (2, 4, 8, 16, 32, 48, 64, 96, 128) if x <= basis.shape[1]]:
+                    sub = basis[:, :r]
+                    cut = lambda x: x - ((x - mu) @ sub) @ sub.T
+                    ladder.append(
+                        {
+                            "rank": r,
+                            "linear": r2_columns(fit_probe(cut(a_tr), b_tr)(cut(a_te)), b_te),
+                            "mlp": mlp_probe(cut(a_tr), b_tr, cut(a_te), b_te,
+                                             epochs=MLP_EPOCHS, device=device)["r2"],
+                            "variance_fraction": variance_fraction(sub, act.reshape(-1, act.shape[-1])),
+                        }
+                    )
+                record["r6_rank_ladder"] = ladder
+                print("  R6 rank ladder (linear / MLP): "
+                      + "  ".join(f"r{c['rank']}:{c['linear']:.2f}/{c['mlp']:.2f}" for c in ladder),
+                      flush=True)
                 r6 = record["r6_nonlinear_after_erasure"]
                 print(f"  R6 erasure @{r6['depth']} rank {r6['rank']}: linear "
                       f"{r6['linear_before']:.3f}->{r6['linear_after']:.3f}   "

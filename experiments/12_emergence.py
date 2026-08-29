@@ -53,7 +53,6 @@ from physics.branch_configs import BRANCH_CONFIGS, make_branch_process, scaled_k
 from physics.myopic import predictive_stack
 
 N_EVAL = int(os.environ.get("N_EVAL", 384))
-WIDTH = 3
 ALPHAS = (0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)
 N_SEEDS = 2
 # Thresholds on the *learned gain* R^2(t) - R^2(untrained), not on R^2 itself.
@@ -74,49 +73,72 @@ def _checkpoints(name: str):
     return checkpoint_paths(OUTPUT_DIR / "checkpoints", name, TAG)
 
 
-def matched_targets(process, rng) -> tuple[np.ndarray, list[dict]]:
-    """`(n_targets * WIDTH, ...)` tables per segment, and their labels.
+def matched_targets(process, rng) -> tuple[list, list[dict]]:
+    """Per-segment tables for a family of exact linear functionals of the belief,
+    matched on width and scale, sweeping only their coupling to `p`.
 
-    The random half is drawn once on the *full* branch space and marginalised
-    down to each level by averaging over completions, so a given target is the
-    same functional at every position rather than a new random one each segment.
+    Two families, because one of them alone would not settle the question.
+
+    `family="random"` interpolates between a random functional of the belief and
+    the emission table, so it spans coupling but every member is an arbitrary
+    quantity the model has no particular reason to build.
+
+    `family="belief"` interpolates between the **actual `action_lag0` marginal**
+    and the same emission table. Its alpha = 0 end is the project's headline
+    target and its alpha = 1 end is the next-token distribution, so this family
+    passes through the place the real targets live. It is the one that can
+    speak to the phase-4 ordering.
+
+    The random functional is drawn once on the full branch space and marginalised
+    to each level by averaging over completions, so a target is the same
+    functional at every position rather than a new random one per segment.
     """
+    width = process.n_actions
     n_full = process.n_branches(process.M)
-    bins = rng.choice(process.n_obs, WIDTH, replace=False)
+    bins = rng.choice(process.n_obs, width, replace=False)
     specs, tables = [], []
 
-    for seed in range(N_SEEDS):
-        gen = np.random.default_rng(1000 + seed)
-        full = gen.normal(size=(n_full, WIDTH))
-        full = (full - full.mean(0)) / full.std(0)
-        for alpha in ALPHAS:
-            specs.append({"alpha": alpha, "seed": seed, "bins": bins.tolist()})
-            per_segment = []
-            for m in range(process.M):
-                level = m + 1
-                n_level = process.n_branches(level)
-                # average the full-branch functional over its completions
-                rand = full.reshape(n_level, -1, WIDTH).mean(axis=1)
-                emis = process.emissions[m][:, :, bins]  # (n_level, steps, WIDTH)
-                # emission is already scaled like a probability; standardise it so
-                # alpha mixes two comparable quantities rather than two scales.
-                e = (emis - emis.mean(axis=(0, 1))) / (emis.std(axis=(0, 1)) + 1e-9)
-                per_segment.append(alpha * e + (1 - alpha) * rand[:, None, :])
-            tables.append(per_segment)
+    gens = {
+        seed: (lambda g: (g - g.mean(0)) / g.std(0))(
+            np.random.default_rng(1000 + seed).normal(size=(n_full, width))
+        )
+        for seed in range(N_SEEDS)
+    }
+
+    for family in ("random", "belief"):
+        for seed in range(N_SEEDS if family == "random" else 1):
+            for alpha in ALPHAS:
+                specs.append({"alpha": alpha, "seed": seed, "family": family, "bins": bins.tolist()})
+                per_segment = []
+                for m in range(process.M):
+                    n_level = process.n_branches(m + 1)
+                    if family == "random":
+                        base = gens[seed].reshape(n_level, -1, width).mean(axis=1)
+                    else:
+                        # E_b[onehot(last action)] IS the action_lag0 marginal,
+                        # because the flat branch index is the action word.
+                        base = np.eye(width)[np.arange(n_level) % width]
+                    emis = process.emissions[m][:, :, bins]  # (n_level, steps, width)
+                    # Standardise both sides so alpha mixes comparable quantities
+                    # rather than two different scales.
+                    e = (emis - emis.mean(axis=(0, 1))) / (emis.std(axis=(0, 1)) + 1e-9)
+                    b = (base - base.mean(0)) / (base.std(0) + 1e-9)
+                    per_segment.append(alpha * e + (1 - alpha) * b[:, None, :])
+                tables.append(per_segment)
     return tables, specs
 
 
 def target_values(process, tokens, tables, chunk=64) -> np.ndarray:
-    """`E_b[f]` for every target at every position: `(n, L, n_targets * WIDTH)`."""
-    n_t = len(tables)
-    out = np.empty((tokens.shape[0], process.seq_len, n_t * WIDTH), dtype=np.float64)
+    """`E_b[f]` for every target at every position: `(n, L, n_targets * width)`."""
+    n_t, width = len(tables), process.n_actions
+    out = np.empty((tokens.shape[0], process.seq_len, n_t * width), dtype=np.float64)
     for start in range(0, tokens.shape[0], chunk):
         block = tokens[start : start + chunk]
         nb = block.shape[0]
         for pos, belief in enumerate(process.iter_beliefs(block)):
             m, s = divmod(pos, process.steps_per_segment)
             for j, per_segment in enumerate(tables):
-                out[start : start + nb, pos, j * WIDTH : (j + 1) * WIDTH] = (
+                out[start : start + nb, pos, j * width : (j + 1) * width] = (
                     belief @ per_segment[m][:, s]
                 )
     return out
@@ -143,7 +165,8 @@ def _crossing(tokens_axis, series, threshold):
 def main() -> None:
     device = pick_device()
     training = json.loads((OUTPUT_DIR / f"phase2_branch_training{TAG}.json").read_text())
-    print(f"device={device} systems={SYSTEMS} n_eval={N_EVAL} width={WIDTH}", flush=True)
+    print(f"device={device} systems={SYSTEMS} n_eval={N_EVAL} "
+          f"(width = n_actions per system)", flush=True)
     results = {}
 
     for name in SYSTEMS:
@@ -159,13 +182,14 @@ def main() -> None:
 
         tables, specs = matched_targets(process, rng)
         values = target_values(process, episodes.tokens, tables)
-        groups = {f"t{j}": slice(j * WIDTH, (j + 1) * WIDTH) for j in range(len(specs))}
+        width = process.n_actions
+        groups = {f"t{j}": slice(j * width, (j + 1) * width) for j in range(len(specs))}
 
         # The real belief and metric blocks, on the same axis for reference.
         real = forward_features(process, episodes.tokens).astype(np.float64)
         real_groups = feature_groups(process)
         values = np.concatenate([values, real], axis=-1)
-        off = len(specs) * WIDTH
+        off = len(specs) * width
         for g, c in real_groups.items():
             groups[f"real_{g}"] = slice(off + c.start, off + c.stop)
 
@@ -225,6 +249,21 @@ def main() -> None:
         # emergence? Spearman on log-tokens, so a single slow target cannot
         # dominate the fit.
         report = {}
+        for family in ("random", "belief"):
+            for t in THRESHOLDS:
+                pts = [(r["coupling_to_p"], r["crossings"][str(t)])
+                       for r in rows
+                       if r.get("family") == family
+                       and r["learned_gain"] > MIN_LEARNED_GAIN
+                       and r["crossings"][str(t)] is not None]
+                key = f"{family}@{t}"
+                if len(pts) >= 4:
+                    x = np.array([a for a, _ in pts])
+                    y = np.log10(np.maximum([b for _, b in pts], 1.0))
+                    rho = float(np.corrcoef(x.argsort().argsort(), y.argsort().argsort())[0, 1])
+                else:
+                    rho = None
+                report[key] = {"n": len(pts), "spearman_coupling_vs_log_tokens": rho}
         for t in THRESHOLDS:
             # A target that never gets learned has no emergence time, and
             # including it as a censored point would let the threshold choice
@@ -253,12 +292,14 @@ def main() -> None:
 
         for r in sorted(rows, key=lambda r: -r["coupling_to_p"]):
             c = r["crossings"][str(THRESHOLDS[0])]
-            print(f"  {r['target']:<18} alpha={str(r['alpha']):>5}  coupling={r['coupling_to_p']:+.3f}  "
+            print(f"  {r['target']:<8}{str(r.get('family','-')):<10} alpha={str(r['alpha']):>5}  coupling={r['coupling_to_p']:+.3f}  "
                   f"final={r['final_r2']:+.3f}  untr={r['untrained_r2']:+.3f}  "
                   f"gain={r['learned_gain']:+.3f}  "
                   f"cross@{THRESHOLDS[0]}={'never' if c is None else f'{c:,.0f}'}", flush=True)
-        print(f"  Spearman(coupling, log tokens to reach threshold): "
-              + "  ".join(f"{t}:{v['spearman_coupling_vs_log_tokens']}" for t, v in report.items()), flush=True)
+        print("  Spearman(coupling, log tokens to reach threshold):", flush=True)
+        for k, v in report.items():
+            if v["spearman_coupling_vs_log_tokens"] is not None:
+                print(f"    {k:<16} rho={v['spearman_coupling_vs_log_tokens']:+.2f}  n={v['n']}", flush=True)
 
         results[name] = {
             "tokens_axis": axis, "targets": rows, "spearman": report,

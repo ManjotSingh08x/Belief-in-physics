@@ -305,34 +305,46 @@ def fig_kick_sweep(sweep) -> Path:
 
 
 def fig_emergence(emergence) -> Path:
-    """E5: emergence time against measured coupling, within one model."""
+    """E5: emergence time against measured coupling, within one model.
+
+    Two families. The `belief` family is anchored at the project's own headline
+    target, so it passes through the place the real quantities live; the `random`
+    family does not. They disagree in sign, which is the result.
+    """
     systems = list(emergence)
-    fig, axes = plt.subplots(1, len(systems), figsize=(3.6 * len(systems), 4.0), squeeze=False)
+    fig, axes = plt.subplots(1, len(systems), figsize=(3.8 * len(systems), 4.2), squeeze=False)
     fig.suptitle("E5: does coupling to the next-token distribution predict emergence?\n"
-                 "One model, targets matched on width and scale, alpha sweeping the coupling.",
+                 "Targets matched on width and scale inside one model; alpha sweeps the coupling.",
                  fontsize=10)
+    style = {"belief": ("o", COLOUR["action_lag0"]), "random": ("^", "0.45")}
     for ax, name in zip(axes[0], systems):
         rows = emergence[name]["targets"]
-        thr = sorted(rows[0]["crossings"])[0]
-        synth = [r for r in rows if r.get("alpha") is not None]
-        real = [r for r in rows if r.get("alpha") is None]
-        xs = [r["coupling_to_p"] for r in synth]
-        ys = [r["crossings"][thr] for r in synth]
-        ok = [(x, y) for x, y in zip(xs, ys) if y is not None]
-        if ok:
-            ax.scatter(*zip(*ok), c=[r["alpha"] for r, y in zip(synth, ys) if y is not None],
-                       cmap="viridis", s=36, label="matched targets")
-        for r in real:
-            y = r["crossings"][thr]
-            if y is not None:
-                ax.scatter([r["coupling_to_p"]], [y], marker="*", s=140,
-                           color=COLOUR.get(r["target"].replace("real_", ""), "k"),
-                           label=r["target"].replace("real_", ""))
-        rho = emergence[name]["spearman"].get(thr, {}).get("spearman_coupling_vs_log_tokens")
+        thr = sorted(r for r in rows[0]["crossings"])[0]
+        for family, (marker, colour) in style.items():
+            pts = [(r["coupling_to_p"], r["crossings"][thr])
+                   for r in rows
+                   if r.get("family") == family and r.get("learned_gain", 1) > 0.1
+                   and r["crossings"][thr] is not None]
+            if pts:
+                ax.scatter(*zip(*pts), marker=marker, s=42, color=colour, alpha=0.85,
+                           label=f"{family} family")
+        for r in rows:
+            if r.get("alpha") is None and r["crossings"][thr] is not None:
+                label = r["target"].replace("real_", "")
+                ax.scatter([r["coupling_to_p"]], [r["crossings"][thr]], marker="*", s=170,
+                           color=COLOUR.get(label.replace("action_lag0", "action_lag0"), "k"),
+                           edgecolor="k", linewidth=0.4,
+                           label=f"real {label.replace('action_lag0', 'belief')}")
+        sp = emergence[name]["spearman"]
+        note = "  ".join(
+            f"{k}:{v['spearman_coupling_vs_log_tokens']:+.2f}"
+            for k, v in sp.items()
+            if "@" in k and v["spearman_coupling_vs_log_tokens"] is not None
+        )
         ax.set_yscale("log"); ax.set_xlabel("coupling to p (measured R²)")
-        ax.set_title(f"{name}   Spearman={rho if rho is None else round(rho, 2)}", fontsize=9)
+        ax.set_title(f"{name}\nSpearman {note}", fontsize=7.5)
         ax.grid(alpha=0.25); ax.legend(fontsize=6)
-    axes[0][0].set_ylabel(f"tokens to reach R² = {sorted(emergence[list(emergence)[0]]['targets'][0]['crossings'])[0]}")
+    axes[0][0].set_ylabel("tokens for the learned gain to reach the threshold")
     fig.tight_layout(rect=(0, 0, 1, 0.90))
     out = FIGDIR / "emergence_coupling.png"
     fig.savefig(out, dpi=150); plt.close(fig)
