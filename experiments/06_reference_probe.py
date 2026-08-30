@@ -16,9 +16,15 @@ validation score, used for any selection, and a test score on sequences no fit
 and no choice has touched. The external script's in-sample number is what this
 experiment exists to replace, not to reproduce.
 
+Two targets are scored on the same rows and the same fit: the exact predictive
+belief, and the system's own physical metric (`omega` for the pendulum,
+`(dx_dt, dy_dt)` for predator-prey, and so on). The metric is what the model
+plainly needs for its actual job of predicting the next observation, so it is
+the reference point for how much the belief number means.
+
 A raw-observation-token window is scored on the same rows under the same split,
-because a residual-stream number is only interpretable against how much of the
-belief a window of recent observations already carries.
+because a residual-stream number is only interpretable against how much of it a
+window of recent observations already carries.
 
 `N_EVAL` must keep rows-per-feature well above one. Their run had 15; the
 earlier version of this file had 1.9, which is why it returned a negative R2.
@@ -27,7 +33,7 @@ Ridge is solved from accumulated moments rather than a dense design matrix, so
 131k rows by 5,120 features costs a 5,120^2 Gram instead of 5 GB of float64.
 
 Run:  uv run python experiments/06_reference_probe.py
-Env:  OUTPUT_DIR, CONFIGS, N_EVAL, RIDGE_ALPHAS, N_DEPTHS, TAG, REPORT_NAME.
+Env:  OUTPUT_DIR, CONFIGS, N_EVAL, RIDGE_ALPHAS, N_DEPTHS, WINDOWS, TAG, REPORT_NAME.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 import torch
 from sklearn.linear_model import Ridge
+from sklearn.metrics import r2_score
 
 from models.analysis import residual_streams_batched
 from models.probe_extra import sparse_token_window_features
@@ -128,8 +135,12 @@ def _standardise(acc: dict, mean: np.ndarray, scale: np.ndarray) -> tuple:
     return gram, cross, (acc["sx"] - acc["n"] * mean) * inverse
 
 
-def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> float:
-    """sklearn's uniform-average R2 for the prediction `y_bar + weights^T z`."""
+def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> np.ndarray:
+    """Per-output R2 for the prediction `y_bar + weights^T z`.
+
+    Per output rather than averaged, so one fit can carry several target blocks
+    and each is scored over its own columns.
+    """
     residual = (
         acc["syy"]
         - 2 * y_bar * acc["sy"]
@@ -138,12 +149,16 @@ def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> float:
         + 2 * y_bar * (z_sum @ weights)
         + np.einsum("ij,ik,kj->j", weights, gram, weights)
     )
-    total = acc["syy"] - acc["sy"] ** 2 / acc["n"]
-    return float(np.mean(1.0 - residual / total))
+    return 1.0 - residual / (acc["syy"] - acc["sy"] ** 2 / acc["n"])
 
 
-def ridge_scores(features, targets, split, alphas=RIDGE_ALPHAS) -> dict:
+def ridge_scores(features, targets, groups, split, alphas=RIDGE_ALPHAS) -> dict:
     """Standardised ridge, penalty chosen on validation, scored once on test.
+
+    All target blocks share one fit, because the design matrix and its Gram are
+    the expensive part and do not depend on the target. Each block in `groups`
+    is scored over its own columns and picks its own penalty, so the belief
+    probe's regularisation is not dragged around by the physical metric's.
 
     A fixed alpha is not safe across model sizes: widening the residual stream
     multiplies the feature count, so the same penalty that suited 5,120 columns
@@ -164,23 +179,28 @@ def ridge_scores(features, targets, split, alphas=RIDGE_ALPHAS) -> dict:
     }
     standardised = {k: _standardise(v, mean, scale) for k, v in held.items()}
 
-    best = None
+    shared = {
+        "feature_dim": int(features.shape[1]),
+        "n_train_rows": int(train["n"]),
+        "rows_per_feature": float(train["n"] / features.shape[1]),
+    }
+    best: dict[str, dict] = {}
     eye = np.eye(len(gram))
     for alpha in alphas:
         weights = np.linalg.solve(gram + alpha * eye, cross)
         scored = {
             label: _r2(held[label], *standardised[label], weights, y_bar) for label in held
         }
-        if best is None or scored["validation_r2"] > best["validation_r2"]:
-            best = scored | {"alpha": alpha}
-    return best | {
-        "feature_dim": int(features.shape[1]),
-        "n_train_rows": int(train["n"]),
-        "rows_per_feature": float(train["n"] / features.shape[1]),
-    }
+        for group, columns in groups.items():
+            candidate = {
+                label: float(np.mean(values[columns])) for label, values in scored.items()
+            } | {"alpha": alpha}
+            if group not in best or candidate["validation_r2"] > best[group]["validation_r2"]:
+                best[group] = candidate | shared
+    return best
 
 
-def token_window_scores(tokens, targets, tick_rows, proc, split) -> dict:
+def token_window_scores(tokens, targets, groups, tick_rows, proc, split) -> dict:
     """The myopic control, scored on the same rows under the same protocol.
 
     Without this at tick level the residual-stream number cannot be read: the
@@ -189,7 +209,7 @@ def token_window_scores(tokens, targets, tick_rows, proc, split) -> dict:
     widest = max(w for w in WINDOWS if w <= tokens.shape[1])
     kept = sparse_token_window_features(tokens, proc.n_obs, widest, proc.n_steps)[tick_rows]
     train_rows, validation_rows, test_rows = split
-    best = None
+    best: dict[str, dict] = {}
     for window in (w for w in WINDOWS if w <= tokens.shape[1]):
         columns = np.concatenate(
             [
@@ -202,17 +222,21 @@ def token_window_scores(tokens, targets, tick_rows, proc, split) -> dict:
             probe = Ridge(alpha=alpha, solver="lsqr", tol=1e-6).fit(
                 design[train_rows], targets[train_rows]
             )
-            candidate = {
-                "window": window,
-                "alpha": alpha,
-                "feature_dim": int(design.shape[1]),
-                "validation_r2": float(
-                    probe.score(design[validation_rows], targets[validation_rows])
-                ),
-                "test_r2": float(probe.score(design[test_rows], targets[test_rows])),
+            scored = {
+                label: r2_score(
+                    targets[rows], probe.predict(design[rows]), multioutput="raw_values"
+                )
+                for label, rows in (
+                    ("validation_r2", validation_rows),
+                    ("test_r2", test_rows),
+                )
             }
-            if best is None or candidate["validation_r2"] > best["validation_r2"]:
-                best = candidate
+            for group, block in groups.items():
+                candidate = {
+                    label: float(np.mean(values[block])) for label, values in scored.items()
+                } | {"window": window, "alpha": alpha, "feature_dim": int(design.shape[1])}
+                if group not in best or candidate["validation_r2"] > best[group]["validation_r2"]:
+                    best[group] = candidate
     return best
 
 
@@ -222,15 +246,35 @@ def _load(path: Path, config: ModelConfig, device: str) -> TinyTransformer:
     return model.to(device).eval()
 
 
-def _probe(path, config, batch, proc, targets, split, device) -> dict:
+def tick_targets(batch: dict, proc) -> tuple[np.ndarray, dict[str, slice]]:
+    """Probe targets for one row per tick, and the column block for each.
+
+    Both are read at the tick's final physics step, which is the step the
+    `last_position` readout and the raw-token control also see. The belief is
+    constant inside a tick, so only the metric is actually sensitive to that
+    choice, and taking its final value keeps every target on one clock.
+    """
+    last = np.arange(proc.n_steps - 1, proc.seq_len, proc.n_steps)
+    belief = batch["beliefs"][:, last, :]
+    metric = batch["metric"][:, last, :]
+    stacked = np.concatenate([belief, metric], axis=-1).reshape(-1, belief.shape[-1] + metric.shape[-1])
+    return stacked.astype(np.float64), {
+        "belief": slice(0, belief.shape[-1]),
+        "metric": slice(belief.shape[-1], stacked.shape[-1]),
+    }
+
+
+def _probe(path, config, batch, proc, targets, groups, split, device) -> dict:
     model = _load(path, config, device)
     # The top N_DEPTHS blocks. Index 0 is the embedding, so block i is i+1.
     depths = list(range(config.n_layers + 1 - N_DEPTHS, config.n_layers + 1))
     streams = residual_streams_batched(model, batch["tokens"], device, depths=depths)
-    scores = {
-        name: ridge_scores(tick_features(streams, proc.n_steps, whole_tick), targets, split)
-        for name, whole_tick in (("whole_tick", True), ("last_position", False))
-    }
+    scores = {}
+    for name, whole_tick in (("whole_tick", True), ("last_position", False)):
+        features = tick_features(streams, proc.n_steps, whole_tick)
+        scores[name] = ridge_scores(features, targets, groups, split)
+        del features
+        gc.collect()
     del model, streams
     gc.collect()
     return scores
@@ -245,8 +289,12 @@ def _demo() -> None:
     x = rng.normal(size=(400, 5))
     y = x @ rng.normal(size=(5, 2)) + 0.1 * rng.normal(size=(400, 2))
     split = (np.arange(240), np.arange(240, 320), np.arange(320, 400))
-    scored = ridge_scores(x, y, split, alphas=(1e-6,))
-    assert scored["test_r2"] > 0.95 and scored["validation_r2"] > 0.95, scored
+    blocks = {"first": slice(0, 1), "second": slice(1, 2)}
+    scored = ridge_scores(x, y, blocks, split, alphas=(1e-6,))
+    assert set(scored) == set(blocks), scored
+    for block in blocks:
+        assert scored[block]["test_r2"] > 0.95, (block, scored)
+        assert scored[block]["validation_r2"] > 0.95, (block, scored)
 
 
 def main() -> None:
@@ -270,7 +318,7 @@ def main() -> None:
             rows(order[train_end:validation_end]),
             rows(order[validation_end:]),
         )
-        targets = batch["beliefs"][:, :: proc.n_steps, :].reshape(-1, batch["beliefs"].shape[-1])
+        targets, groups = tick_targets(batch, proc)
         # last position of each tick, in the same sequence-major order as `targets`
         tick_rows = (
             np.arange(N_EVAL)[:, None] * proc.seq_len
@@ -279,7 +327,8 @@ def main() -> None:
 
         config = ModelConfig(**training[name]["model"])
         entry = {
-            "protocol": "one row per HMM tick, four block outputs, raw belief probabilities",
+            "protocol": "one row per tick at its final step; belief probabilities and physical metric",
+            "metric_names": list(proc.system.metric_names),
             "ridge_alphas": list(RIDGE_ALPHAS),
             "n_depths": N_DEPTHS,
             "tag": TAG,
@@ -289,33 +338,35 @@ def main() -> None:
             "analysis_commit": ANALYSIS_COMMIT,
             "device": device,
             "trained": _probe(
-                OUTPUT_DIR / f"{name}{TAG}_trained.pt", config, batch, proc, targets, split, device
+                OUTPUT_DIR / f"{name}{TAG}_trained.pt", config, batch, proc, targets, groups, split, device
             ),
             "random_init": _probe(
-                OUTPUT_DIR / f"{name}{TAG}_random_init.pt", config, batch, proc, targets, split, device
+                OUTPUT_DIR / f"{name}{TAG}_random_init.pt", config, batch, proc, targets, groups, split, device
             ),
-            "raw_tokens": token_window_scores(batch["tokens"], targets, tick_rows, proc, split),
+            "raw_tokens": token_window_scores(batch["tokens"], targets, groups, tick_rows, proc, split),
         }
         entry["wall_seconds"] = time.perf_counter() - started
         results[name] = entry
 
-        print(f"\n=== {name} ===", flush=True)
-        for features in ("whole_tick", "last_position"):
-            trained, random = entry["trained"][features], entry["random_init"][features]
+        print(f"\n=== {name} ===  metric={list(proc.system.metric_names)}", flush=True)
+        for group in groups:
+            for features in ("whole_tick", "last_position"):
+                trained = entry["trained"][features][group]
+                random = entry["random_init"][features][group]
+                print(
+                    f"  {group:<7} {features:<14} dim={trained['feature_dim']:>5} "
+                    f"rows/feat={trained['rows_per_feature']:>6.2f} | "
+                    f"trained val {trained['validation_r2']:+.3f} test {trained['test_r2']:+.3f} | "
+                    f"random val {random['validation_r2']:+.3f} test {random['test_r2']:+.3f}",
+                    flush=True,
+                )
+            raw = entry["raw_tokens"][group]
             print(
-                f"  {features:<14} dim={trained['feature_dim']:>5} "
-                f"rows/feat={trained['rows_per_feature']:>6.2f} | "
-                f"trained val {trained['validation_r2']:+.3f} test {trained['test_r2']:+.3f} | "
-                f"random val {random['validation_r2']:+.3f} test {random['test_r2']:+.3f}",
+                f"  {group:<7} {'raw_tokens':<14} dim={raw['feature_dim']:>5} "
+                f"W={raw['window']:<3} alpha={raw['alpha']:<7g} | "
+                f"val {raw['validation_r2']:+.3f} test {raw['test_r2']:+.3f}",
                 flush=True,
             )
-        raw = entry["raw_tokens"]
-        print(
-            f"  {'raw_tokens':<14} dim={raw['feature_dim']:>5} W={raw['window']:<3} "
-            f"alpha={raw['alpha']:<7g} | val {raw['validation_r2']:+.3f} "
-            f"test {raw['test_r2']:+.3f}",
-            flush=True,
-        )
 
     path = OUTPUT_DIR / f"messk_06_reference_probe{TAG}.json"
     path.write_text(json.dumps(results, indent=2, default=float))
