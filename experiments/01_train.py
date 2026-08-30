@@ -36,6 +36,9 @@ NUM_HEADS = int(os.environ.get("NUM_HEADS", 1))
 D_MLP = int(os.environ.get("D_MLP", 4 * EMBED_DIM))
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 128))
 LEARNING_RATE = float(os.environ.get("LEARNING_RATE", 1e-3))
+# Adam, not AdamW. A non-zero decay here is coupled L2, not AdamW's decoupled
+# decay, so leave it at zero unless that is specifically what you want.
+WEIGHT_DECAY = float(os.environ.get("WEIGHT_DECAY", 0.0))
 
 TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 500_000_000))
 SEED = int(os.environ.get("SEED", 0))
@@ -91,7 +94,8 @@ def main() -> None:
             seq_len=proc.seq_len,
             config=TrainConfig(
                 total_tokens=TOTAL_TOKENS, batch_size=BATCH_SIZE,
-                learning_rate=LEARNING_RATE, seed=SEED, checkpoint_at=schedule,
+                learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY,
+                seed=SEED, checkpoint_at=schedule,
             ),
             device=device,
             on_checkpoint=save,
@@ -112,6 +116,10 @@ def main() -> None:
             "uniform_token_loss": float(np.log(proc.n_obs)),
             "checkpoint_tokens": [0, *schedule],
             "model": cfg.__dict__,
+            "optimiser": "adam",
+            "learning_rate": LEARNING_RATE,
+            "weight_decay": WEIGHT_DECAY,
+            "batch_size": BATCH_SIZE,
             "wall_seconds": time.perf_counter() - t0,
             "seed": SEED,
             "tag": TAG,

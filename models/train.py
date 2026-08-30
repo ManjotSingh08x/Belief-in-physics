@@ -23,7 +23,7 @@ class TrainConfig:
     total_tokens: int = 40_000_000
     batch_size: int = 128
     learning_rate: float = 1e-3
-    weight_decay: float = 0.01
+    weight_decay: float = 0.0
     warmup_frac: float = 0.02
     grad_clip: float = 1.0
     seed: int = 0
@@ -83,7 +83,10 @@ def train(
     steps = max(1, config.total_tokens // (config.batch_size * seq_len))
     warmup = max(1, int(steps * config.warmup_frac))
 
-    optimiser = torch.optim.AdamW(
+    # Plain Adam, matching the belief-geometry literature. AdamW's decoupled
+    # decay is a different optimiser, and Adam carrying a non-zero
+    # `weight_decay` is a third thing again (coupled L2), so the default is 0.
+    optimiser = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
 
