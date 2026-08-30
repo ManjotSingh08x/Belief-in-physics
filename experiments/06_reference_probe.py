@@ -8,14 +8,13 @@ every position in the tick, including the positions that have barely seen the
 current letter's physical response.
 
 Those are different measurements, so this experiment runs both feature
-constructions on our own models, each scored in-sample and on untouched test
-sequences, against an architecture-matched random-initialisation control. The
-four numbers separate the causes:
+constructions on our own models against an architecture-matched
+random-initialisation control.
 
-* random-init in-sample      -> what the fit buys with no learning at all
-* random-init held out       -> what an untrained network of this shape reaches
-* trained in-sample          -> the number their protocol would print for us
-* trained held out           -> the honest number
+Nothing here is scored on the rows it was fitted on. Every probe reports a
+validation score, used for any selection, and a test score on sequences no fit
+and no choice has touched. The external script's in-sample number is what this
+experiment exists to replace, not to reproduce.
 
 A raw-observation-token window is scored on the same rows under the same split,
 because a residual-stream number is only interpretable against how much of the
@@ -140,7 +139,7 @@ def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> float:
 
 
 def ridge_scores(features, targets, split, alpha=RIDGE_ALPHA) -> dict:
-    """Standardised ridge, scored on the fitting rows and on both held-out sets."""
+    """Standardised ridge, scored only on rows it was not fitted on."""
     train_rows, validation_rows, test_rows = split
     train = _moments(features, targets, train_rows)
     mean = train["sx"] / train["n"]
@@ -150,7 +149,7 @@ def ridge_scores(features, targets, split, alpha=RIDGE_ALPHA) -> dict:
     y_bar = train["sy"] / train["n"]
     weights = np.linalg.solve(gram + alpha * np.eye(len(gram)), cross)
 
-    scored = {"in_sample_r2": _r2(train, gram, cross, z_sum, weights, y_bar)}
+    scored = {}
     for label, rows in (("validation_r2", validation_rows), ("test_r2", test_rows)):
         held = _moments(features, targets, rows)
         scored[label] = _r2(held, *_standardise(held, mean, scale), weights, y_bar)
@@ -187,7 +186,6 @@ def token_window_scores(tokens, targets, tick_rows, proc, split) -> dict:
                 "window": window,
                 "alpha": alpha,
                 "feature_dim": int(design.shape[1]),
-                "in_sample_r2": float(probe.score(design[train_rows], targets[train_rows])),
                 "validation_r2": float(
                     probe.score(design[validation_rows], targets[validation_rows])
                 ),
@@ -282,14 +280,14 @@ def main() -> None:
             print(
                 f"  {features:<14} dim={trained['feature_dim']:>5} "
                 f"rows/feat={trained['rows_per_feature']:>6.2f} | "
-                f"trained in-sample {trained['in_sample_r2']:+.3f} test {trained['test_r2']:+.3f} | "
-                f"random in-sample {random['in_sample_r2']:+.3f} test {random['test_r2']:+.3f}",
+                f"trained val {trained['validation_r2']:+.3f} test {trained['test_r2']:+.3f} | "
+                f"random val {random['validation_r2']:+.3f} test {random['test_r2']:+.3f}",
                 flush=True,
             )
         raw = entry["raw_tokens"]
         print(
             f"  {'raw_tokens':<14} dim={raw['feature_dim']:>5} W={raw['window']:<3} "
-            f"alpha={raw['alpha']:<7g} | in-sample {raw['in_sample_r2']:+.3f} "
+            f"alpha={raw['alpha']:<7g} | val {raw['validation_r2']:+.3f} "
             f"test {raw['test_r2']:+.3f}",
             flush=True,
         )

@@ -89,9 +89,12 @@ The raw-token control is scored on the identical rows and split, with its window
 Under this readout the residual excess is positive for all four systems rather than negative for all four, and every system clears the `+0.05` gain-over-initialization margin.
 The excess is small, and predator-prey is within noise of its raw-token control at a single seed.
 
-Two facts constrain how these numbers should be read.
-An **untrained** network of the same shape reaches `0.366` to `0.420` on this construction, so the baseline is not zero.
-Fitting and scoring on the same rows, as the external script does, adds a further `0.06` to `0.17`: our in-sample scores are `0.662`, `0.742`, `0.724` and `0.409`.
+An **untrained** network of the same shape reaches `0.366` to `0.420` on this construction, so the baseline for this readout is not zero.
+
+Every probe in this repository is scored on rows it was not fitted on, and any selection of depth, window or penalty happens on validation.
+The in-sample figures below are recorded once, as the explanation of the external script's protocol, and are used for nothing else.
+Fitting and scoring on the same rows adds `0.06` to `0.17` here: `0.662`, `0.742`, `0.724` and `0.409` against the held-out `0.572`, `0.669`, `0.641` and `0.252`.
+`06_reference_probe.py` no longer computes an in-sample score at all.
 
 The single-position readout in `02_probe.py` and the whole-tick readout here are both legitimate measurements of different things, and the earlier tables are not withdrawn.
 What is withdrawn is the claim that the myopic control wins regardless of readout.
