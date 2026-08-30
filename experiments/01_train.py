@@ -28,12 +28,14 @@ from models.train import TrainConfig, pick_device, train
 from models.transformer import ModelConfig, TinyTransformer
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
-EMBED_DIM = 128
-NUM_LAYERS = 4
-NUM_HEADS = 1
-D_MLP = 4 * EMBED_DIM
-BATCH_SIZE = 128
-LEARNING_RATE = 1e-3
+# Architecture is env-overridable so a capacity sweep is a launch flag rather
+# than a code fork, and the seed-0 4x128 runs stay reproducible from defaults.
+EMBED_DIM = int(os.environ.get("EMBED_DIM", 128))
+NUM_LAYERS = int(os.environ.get("NUM_LAYERS", 4))
+NUM_HEADS = int(os.environ.get("NUM_HEADS", 1))
+D_MLP = int(os.environ.get("D_MLP", 4 * EMBED_DIM))
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 128))
+LEARNING_RATE = float(os.environ.get("LEARNING_RATE", 1e-3))
 
 TOTAL_TOKENS = int(os.environ.get("TOTAL_TOKENS", 500_000_000))
 SEED = int(os.environ.get("SEED", 0))
