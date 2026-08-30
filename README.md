@@ -37,6 +37,7 @@ In each experiment file, we should define constants and variables at the beginni
 
 The complete concise specification is in [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
 The completed findings are in [`docs/RESULTS.md`](docs/RESULTS.md).
+Every adjustable parameter, with its current value, is in [`docs/HYPERPARAM.md`](docs/HYPERPARAM.md).
 
 The hidden process is the same four-mood Markov chain in front of each of four damped physical systems: a pendulum, a predator-prey oscillator, a spherical pendulum, and a double pendulum.
 A mood remains unchanged with probability 0.7 and otherwise moves to each of the other moods with probability 0.1.
