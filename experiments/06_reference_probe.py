@@ -27,7 +27,7 @@ Ridge is solved from accumulated moments rather than a dense design matrix, so
 131k rows by 5,120 features costs a 5,120^2 Gram instead of 5 GB of float64.
 
 Run:  uv run python experiments/06_reference_probe.py
-Env:  OUTPUT_DIR, CONFIGS, N_EVAL, RIDGE_ALPHA, ANALYSIS_COMMIT.
+Env:  OUTPUT_DIR, CONFIGS, N_EVAL, RIDGE_ALPHAS, N_DEPTHS, TAG, REPORT_NAME.
 """
 
 from __future__ import annotations
@@ -58,12 +58,18 @@ WINDOWS = tuple(int(w) for w in os.environ.get("WINDOWS", "10,20,40,80").split("
 TOKEN_ALPHAS = (1.0, 10.0, 100.0, 1_000.0)
 EVAL_SEED = 20_260_829
 SPLIT_SEED = 0
-RIDGE_ALPHA = float(os.environ.get("RIDGE_ALPHA", 1.0))
+RIDGE_ALPHAS = tuple(float(a) for a in os.environ.get("RIDGE_ALPHAS", "1,10,100,1000,10000").split(","))
+# Four blocks deep, so the readout is the same shape whatever the model's depth.
+N_DEPTHS = int(os.environ.get("N_DEPTHS", 4))
 MOMENT_CHUNK = 4_096
 
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "experiments/outputs-messk"))
 CONFIGS = os.environ.get("CONFIGS", ",".join(MESSK_CONFIGS)).split(",")
 ANALYSIS_COMMIT = os.environ.get("ANALYSIS_COMMIT", "unknown")
+# Runs of the same system at different sizes share one directory, so the tag
+# selects which set of checkpoints and which training report to read.
+TAG = os.environ.get("TAG", "")
+REPORT_NAME = os.environ.get("REPORT_NAME", "messk_01_training.json")
 
 
 def tick_features(streams: list[np.ndarray], steps_per_tick: int, whole_tick: bool) -> np.ndarray:
@@ -73,9 +79,7 @@ def tick_features(streams: list[np.ndarray], steps_per_tick: int, whole_tick: bo
     the tick, concatenated. Otherwise only the tick's final position, which is
     the same information a per-position probe sees at its most informative step.
     """
-    if len(streams) != 5:
-        raise ValueError(f"expected embedding plus four block streams, got {len(streams)}")
-    blocks = np.concatenate(streams[1:], axis=-1)
+    blocks = np.concatenate(streams, axis=-1)
     n, length, width = blocks.shape
     if length % steps_per_tick:
         raise ValueError(f"sequence length {length} is not divisible by {steps_per_tick}")
@@ -138,8 +142,14 @@ def _r2(acc: dict, gram, cross, z_sum, weights, y_bar) -> float:
     return float(np.mean(1.0 - residual / total))
 
 
-def ridge_scores(features, targets, split, alpha=RIDGE_ALPHA) -> dict:
-    """Standardised ridge, scored only on rows it was not fitted on."""
+def ridge_scores(features, targets, split, alphas=RIDGE_ALPHAS) -> dict:
+    """Standardised ridge, penalty chosen on validation, scored once on test.
+
+    A fixed alpha is not safe across model sizes: widening the residual stream
+    multiplies the feature count, so the same penalty that suited 5,120 columns
+    under-regularises 10,240 and the test score reports the fit rather than the
+    representation.
+    """
     train_rows, validation_rows, test_rows = split
     train = _moments(features, targets, train_rows)
     mean = train["sx"] / train["n"]
@@ -147,13 +157,23 @@ def ridge_scores(features, targets, split, alpha=RIDGE_ALPHA) -> dict:
     scale = np.where(variance > 1e-12, np.sqrt(variance), 1.0)
     gram, cross, z_sum = _standardise(train, mean, scale)
     y_bar = train["sy"] / train["n"]
-    weights = np.linalg.solve(gram + alpha * np.eye(len(gram)), cross)
 
-    scored = {}
-    for label, rows in (("validation_r2", validation_rows), ("test_r2", test_rows)):
-        held = _moments(features, targets, rows)
-        scored[label] = _r2(held, *_standardise(held, mean, scale), weights, y_bar)
-    return scored | {
+    held = {
+        "validation_r2": _moments(features, targets, validation_rows),
+        "test_r2": _moments(features, targets, test_rows),
+    }
+    standardised = {k: _standardise(v, mean, scale) for k, v in held.items()}
+
+    best = None
+    eye = np.eye(len(gram))
+    for alpha in alphas:
+        weights = np.linalg.solve(gram + alpha * eye, cross)
+        scored = {
+            label: _r2(held[label], *standardised[label], weights, y_bar) for label in held
+        }
+        if best is None or scored["validation_r2"] > best["validation_r2"]:
+            best = scored | {"alpha": alpha}
+    return best | {
         "feature_dim": int(features.shape[1]),
         "n_train_rows": int(train["n"]),
         "rows_per_feature": float(train["n"] / features.shape[1]),
@@ -204,7 +224,9 @@ def _load(path: Path, config: ModelConfig, device: str) -> TinyTransformer:
 
 def _probe(path, config, batch, proc, targets, split, device) -> dict:
     model = _load(path, config, device)
-    streams = residual_streams_batched(model, batch["tokens"], device)
+    # The top N_DEPTHS blocks. Index 0 is the embedding, so block i is i+1.
+    depths = list(range(config.n_layers + 1 - N_DEPTHS, config.n_layers + 1))
+    streams = residual_streams_batched(model, batch["tokens"], device, depths=depths)
     scores = {
         name: ridge_scores(tick_features(streams, proc.n_steps, whole_tick), targets, split)
         for name, whole_tick in (("whole_tick", True), ("last_position", False))
@@ -215,23 +237,24 @@ def _probe(path, config, batch, proc, targets, split, device) -> dict:
 
 
 def _demo() -> None:
-    streams = [np.arange(2 * 20 * 3, dtype=np.float32).reshape(2, 20, 3) for _ in range(5)]
+    streams = [np.arange(2 * 20 * 3, dtype=np.float32).reshape(2, 20, 3) for _ in range(4)]
     assert tick_features(streams, 10, whole_tick=True).shape == (4, 120)
     assert tick_features(streams, 10, whole_tick=False).shape == (4, 12)
+    assert tick_features(streams[:2], 10, whole_tick=True).shape == (4, 60)
     rng = np.random.default_rng(0)
     x = rng.normal(size=(400, 5))
     y = x @ rng.normal(size=(5, 2)) + 0.1 * rng.normal(size=(400, 2))
     split = (np.arange(240), np.arange(240, 320), np.arange(320, 400))
-    scored = ridge_scores(x, y, split, alpha=1e-6)
+    scored = ridge_scores(x, y, split, alphas=(1e-6,))
     assert scored["test_r2"] > 0.95 and scored["validation_r2"] > 0.95, scored
 
 
 def main() -> None:
     _demo()
     device = pick_device()
-    training = json.loads((OUTPUT_DIR / "messk_01_training.json").read_text())
+    training = json.loads((OUTPUT_DIR / REPORT_NAME).read_text())
     results = {}
-    print(f"device={device}  n_eval={N_EVAL}  alpha={RIDGE_ALPHA}  configs={CONFIGS}", flush=True)
+    print(f"device={device}  n_eval={N_EVAL}  depths={N_DEPTHS}  tag={TAG!r}  configs={CONFIGS}", flush=True)
 
     for name in CONFIGS:
         started = time.perf_counter()
@@ -257,17 +280,19 @@ def main() -> None:
         config = ModelConfig(**training[name]["model"])
         entry = {
             "protocol": "one row per HMM tick, four block outputs, raw belief probabilities",
-            "ridge_alpha": RIDGE_ALPHA,
+            "ridge_alphas": list(RIDGE_ALPHAS),
+            "n_depths": N_DEPTHS,
+            "tag": TAG,
             "n_eval_sequences": N_EVAL,
             "model_seed": training[name]["seed"],
             "evaluation_seed": EVAL_SEED,
             "analysis_commit": ANALYSIS_COMMIT,
             "device": device,
             "trained": _probe(
-                OUTPUT_DIR / f"{name}_trained.pt", config, batch, proc, targets, split, device
+                OUTPUT_DIR / f"{name}{TAG}_trained.pt", config, batch, proc, targets, split, device
             ),
             "random_init": _probe(
-                OUTPUT_DIR / f"{name}_random_init.pt", config, batch, proc, targets, split, device
+                OUTPUT_DIR / f"{name}{TAG}_random_init.pt", config, batch, proc, targets, split, device
             ),
             "raw_tokens": token_window_scores(batch["tokens"], targets, tick_rows, proc, split),
         }
@@ -292,7 +317,7 @@ def main() -> None:
             flush=True,
         )
 
-    path = OUTPUT_DIR / "messk_06_reference_probe.json"
+    path = OUTPUT_DIR / f"messk_06_reference_probe{TAG}.json"
     path.write_text(json.dumps(results, indent=2, default=float))
     print(f"\nwrote {path}", flush=True)
 

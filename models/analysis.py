@@ -20,6 +20,8 @@ metric live on different scales -- see `probe.grouped_r2`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import torch
 
@@ -40,15 +42,25 @@ def _sequence_split(
 
 
 def residual_streams_batched(
-    model: TinyTransformer, tokens: np.ndarray, device: str, batch_size: int = 64
+    model: TinyTransformer,
+    tokens: np.ndarray,
+    device: str,
+    batch_size: int = 64,
+    depths: Sequence[int] | None = None,
 ) -> list[np.ndarray]:
-    """`model.residual_streams` over a large token array, one depth per entry."""
+    """`model.residual_streams` over a large token array, one depth per entry.
+
+    `depths` keeps only those entries. A deep model over many sequences holds
+    gigabytes per depth, so a caller that wants four of nine should say so
+    rather than materialise all nine and discard five.
+    """
     chunks: list[list[np.ndarray]] = []
     model.eval()
     for start in range(0, tokens.shape[0], batch_size):
         block = torch.as_tensor(tokens[start : start + batch_size], dtype=torch.long, device=device)
-        chunks.append(model.residual_streams(block))
-    return [np.concatenate([c[depth] for c in chunks], axis=0) for depth in range(len(chunks[0]))]
+        streams = model.residual_streams(block)
+        chunks.append(streams if depths is None else [streams[d] for d in depths])
+    return [np.concatenate([c[i] for c in chunks], axis=0) for i in range(len(chunks[0]))]
 
 
 def probe_layers(
