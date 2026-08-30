@@ -39,6 +39,31 @@ Validation and test agree to within `0.006` on every row.
 The raw-token control is unchanged from the first round, as it must be, since it does not depend on the model.
 That it reproduces exactly is a check that the protocol itself is stable across the two rounds.
 
+### Physical metric, same fit
+
+The metric is each system's own physical quantity: `omega` for the pendulum, `(dx_dt, dy_dt)` for predator-prey, `(v_meridional, v_azimuthal)` for the sphere, `(omega1, omega2)` for the double pendulum.
+It shares the ridge fit with the belief, since the design matrix does not depend on the target, and each block chooses its own penalty on validation.
+
+| System | Trained | Random init | Raw tokens | Over random | Over raw |
+|---|---:|---:|---:|---:|---:|
+| Sphere | `0.998` | `0.981` | `0.985` | `+0.018` | `+0.014` |
+| Predator-prey | `0.990` | `0.900` | `0.952` | `+0.091` | `+0.038` |
+| Pendulum | `0.936` | `0.893` | `0.977` | `+0.042` | `-0.041` |
+| Double pendulum | `0.552` | `0.256` | `0.270` | `+0.297` | `+0.282` |
+
+**A high metric R2 is not evidence of learning.**
+An untrained network reaches `0.89` to `0.98` on the three non-chaotic systems, and a raw-token window reaches `0.95` to `0.98`.
+The physical state is close to a linear function of the last few observations, so almost any readout recovers it.
+For the pendulum the raw-token window actually beats the trained residual stream, `0.977` against `0.936`, which is unsurprising because `omega` is nearly a finite difference of consecutive `theta` tokens.
+
+This is the contrast that gives the belief numbers their weight.
+On the metric the trained model's margin over its controls is `-0.04` to `+0.09` for the three easy systems.
+On the belief it is `+0.18` to `+0.38`.
+The belief is the target where training makes the difference, and it is the one the model has no shortcut to.
+
+The double pendulum is the exception on both targets, with a large margin over both controls (`+0.30` metric, `+0.09` belief) from a low base.
+Being chaotic, its physical state is genuinely not a simple function of recent tokens, so there the model is doing visible work even on the metric, and is still far from finishing it.
+
 ### What separates the four
 
 The ceiling is about `0.99` for all four, so the spread is not explained by information lost in the observation channel.
