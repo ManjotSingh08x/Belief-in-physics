@@ -5,14 +5,67 @@ The exact target was the same four-state predictive-belief tetrahedron for every
 
 ## Headline
 
-The transformers learned the physical dynamics well.
-Whether they carry belief information beyond recent observations depends on how the residual stream is read, and the two readouts disagree in sign.
-Reading one layer at one token position, every system's raw-token control matched or beat the probe.
-Reading all four blocks across a whole HMM tick, every system's probe beats its raw-token control, by `+0.03` to `+0.12`.
-The honest summary is a small positive excess that is readout-sensitive at a single seed, not the clean negative result the first pass suggested.
-The predicted geometry remained a compressed central cloud rather than reconstructing the exact fractal tetrahedron.
+At `8` layers and `d_model=256`, trained with plain Adam on `1B` tokens, the spherical pendulum recovers the predictive belief to `R2 = 0.952` on untouched test sequences, against an exact ceiling of `1.0000` and a raw-token control of `0.572`.
+Predator-prey reaches `0.823`, the pendulum `0.698`, the double pendulum `0.311`.
+All four now exceed their own raw-observation-token control, by `+0.14` to `+0.38`, so the earlier readout-sensitive near-tie is gone.
 
-## Training
+The first round of models, at `4` layers and `d_model=128`, was underfit rather than uninformative.
+Its negative result is recorded below unchanged, and it was wrong about the conclusion but right about the method: the raw-token control is what makes any of these numbers interpretable.
+The predicted geometry for the smaller models remained a compressed central cloud rather than the exact fractal tetrahedron.
+
+## Scaled-up runs
+
+`8` layers, `d_model=256`, `4` heads, `d_mlp=1024`, so `6,291,456` non-embedding parameters against the first round's `786,432`.
+Plain Adam with `weight_decay=0`, `1B` tokens, seed `0`, tag `_d256l8`.
+Every system's `500M`-token checkpoint already beats the first round's *final* loss, so the gain is capacity rather than the doubled token budget.
+
+| System | Wall | Eval loss @500M | Eval loss @1B | First round final | Oracle floor | Above floor |
+|---|---:|---:|---:|---:|---:|---:|
+| Pendulum | `4h15m` | `0.269` | `0.218` | `0.385` | `0.120` | `1.8x` |
+| Sphere | `4h43m` | `0.209` | `0.164` | `0.449` | `0.070` | `2.3x` |
+| Double pendulum | `4h54m` | `0.344` | `0.316` | `0.378` | `0.034` | `9.3x` |
+| Predator-prey | `5h13m` | `0.222` | `0.187` | `0.314` | `0.109` | `1.7x` |
+
+Belief probe, whole-tick readout over the top four blocks, penalty tuned on validation, test scored once.
+Validation and test agree to within `0.006` on every row.
+
+| System | First round | Scaled up | Random init | Raw tokens | Excess over raw | Ceiling | Of ceiling |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Sphere | `0.641` | `0.952` | `0.443` | `0.572` | `+0.380` | `1.0000` | `95.2%` |
+| Predator-prey | `0.669` | `0.823` | `0.438` | `0.639` | `+0.184` | `0.9997` | `82.4%` |
+| Pendulum | `0.572` | `0.698` | `0.433` | `0.454` | `+0.243` | `0.9887` | `70.6%` |
+| Double pendulum | `0.252` | `0.311` | `0.217` | `0.174` | `+0.136` | `0.9895` | `31.4%` |
+
+The raw-token control is unchanged from the first round, as it must be, since it does not depend on the model.
+That it reproduces exactly is a check that the protocol itself is stable across the two rounds.
+
+### What separates the four
+
+The ceiling is about `0.99` for all four, so the spread is not explained by information lost in the observation channel.
+Two different causes appear instead.
+
+The double pendulum is simply not converged.
+It sits `9.3x` above its own oracle loss floor while the other three sit at `1.7x` to `2.3x`, and it is chaotic, so tracking its state well enough to infer the letters is a much harder problem.
+Its `31.4%` is a statement about training budget, not about whether the belief is representable.
+
+Among the three converged systems, the ordering follows how sharply the tokens identify the letter sequence, which `07_ceiling.py` reports as the width of its consistency beam.
+Sphere's beam collapses to `1` surviving letter sequence and it reaches `95.2%`; predator-prey's is `3` and it reaches `82.4%`; the pendulum's widens to `1545` and it reaches `70.6%`.
+A wide beam means the letters remain genuinely ambiguous from the observations for longer, so the model faces a harder inference problem even where the belief is formally recoverable.
+
+### Readout depth is not the binding constraint
+
+Holding the pendulum model fixed and varying only how many blocks the probe reads:
+
+| Blocks read | Features | Belief R2 |
+|---:|---:|---:|
+| `1` | `2560` | `0.553` |
+| `2` | `5120` | `0.621` |
+| `4` | `10240` | `0.698` |
+
+About `+0.07` per doubling.
+Extrapolating to all `8` blocks gives roughly `0.77`, so the pendulum's remaining gap is mostly the model rather than the probe.
+
+## First round: training
 
 | System | Final eval loss | Uniform-token loss | T4 time |
 |---|---:|---:|---:|
@@ -140,8 +193,15 @@ Double-pendulum geometry remains at initialization-level quality throughout trai
 ## Interpretation boundary
 
 These are single-seed results and therefore do not estimate run-to-run variance.
-Next-token training clearly learns useful physical state variables.
-The belief question is not settled here: the residual stream carries a small amount of belief information beyond a matched recent-token window under the whole-tick readout, and none under the single-position readout, at one seed.
-Deciding between those requires more seeds and a readout chosen before the numbers are seen, neither of which this run has.
+Every number here is seed `0`.
+
+What the scaled-up round supports: at sufficient capacity, next-token training on binned physical observations does build a linearly decodable predictive belief over the hidden chain, clearly beyond what a matched recent-observation window explains.
+The sphere case is strong, at `95%` of an exactly computed ceiling with a `+0.38` margin over its control.
+
+What it does not support: any claim that this happens uniformly, or at the capacity the first round used.
+The double pendulum is still far from its loss floor and its `0.311` says nothing yet about whether the belief is there.
+The pendulum's `0.698` is a real gap that the depth ablation shows is not a probe artefact.
+
+The open items are more seeds, a longer double-pendulum run, and geometry figures for the scaled-up checkpoints, none of which exist yet.
 
 Raw machine-readable results are in [`experiments/results-messk/`](../experiments/results-messk/).
