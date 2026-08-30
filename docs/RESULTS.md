@@ -52,6 +52,27 @@ A negative excess means raw recent observations predicted the exact belief bette
 Therefore, **at this readout**, none of the four systems provides evidence that the residual stream contains more belief information than an appropriately controlled recent-token baseline.
 The readout matters, and the next section shows it changes the sign of this conclusion.
 
+## What is actually reachable
+
+`07_ceiling.py` computes the exact upper bound rather than estimating it.
+Each system is deterministic given its letters - fixed initial state, no process noise - so the posterior over letter sequences is obtained by replaying every candidate prefix and keeping the ones whose tokens match the observation exactly.
+Summing the surviving forward vectors and normalising gives `E[belief | tokens]` with no approximation.
+
+| System | Ceiling R2 | Widest beam | Oracle loss | Achieved eval loss | Loss gap |
+|---|---:|---:|---:|---:|---:|
+| Pendulum | `0.9887` | `1545` | `0.120` | `0.385` | `3.2x` |
+| Predator-prey | `0.9997` | `3` | `0.109` | `0.314` | `2.9x` |
+| Sphere | `1.0000` | `1` | `0.070` | `0.449` | `6.4x` |
+| Double pendulum | `0.9895` | `3` | `0.034` | `0.378` | `11.2x` |
+
+`256` sequences per system, no sequence hit the `20000` beam cap, so these are exact.
+
+The observation channel destroys almost nothing: the letter sequence is very nearly recoverable from the tokens.
+A belief R2 of about `0.99` is therefore attainable in principle, and the whole gap between the measured `0.25`-`0.67` and that ceiling is model capacity or readout, not lost information.
+
+`oracle_loss` is the next-token cross entropy of a predictor that knows the exact physical state and the exact belief.
+Every run sits `3x` to `11x` above it, with no train-eval gap at any point and loss still falling at `500M` tokens, which is the signature of underfitting rather than of a data limit.
+
 ## Readout dependence
 
 `06_reference_probe.py` re-reads the same four checkpoints on the same held-out sequences with the feature construction used by the external Mess-3 study: one probe row per HMM tick, built from all four block outputs at all ten physics positions in that tick, so `4 * 128 * 10 = 5120` features instead of one layer at one position.

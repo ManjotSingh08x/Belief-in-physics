@@ -1,0 +1,46 @@
+{
+  "pendulum_mess4": {
+    "ceiling_r2": 0.9886983643255197,
+    "oracle_loss": 0.12016423936205291,
+    "n_seq": 256,
+    "max_beam": 20000,
+    "widest_beam": 1545,
+    "capped_sequences": 0,
+    "evaluation_seed": 20260830,
+    "analysis_commit": "pending",
+    "wall_seconds": 5.874147335998714
+  },
+  "predator_prey_mess4": {
+    "ceiling_r2": 0.9997081746835697,
+    "oracle_loss": 0.10935398605226104,
+    "n_seq": 256,
+    "max_beam": 20000,
+    "widest_beam": 3,
+    "capped_sequences": 0,
+    "evaluation_seed": 20260830,
+    "analysis_commit": "pending",
+    "wall_seconds": 7.6607997780665755
+  },
+  "sphere_mess4": {
+    "ceiling_r2": 1.0,
+    "oracle_loss": 0.07034606330291895,
+    "n_seq": 256,
+    "max_beam": 20000,
+    "widest_beam": 1,
+    "capped_sequences": 0,
+    "evaluation_seed": 20260830,
+    "analysis_commit": "pending",
+    "wall_seconds": 11.913026721216738
+  },
+  "double_pendulum_mess4": {
+    "ceiling_r2": 0.9894791361806676,
+    "oracle_loss": 0.033682292144527955,
+    "n_seq": 256,
+    "max_beam": 20000,
+    "widest_beam": 3,
+    "capped_sequences": 0,
+    "evaluation_seed": 20260830,
+    "analysis_commit": "pending",
+    "wall_seconds": 19.52967336308211
+  }
+}
