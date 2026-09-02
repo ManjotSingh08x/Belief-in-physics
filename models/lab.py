@@ -14,7 +14,7 @@ score downstream.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +45,54 @@ def counterfactual(proc, letters: np.ndarray, tick: int) -> dict:
     branch = tick * proc.n_steps
     tokens = out["tokens"][:, branch:]
     out["separation"] = float(np.abs(tokens[:, None, :] - tokens[None, :, :]).max(-1).mean())
+    return out
+
+
+def tunable_fields(system) -> dict[str, float]:
+    """Every scalar knob on a system dataclass, with its current value.
+
+    Derived from the dataclass rather than listed by hand, so a field added to a
+    system appears in the notebook without anyone remembering to add it. The two
+    exclusions are not scalars: `obs_range` is the channel's, and `metric_names`
+    is an identifier list.
+    """
+    return {
+        f.name: getattr(system, f.name)
+        for f in fields(system)
+        if f.name not in {"obs_range", "metric_names"}
+        and isinstance(getattr(system, f.name), (int, float))
+        and not isinstance(getattr(system, f.name), bool)
+    }
+
+
+def survey_systems(rng_seed: int = 20_260_829, n: int = 256, tick: int = 4, **overrides) -> dict:
+    """Generate from all four systems under one set of shared settings.
+
+    The chain, the tick structure and the bin count are common to every system by
+    construction, so the belief is literally the same object in all four. What
+    differs is only the physical channel it passes through, which is what makes a
+    side-by-side comparison meaningful rather than four unrelated plots.
+    """
+    from physics.messk_configs import MESSK_CONFIGS, make_process
+
+    out = {}
+    for name in sorted(MESSK_CONFIGS):
+        proc = make_process(name, **overrides)
+        batch = proc.sample_batch(np.random.default_rng(rng_seed), n)
+        report = proc.bin_report(batch["observable"])
+        cf = counterfactual(proc, batch["letters"][0], min(tick, proc.m - 1))
+        belief = batch["beliefs"].reshape(-1, proc.chain.n_states)
+        out[name] = {
+            "proc": proc,
+            "batch": batch,
+            "counterfactual": cf,
+            "bins": report,
+            "separation": cf["separation"],
+            "belief_entropy": float(
+                -(belief * np.log(np.clip(belief, 1e-12, None))).sum(1).mean()
+                / np.log(proc.chain.n_states)
+            ),
+        }
     return out
 
 
@@ -184,6 +232,17 @@ def _demo() -> None:
             n_fit=512, n_depths=2, whole_tick=False, alpha=10.0,
         )
         assert len(table) == 2 and all(r["rows_per_feature"] > 2 for r in table), table
+    from physics.systems.pendulum import Pendulum
+
+    knobs = tunable_fields(Pendulum())
+    assert {"gamma", "theta0", "omega0", "g"} <= set(knobs), knobs
+    assert "obs_range" not in knobs and "metric_names" not in knobs, knobs
+
+    survey = survey_systems(n=16, m=4, n_steps=5)
+    assert len(survey) == 4, sorted(survey)
+    assert all(v["separation"] > 0 for v in survey.values()), "every system must react to its letters"
+    assert all(0.0 < v["belief_entropy"] <= 1.0 for v in survey.values())
+
     print(f"lab ok (separation {cf['separation']:.1f} tokens, {len(table)} checkpoints probed)")
 
 

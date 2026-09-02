@@ -89,6 +89,64 @@ def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counte
     return fig
 
 
+def plot_all_systems(survey: dict):
+    """One row per system: trajectory, counterfactual, occupancy, metric.
+
+    The belief is identical across the four rows by construction, so it is not
+    plotted four times. What the rows are for is the *channel*: how visibly one
+    letter changes the observable, and whether the bins land where the data is.
+    """
+    import matplotlib.pyplot as plt
+
+    names = sorted(survey)
+    fig, axes = plt.subplots(len(names), 4, figsize=(19, 3.1 * len(names)))
+    for row, name in enumerate(names):
+        entry = survey[name]
+        proc, batch, cf = entry["proc"], entry["batch"], entry["counterfactual"]
+        step = np.arange(proc.seq_len)
+        lo, hi = proc.system.obs_range
+
+        ax = axes[row, 0]
+        ax.plot(step, batch["observable"][0], color="0.15", lw=1.1)
+        for start, letter in zip(np.arange(proc.m) * proc.n_steps, batch["letters"][0]):
+            ax.axvspan(start, start + proc.n_steps, color=LETTER_COLOURS[letter], alpha=0.15, lw=0)
+        ax.axhline(lo, color="tab:red", lw=0.7, ls=":")
+        ax.axhline(hi, color="tab:red", lw=0.7, ls=":")
+        ax.set_ylabel(name.replace("_mess4", ""), fontsize=9)
+        if row == 0:
+            ax.set_title("trajectory, shaded by letter")
+
+        ax = axes[row, 1]
+        for letter in range(proc.chain.n_states):
+            actual = letter == cf["actual"]
+            ax.plot(step, cf["observable"][letter], color=LETTER_COLOURS[letter],
+                    lw=1.8 if actual else 1.0, ls="-" if actual else "--",
+                    alpha=1.0 if actual else 0.75)
+        ax.axvline(cf["tick"] * proc.n_steps, color="0.3", lw=0.9)
+        ax.set_title("one letter changed" if row == 0 else "")
+        ax.text(0.99, 0.03, f"separation {entry['separation']:.1f} tokens", fontsize=7,
+                ha="right", transform=ax.transAxes)
+
+        ax = axes[row, 2]
+        report = entry["bins"]
+        ax.bar(np.arange(proc.n_obs), report["counts"], width=1.0, color="tab:purple")
+        ax.set_title("bin occupancy" if row == 0 else "")
+        ax.text(0.5, 0.92, f"{report['used_bins']}/{report['n_obs']} used, "
+                           f"{report['clipped']:.2%} clipped", fontsize=7,
+                ha="center", transform=ax.transAxes)
+
+        ax = axes[row, 3]
+        for j, metric_name in enumerate(proc.system.metric_names):
+            ax.plot(step, batch["metric"][0, :, j], lw=1.0, label=metric_name)
+        ax.set_title("probed metric" if row == 0 else "")
+        ax.legend(fontsize=6, loc="upper right")
+
+    for ax in axes[-1]:
+        ax.set_xlabel("physics step")
+    fig.tight_layout()
+    return fig
+
+
 def plot_training(report: dict):
     """Loss curve with the uniform-prediction line and the snapshot points."""
     import matplotlib.pyplot as plt
@@ -150,6 +208,11 @@ def _demo() -> None:
     cf = counterfactual(proc, batch["letters"][0], tick=2)
     assert len(plot_generation(proc, batch, 0, 2, cf).axes) == 6
     assert len(plot_generation(proc, batch, 0).axes) == 6, "must render without a counterfactual"
+
+    from .lab import survey_systems
+
+    survey = survey_systems(n=8, m=4, n_steps=5)
+    assert len(plot_all_systems(survey).axes) == 16
 
     report = {"history": [{"step": 0, "train_loss": 5.2, "eval_loss": 5.1},
                           {"step": 10, "train_loss": 1.0, "eval_loss": 1.1}],
