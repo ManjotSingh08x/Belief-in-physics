@@ -241,6 +241,64 @@ class MessDriven:
             "emitting_moods": np.repeat(states[:, :-1], self.n_steps, axis=1),
         }
 
+    def rollout(self, letters: np.ndarray) -> dict:
+        """Replay an explicit letter sequence, with no chain sampling.
+
+        Every system here is deterministic given its letters: fixed initial
+        state, no process noise. So a letter sequence names exactly one
+        trajectory, which is what makes a counterfactual well posed -- change one
+        letter, replay, and the difference is that letter's whole causal effect
+        rather than a difference of two random draws.
+        """
+        letters = np.atleast_2d(np.asarray(letters, dtype=np.int64))
+        if letters.shape[1] != self.m:
+            raise ValueError(f"expected {self.m} letters per row, got {letters.shape[1]}")
+        n = len(letters)
+        z = self.system.initial_state(n)
+        obs = np.empty((n, self.seq_len))
+        metric = np.empty((n, self.seq_len, len(self.system.metric_names)))
+        energy = np.empty((n, self.seq_len))
+        for t in range(self.m):
+            z = self.system.kick(z, self.actions[letters[:, t]])
+            for s in range(self.n_steps):
+                z = self.system.flow(z, self.dt)
+                at = t * self.n_steps + s
+                obs[:, at] = self.system.observable(z)
+                metric[:, at] = self.system.metric(z)
+                energy[:, at] = self.system.energy(z)
+        return {
+            "tokens": self.discretise(obs),
+            "observable": obs,
+            "metric": metric,
+            "energy": energy,
+            "letters": letters,
+        }
+
+    def bin_report(self, observable: np.ndarray) -> dict:
+        """How much of the `n_obs` vocabulary this observable actually uses.
+
+        `clipped` is the fraction of samples outside `obs_range`, which land on
+        the first or last bin and lose their value. A run with a high clipped
+        fraction is not measuring the physics any more, it is measuring the
+        range, so this is checked rather than assumed.
+        """
+        lo, hi = self.system.obs_range
+        counts = np.bincount(self.discretise(observable).reshape(-1), minlength=self.n_obs)
+        return {
+            "counts": counts,
+            "used_bins": int((counts > 0).sum()),
+            "n_obs": self.n_obs,
+            "clipped": float(np.mean((observable < lo) | (observable > hi))),
+            "obs_range": (float(lo), float(hi)),
+            "observed_range": (float(observable.min()), float(observable.max())),
+        }
+
+    def suggested_obs_range(self, observable: np.ndarray, quantile: float = 0.001) -> tuple[float, float]:
+        """The range that would spread these samples across all `n_obs` bins."""
+        lo, hi = np.quantile(observable, [quantile, 1.0 - quantile])
+        pad = 0.02 * (hi - lo)
+        return float(lo - pad), float(hi + pad)
+
     def features_and_groups(self, batch: dict) -> tuple[np.ndarray, dict[str, slice]]:
         """Probe targets, in one matrix, with the column block for each.
 

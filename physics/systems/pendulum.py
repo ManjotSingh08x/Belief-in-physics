@@ -17,8 +17,13 @@ import numpy as np
 class Pendulum:
     g: float = 9.8
     length: float = 1.0
-    gamma: float = 1.2
+    gamma: float = 1.2  # viscous damping on omega
     omega_max: float = 8.0
+
+    #: Release condition. Every sequence starts here, so this is the state the
+    #: whole dataset is a function of, together with the letters.
+    theta0: float = 0.0
+    omega0: float = 1.0
 
     #: (lo, hi) of the binned observable, and the name of the metric column.
     obs_range: tuple[float, float] = (-np.pi / 2, np.pi / 2)
@@ -29,7 +34,7 @@ class Pendulum:
         return scale * np.array([[-3.0], [-1.0], [1.0], [3.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
-        return np.stack([np.zeros(n), np.ones(n)], axis=-1)
+        return np.stack([np.full(n, self.theta0), np.full(n, self.omega0)], axis=-1)
 
     def _accel(self, theta: np.ndarray, omega: np.ndarray) -> np.ndarray:
         return -(self.g / self.length) * np.sin(theta) - self.gamma * omega

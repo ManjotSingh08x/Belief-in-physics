@@ -24,8 +24,12 @@ class PredatorPrey:
     b: float = 0.6
     c: float = 0.8
     d: float = 0.4
-    kappa: float = 5.0
+    kappa: float = 5.0  # prey self-limitation, the damping of this system
     log_bound: float = 3.5
+
+    #: Starting populations, in natural units rather than logs.
+    x0: float = 3.0
+    y0: float = 2.0
 
     obs_range: tuple[float, float] = (0.0, 1.0)
     metric_names: tuple[str, ...] = ("dx_dt", "dy_dt")
@@ -35,7 +39,9 @@ class PredatorPrey:
         return scale * np.array([[-1.0, 0.0], [1.0, 0.0], [0.0, -1.0], [0.0, 1.0]])
 
     def initial_state(self, n: int) -> np.ndarray:
-        return np.stack([np.full(n, np.log(3.0)), np.full(n, np.log(2.0))], axis=-1)
+        return np.stack(
+            [np.full(n, np.log(self.x0)), np.full(n, np.log(self.y0))], axis=-1
+        )
 
     def _rhs(self, lx: np.ndarray, ly: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         x, y = np.exp(lx), np.exp(ly)

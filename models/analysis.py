@@ -63,6 +63,22 @@ def residual_streams_batched(
     return [np.concatenate([c[i] for c in chunks], axis=0) for i in range(len(chunks[0]))]
 
 
+def tick_features(streams: list[np.ndarray], steps_per_tick: int, whole_tick: bool) -> np.ndarray:
+    """One row per HMM tick from the four block outputs.
+
+    `whole_tick` reproduces the external construction: every physics position in
+    the tick, concatenated. Otherwise only the tick's final position, which is
+    the same information a per-position probe sees at its most informative step.
+    """
+    blocks = np.concatenate(streams, axis=-1)
+    n, length, width = blocks.shape
+    if length % steps_per_tick:
+        raise ValueError(f"sequence length {length} is not divisible by {steps_per_tick}")
+    per_tick = blocks.reshape(n, length // steps_per_tick, steps_per_tick, width)
+    chosen = per_tick if whole_tick else per_tick[:, :, -1:, :]
+    return chosen.reshape(n * (length // steps_per_tick), -1)
+
+
 def probe_layers(
     model: TinyTransformer,
     tokens: np.ndarray,

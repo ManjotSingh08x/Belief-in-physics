@@ -24,10 +24,16 @@ class DoublePendulum:
     l2: float = 1.0
     m1: float = 1.0
     m2: float = 1.0
-    gamma1: float = 0.5
-    gamma2: float = 0.5
+    gamma1: float = 0.5  # viscous damping on joint 1
+    gamma2: float = 0.5  # viscous damping on joint 2
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
+
+    #: Asymmetric release, at rest, so a kick to either joint shows up.
+    th1_0: float = 0.9
+    th2_0: float = -0.4
+    w1_0: float = 0.0
+    w2_0: float = 0.0
 
     obs_range: tuple[float, float] = (-np.pi, np.pi)
     metric_names: tuple[str, ...] = ("omega1", "omega2")
@@ -44,7 +50,9 @@ class DoublePendulum:
     def initial_state(self, n: int) -> np.ndarray:
         """An asymmetric release, so kicks to either joint are observable."""
         return np.stack(
-            [np.full(n, 0.9), np.full(n, -0.4), np.zeros(n), np.zeros(n)], axis=-1
+            [np.full(n, self.th1_0), np.full(n, self.th2_0),
+             np.full(n, self.w1_0), np.full(n, self.w2_0)],
+            axis=-1,
         )
 
     def _accel(self, th1, th2, w1, w2):

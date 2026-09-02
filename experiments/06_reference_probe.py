@@ -52,7 +52,7 @@ import torch
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 
-from models.analysis import residual_streams_batched
+from models.analysis import residual_streams_batched, tick_features
 from models.probe_extra import sparse_token_window_features
 from models.train import pick_device
 from models.transformer import ModelConfig, TinyTransformer
@@ -77,22 +77,6 @@ ANALYSIS_COMMIT = os.environ.get("ANALYSIS_COMMIT", "unknown")
 # selects which set of checkpoints and which training report to read.
 TAG = os.environ.get("TAG", "")
 REPORT_NAME = os.environ.get("REPORT_NAME", "messk_01_training.json")
-
-
-def tick_features(streams: list[np.ndarray], steps_per_tick: int, whole_tick: bool) -> np.ndarray:
-    """One row per HMM tick from the four block outputs.
-
-    `whole_tick` reproduces the external construction: every physics position in
-    the tick, concatenated. Otherwise only the tick's final position, which is
-    the same information a per-position probe sees at its most informative step.
-    """
-    blocks = np.concatenate(streams, axis=-1)
-    n, length, width = blocks.shape
-    if length % steps_per_tick:
-        raise ValueError(f"sequence length {length} is not divisible by {steps_per_tick}")
-    per_tick = blocks.reshape(n, length // steps_per_tick, steps_per_tick, width)
-    chosen = per_tick if whole_tick else per_tick[:, :, -1:, :]
-    return chosen.reshape(n * (length // steps_per_tick), -1)
 
 
 def _moments(features: np.ndarray, targets: np.ndarray, rows: np.ndarray) -> dict:

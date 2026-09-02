@@ -29,8 +29,13 @@ THETA_MAX = np.pi - 0.15  # momentum keeps a real trajectory well clear of it
 class SphereBall:
     g: float = 9.8
     length: float = 1.0
-    gamma: float = 0.35
+    gamma: float = 0.35  # sliding friction on the meridional swing
     rate_max: float = 6.0
+
+    #: The conical release: polar angle off the bottom, and the azimuthal rate
+    #: that supplies the angular momentum keeping it off both poles.
+    theta0: float = 0.6
+    psi_dot0: float = 2.0
 
     #: The band theta actually visits under the driving impulses, not the full
     #: coordinate range -- otherwise most of the 181 bins would never be used.
@@ -44,7 +49,8 @@ class SphereBall:
     def initial_state(self, n: int) -> np.ndarray:
         """A conical swing: off the bottom, already going round."""
         return np.stack(
-            [np.full(n, 0.6), np.zeros(n), np.zeros(n), np.full(n, 2.0)], axis=-1
+            [np.full(n, self.theta0), np.zeros(n), np.zeros(n), np.full(n, self.psi_dot0)],
+            axis=-1,
         )
 
     def _accel(self, th, dth, dpsi):
