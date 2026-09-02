@@ -27,12 +27,17 @@ The belief memory is about seven letters at these values, which is what `03_myop
 |---|---|---|
 | `m` | `16` | Chain ticks per sequence |
 | `n_steps` | `10` | Physics integration steps per tick |
-| `n_obs` | `181` | Uniform bins the scalar observable is quantised into |
+| `obs_bins` | `181` | Bins per observation channel. An int, or a tuple to bin several channels into one token |
+| `n_obs` *(derived)* | `181` | `prod(obs_bins)`, the vocabulary size |
 | `seq_len` *(derived)* | `160` | `m * n_steps`, tokens per sequence |
 | `delta_v` | per system | Scale of the impulse a letter applies |
 | `dt` | per system | Integration timestep |
 
 There is no observation noise. The only stochasticity in a sequence is the letter draw, which is why `07_ceiling.py` can compute the exact posterior by replaying candidate prefixes.
+
+Every system exposes a second observation channel, listed in its own table below. `obs_bins = 181` bins only the first, which is what every committed run does. `obs_bins = (181, 181)` bins both and combines them in mixed radix, so one token names a cell of the product grid and the vocabulary is `32761`. The cost is occupancy: two correlated channels trace a curve through the grid rather than filling it, so the double pendulum at `(181, 181)` occupies about 18% of its cells, and the uniform-prediction loss rises from `ln(181) = 5.20` to `ln(32761) = 10.40` nats, which makes losses incomparable across bin settings.
+
+Measured clipping at the committed defaults, over 256 sequences: pendulum `2.90%`, and zero for the other three. The pendulum's `theta` leaves its `+-pi/2` range, so those samples land on an edge bin and lose their value.
 
 ## 3. Physical systems
 
@@ -40,7 +45,7 @@ Every system defines four distinct, non-zero actions whose sum is zero, so no sy
 
 ### Pendulum
 
-`delta_v = 0.5477225575051661` (sqrt of 0.3), `dt = 0.02`.
+`delta_v = 0.5477225575051661` (sqrt of 0.3), `dt = 0.02`. Channels: `theta`, `omega`. Release: `theta0 = 0.0`, `omega0 = 1.0`.
 
 | Parameter | Value | What it does |
 |---|---|---|
@@ -54,6 +59,7 @@ Every system defines four distinct, non-zero actions whose sum is zero, so no sy
 | `metric_names` | `("omega",)` | Physical probe target |
 
 ### Predator-prey
+Channels: `prey_share`, `log_prey`. Release: `x0 = 3.0`, `y0 = 2.0`.
 
 `delta_v = 0.35`, `dt = 0.05`.
 
@@ -71,6 +77,7 @@ Every system defines four distinct, non-zero actions whose sum is zero, so no sy
 | `metric_names` | `("dx_dt", "dy_dt")` | Physical probe targets |
 
 ### Spherical pendulum
+Channels: `theta`, `psi`. Release: `theta0 = 0.6`, `psi_dot0 = 2.0`.
 
 `delta_v = 0.12`, `dt = 0.04`.
 
@@ -91,6 +98,7 @@ Every system defines four distinct, non-zero actions whose sum is zero, so no sy
 At `0.12` neither clip fires and all four action pairs still separate.
 
 ### Double pendulum
+Channels: `theta2`, `theta1`. Release: `th1_0 = 0.9`, `th2_0 = -0.4`, `w1_0 = w2_0 = 0.0`.
 
 `delta_v = 1.2`, `dt = 0.01`.
 
@@ -171,3 +179,7 @@ At `N_EVAL=6144` with `N_DEPTHS=4` and `d_model=256` the probe has 10,240 featur
 
 The Kaggle client must be run with IPv6 disabled.
 This network resolves `www.kaggle.com` to a NAT64 address with no working gateway, and urllib3 blocks on it for the full TCP connect timeout on every call.
+
+## 8. Interactive notebooks
+
+`notebooks/simulator.ipynb` (physics and channel only, no torch) and `notebooks/transformer.ipynb` (train, snapshot, probe, compare). Both build their process through `make_process`, so every parameter in this document is reachable from a free-text box with no slider bound. Neither notebook changes a default; they are views over the same code the experiments run.

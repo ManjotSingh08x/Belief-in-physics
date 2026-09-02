@@ -89,8 +89,18 @@ class SphereBall:
         dpsi = np.clip(z[..., 3] + action[..., 1] / radius, -self.rate_max, self.rate_max)
         return np.stack([th, z[..., 1], dth, dpsi], axis=-1)
 
+    observable_names: tuple[str, ...] = ("theta", "psi")
+
+    @property
+    def obs_ranges(self) -> tuple[tuple[float, float], ...]:
+        return (self.obs_range, (-np.pi, np.pi))
+
     def observable(self, z: np.ndarray) -> np.ndarray:
         return z[..., 0]  # polar angle from the bottom
+
+    def observables(self, z: np.ndarray) -> np.ndarray:
+        """Polar angle, then the azimuth it is swinging around."""
+        return np.stack([z[..., 0], z[..., 1]], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         th, dth, dpsi = z[..., 0], z[..., 2], z[..., 3]

@@ -92,9 +92,21 @@ class DoublePendulum:
         w2 = np.clip(z[..., 3] + action[..., 1], -self.omega_max, self.omega_max)
         return np.stack([z[..., 0], z[..., 1], w1, w2], axis=-1)
 
+    observable_names: tuple[str, ...] = ("theta2", "theta1")
+
+    @property
+    def obs_ranges(self) -> tuple[tuple[float, float], ...]:
+        return (self.obs_range, (-np.pi, np.pi))
+
     def observable(self, z: np.ndarray) -> np.ndarray:
         """theta2, wrapped -- the far joint, which is the chaotic one."""
         return (z[..., 1] + np.pi) % (2 * np.pi) - np.pi
+
+    def observables(self, z: np.ndarray) -> np.ndarray:
+        """Both joint angles. Watching only theta2 throws away the driven joint,
+        which is why this system is the one that most wants a second channel."""
+        wrap = lambda a: (a + np.pi) % (2 * np.pi) - np.pi  # noqa: E731
+        return np.stack([wrap(z[..., 1]), wrap(z[..., 0])], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         return z[..., 2:4]

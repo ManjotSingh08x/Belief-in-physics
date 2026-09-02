@@ -167,15 +167,19 @@ def plot_sequence(proc, batch, index, model, readout, device: str = "cpu"):
     fig, axes = plt.subplots(4, 1, figsize=(13, 12), height_ratios=[2, 2, 2, 3])
 
     ax = axes[0]
-    ax.plot(step, batch["observable"][index], color="0.2", lw=1.2, label="observable")
-    ax.plot(step, proc.system.obs_range[0] + tokens / (proc.n_obs - 1)
-            * (proc.system.obs_range[1] - proc.system.obs_range[0]),
-            color="tab:orange", lw=0.8, ls="--", label=f"token ({proc.n_obs} bins)")
+    observed = np.atleast_2d(batch["observable"][index].T).T  # (L, channels)
+    for channel, name in enumerate(proc.channel_names):
+        ax.plot(step, observed[:, channel], lw=1.2, label=name)
+    if len(proc.obs_bins) == 1:
+        lo, hi = proc.obs_ranges[0]
+        ax.plot(step, lo + tokens / (proc.n_obs - 1) * (hi - lo),
+                color="tab:orange", lw=0.8, ls="--", label=f"token ({proc.n_obs} bins)")
     for tick, letter in zip(kicks, batch["letters"][index]):
         ax.axvline(tick, color="0.85", lw=0.8, zorder=0)
         ax.text(tick, ax.get_ylim()[1], str(letter), fontsize=7, color="tab:red", va="top")
     ax.set_ylabel("observable")
-    ax.set_title("physics and its quantisation; red digits are the HMM letter kicking that tick")
+    ax.set_title(f"physics and its quantisation into {'x'.join(map(str, proc.obs_bins))} bins; "
+                 "red digits are the HMM letter kicking that tick")
     ax.legend(loc="lower right", fontsize=8)
 
     ax = axes[1]

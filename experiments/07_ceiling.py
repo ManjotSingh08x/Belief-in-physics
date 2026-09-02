@@ -52,7 +52,7 @@ def replay(proc, states: np.ndarray, letters: np.ndarray) -> tuple[np.ndarray, n
     tokens = np.empty((len(letters), proc.n_steps), dtype=np.int64)
     for step in range(proc.n_steps):
         z = proc.system.flow(z, proc.dt)
-        tokens[:, step] = proc.discretise(proc.system.observable(z))
+        tokens[:, step] = proc.observe(z)
     return z, tokens
 
 

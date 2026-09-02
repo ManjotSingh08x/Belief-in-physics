@@ -65,10 +65,21 @@ class PredatorPrey:
         ly = np.clip(z[..., 1] + action[..., 1], -self.log_bound, self.log_bound)
         return np.stack([lx, ly], axis=-1)
 
+    observable_names: tuple[str, ...] = ("prey_share", "log_prey")
+
+    @property
+    def obs_ranges(self) -> tuple[tuple[float, float], ...]:
+        return (self.obs_range, (-self.log_bound, self.log_bound))
+
     def observable(self, z: np.ndarray) -> np.ndarray:
         """Prey share x/(x+y), which is bounded and so bins without a clip."""
         x, y = np.exp(z[..., 0]), np.exp(z[..., 1])
         return x / (x + y)
+
+    def observables(self, z: np.ndarray) -> np.ndarray:
+        """The share, then the scale it sits at -- the share alone cannot tell a
+        small population from a large one at the same ratio."""
+        return np.stack([self.observable(z), z[..., 0]], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         dlx, dly = self._rhs(z[..., 0], z[..., 1])

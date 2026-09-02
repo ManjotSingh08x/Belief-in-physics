@@ -57,8 +57,19 @@ class Pendulum:
         omega = np.clip(z[..., 1] + action[..., 0], -self.omega_max, self.omega_max)
         return np.stack([z[..., 0], omega], axis=-1)
 
+    #: Channel 0 is the one every committed run used. Later channels are opt-in:
+    #: `MessDriven.obs_bins` decides how many are actually binned into the token.
+    observable_names: tuple[str, ...] = ("theta", "omega")
+
+    @property
+    def obs_ranges(self) -> tuple[tuple[float, float], ...]:
+        return (self.obs_range, (-self.omega_max, self.omega_max))
+
     def observable(self, z: np.ndarray) -> np.ndarray:
         return z[..., 0]
+
+    def observables(self, z: np.ndarray) -> np.ndarray:
+        return np.stack([z[..., 0], z[..., 1]], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         return z[..., 1:2]

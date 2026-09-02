@@ -177,7 +177,24 @@ class MessDriven:
     m: int = 16  # chain ticks
     n_steps: int = 10  # physics steps per tick
     dt: float = 0.02
-    n_obs: int = 181
+    #: Bins per observation channel. An int or a one-tuple is the single-channel
+    #: case every committed run used. `(181, 181)` bins the system's first two
+    #: channels and combines them into one token, so the vocabulary is the
+    #: product -- the double pendulum, whose theta2 alone hides the driven joint,
+    #: is the case this exists for.
+    obs_bins: tuple[int, ...] | int = 181
+
+    def __post_init__(self) -> None:
+        bins = (self.obs_bins,) if isinstance(self.obs_bins, int) else tuple(self.obs_bins)
+        if not bins or any(b < 2 for b in bins):
+            raise ValueError(f"every channel needs at least 2 bins, got {self.obs_bins}")
+        available = len(getattr(self.system, "obs_ranges", (self.system.obs_range,)))
+        if len(bins) > available:
+            raise ValueError(
+                f"{type(self.system).__name__} exposes {available} observation channels, "
+                f"but {len(bins)} bin counts were given"
+            )
+        object.__setattr__(self, "obs_bins", bins)
 
     @property
     def actions(self) -> np.ndarray:
@@ -201,15 +218,67 @@ class MessDriven:
     def n_actions(self) -> int:
         return self.chain.n_states
 
+    @property
+    def n_obs(self) -> int:
+        """Vocabulary size: the product over channels, since one token names a cell."""
+        return int(np.prod(self.obs_bins))
+
+    @property
+    def obs_ranges(self) -> tuple[tuple[float, float], ...]:
+        ranges = getattr(self.system, "obs_ranges", None) or (self.system.obs_range,)
+        return tuple(ranges[: len(self.obs_bins)])
+
+    @property
+    def channel_names(self) -> tuple[str, ...]:
+        names = getattr(self.system, "observable_names", None) or ("observable",)
+        return tuple(names[: len(self.obs_bins)])
+
+    def channels(self, z: np.ndarray) -> np.ndarray:
+        """The observed channels of a state, shape (..., len(obs_bins))."""
+        if len(self.obs_bins) == 1:
+            return self.system.observable(z)[..., None]
+        return self.system.observables(z)[..., : len(self.obs_bins)]
+
+    def bin_indices(self, values: np.ndarray) -> np.ndarray:
+        """Per-channel bin index, shape (..., len(obs_bins))."""
+        out = np.empty(values.shape, dtype=np.int64)
+        for channel, ((lo, hi), bins) in enumerate(zip(self.obs_ranges, self.obs_bins)):
+            scaled = (values[..., channel] - lo) / (hi - lo) * (bins - 1)
+            out[..., channel] = np.clip(np.rint(scaled), 0, bins - 1)
+        return out
+
+    def observe(self, z: np.ndarray) -> np.ndarray:
+        """State to token, in one call, so every caller bins identically."""
+        return self.discretise(self.channels(z))
+
     def discretise(self, value: np.ndarray) -> np.ndarray:
-        """Uniform bins over `system.obs_range`, rounded and clipped.
+        """Channel values to one token, uniform bins, rounded and clipped.
 
         Rounding rather than flooring means the pendulum with range +-pi/2 and
         181 bins maps theta to the nearest whole degree and clamps it to +-90.
+
+        Several channels are combined in mixed radix, so one token names one cell
+        of the product grid and the vocabulary is the product of the bin counts.
+        A trailing channel axis is optional: a bare scalar array is read as the
+        single-channel case, which is what every committed run passes.
         """
-        lo, hi = self.system.obs_range
-        scaled = (value - lo) / (hi - lo) * (self.n_obs - 1)
-        return np.clip(np.rint(scaled), 0, self.n_obs - 1).astype(np.int64)
+        values = np.asarray(value, dtype=np.float64)
+        channels = len(self.obs_bins)
+        if channels == 1:
+            # A bare array of scalars is the ordinary call. `channels()` returns
+            # the same values with an explicit trailing 1-axis, and a length-1
+            # trailing axis cannot mean anything else here, so both are accepted.
+            if values.ndim < 2 or values.shape[-1] != 1:
+                values = values[..., None]
+        elif values.shape[-1:] != (channels,):
+            raise ValueError(
+                f"expected a trailing axis of {channels} channels, got shape {values.shape}"
+            )
+        index = self.bin_indices(values)
+        token = np.zeros(values.shape[:-1], dtype=np.int64)
+        for channel, bins in enumerate(self.obs_bins):
+            token = token * bins + index[..., channel]
+        return token
 
     def sample_batch(self, rng: np.random.Generator, n: int) -> dict:
         """tokens (n, L), beliefs (n, L, K), metric (n, L), moods (n, L)."""
@@ -218,14 +287,14 @@ class MessDriven:
 
         sys_, actions = self.system, self.actions
         z = sys_.initial_state(n)
-        obs = np.empty((n, self.seq_len))
+        obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(sys_.metric_names)))
         for t in range(self.m):
             # The impulse lands once per tick, before that tick's steps.
             z = sys_.kick(z, actions[letters[:, t]])
             for s in range(self.n_steps):
                 z = sys_.flow(z, self.dt)
-                obs[:, t * self.n_steps + s] = sys_.observable(z)
+                obs[:, t * self.n_steps + s] = self.channels(z)
                 metric[:, t * self.n_steps + s] = sys_.metric(z)
 
         return {
@@ -255,7 +324,7 @@ class MessDriven:
             raise ValueError(f"expected {self.m} letters per row, got {letters.shape[1]}")
         n = len(letters)
         z = self.system.initial_state(n)
-        obs = np.empty((n, self.seq_len))
+        obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(self.system.metric_names)))
         energy = np.empty((n, self.seq_len))
         for t in range(self.m):
@@ -263,7 +332,7 @@ class MessDriven:
             for s in range(self.n_steps):
                 z = self.system.flow(z, self.dt)
                 at = t * self.n_steps + s
-                obs[:, at] = self.system.observable(z)
+                obs[:, at] = self.channels(z)
                 metric[:, at] = self.system.metric(z)
                 energy[:, at] = self.system.energy(z)
         return {
@@ -275,27 +344,46 @@ class MessDriven:
         }
 
     def bin_report(self, observable: np.ndarray) -> dict:
-        """How much of the `n_obs` vocabulary this observable actually uses.
+        """How much of the vocabulary these observations actually use.
 
-        `clipped` is the fraction of samples outside `obs_range`, which land on
-        the first or last bin and lose their value. A run with a high clipped
-        fraction is not measuring the physics any more, it is measuring the
-        range, so this is checked rather than assumed.
+        `clipped` is the fraction of samples outside the channel's range, which
+        land on the first or last bin and lose their value. A run with a high
+        clipped fraction is not measuring the physics any more, it is measuring
+        the range, so this is checked rather than assumed.
+
+        With several channels, `used_bins` counts occupied cells of the product
+        grid. That number falls off a cliff as channels are added -- two
+        correlated channels visit a curve through the grid, not the whole of it,
+        which is the cost of a product vocabulary and is worth seeing.
         """
-        lo, hi = self.system.obs_range
-        counts = np.bincount(self.discretise(observable).reshape(-1), minlength=self.n_obs)
+        values = np.asarray(observable, dtype=np.float64)
+        if values.shape[-1:] != (len(self.obs_bins),):
+            values = values[..., None]
+        counts = np.bincount(self.discretise(values).reshape(-1), minlength=self.n_obs)
+        clipped = np.zeros(values.shape[:-1], dtype=bool)
+        for channel, (lo, hi) in enumerate(self.obs_ranges):
+            clipped |= (values[..., channel] < lo) | (values[..., channel] > hi)
         return {
             "counts": counts,
             "used_bins": int((counts > 0).sum()),
             "n_obs": self.n_obs,
-            "clipped": float(np.mean((observable < lo) | (observable > hi))),
-            "obs_range": (float(lo), float(hi)),
-            "observed_range": (float(observable.min()), float(observable.max())),
+            "obs_bins": tuple(self.obs_bins),
+            "clipped": float(clipped.mean()),
+            "channels": self.channel_names,
+            "obs_range": tuple(self.obs_ranges[0]),
+            "observed_range": (float(values[..., 0].min()), float(values[..., 0].max())),
+            "per_channel_clipped": tuple(
+                float(np.mean((values[..., c] < lo) | (values[..., c] > hi)))
+                for c, (lo, hi) in enumerate(self.obs_ranges)
+            ),
         }
 
     def suggested_obs_range(self, observable: np.ndarray, quantile: float = 0.001) -> tuple[float, float]:
-        """The range that would spread these samples across all `n_obs` bins."""
-        lo, hi = np.quantile(observable, [quantile, 1.0 - quantile])
+        """The range spreading channel 0 across its bins, ignoring the tails."""
+        values = np.asarray(observable, dtype=np.float64)
+        if values.shape[-1:] == (len(self.obs_bins),):
+            values = values[..., 0]
+        lo, hi = np.quantile(values, [quantile, 1.0 - quantile])
         pad = 0.02 * (hi - lo)
         return float(lo - pad), float(hi + pad)
 

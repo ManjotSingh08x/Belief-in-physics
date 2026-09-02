@@ -19,12 +19,14 @@ def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counte
     step = np.arange(proc.seq_len)
     kicks = np.arange(proc.m) * proc.n_steps
     letters = batch["letters"][index]
-    lo, hi = proc.system.obs_range
+    lo, hi = proc.obs_ranges[0]
 
     ax = axes[0, 0]
-    ax.plot(step, batch["observable"][index], color="0.15", lw=1.3, zorder=3)
+    observed = batch["observable"][index]
+    for channel, name in enumerate(proc.channel_names):
+        ax.plot(step, observed[:, channel], lw=1.3, zorder=3, label=name)
     ax.axhline(lo, color="tab:red", lw=0.8, ls=":")
-    ax.axhline(hi, color="tab:red", lw=0.8, ls=":", label="obs_range (clips outside)")
+    ax.axhline(hi, color="tab:red", lw=0.8, ls=":", label="channel 0 range")
     for start, letter in zip(kicks, letters):
         ax.axvspan(start, start + proc.n_steps, color=LETTER_COLOURS[letter], alpha=0.16, lw=0)
     ax.set_title("trajectory, shaded by the letter kicking each tick")
@@ -39,7 +41,7 @@ def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counte
         branch = counterfactual["tick"] * proc.n_steps
         for letter in range(proc.chain.n_states):
             actual = letter == counterfactual["actual"]
-            ax.plot(step, counterfactual["observable"][letter],
+            ax.plot(step, counterfactual["observable"][letter][:, 0],
                     color=LETTER_COLOURS[letter], lw=2.0 if actual else 1.1,
                     alpha=1.0 if actual else 0.75, ls="-" if actual else "--",
                     label=f"letter {letter}" + (" (actual)" if actual else ""))
@@ -54,7 +56,7 @@ def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counte
     for start in kicks:
         ax.axvline(start, color="0.85", lw=0.7, zorder=0)
     ax.set_ylim(-1, proc.n_obs)
-    ax.set_title(f"what the model sees: {proc.n_obs} bins")
+    ax.set_title(f"what the model sees: {'x'.join(map(str, proc.obs_bins))} = {proc.n_obs} tokens")
     ax.set_xlabel("physics step")
     ax.set_ylabel("token")
 
@@ -63,6 +65,8 @@ def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counte
     ax.bar(np.arange(proc.n_obs), report["counts"], width=1.0, color="tab:purple")
     ax.set_title(f"bin occupancy: {report['used_bins']}/{report['n_obs']} used, "
                  f"{report['clipped']:.2%} clipped")
+    if len(proc.obs_bins) > 1:
+        ax.set_yscale("log")
     ax.set_xlabel("token")
     ax.set_ylabel("count")
 
@@ -104,10 +108,11 @@ def plot_all_systems(survey: dict):
         entry = survey[name]
         proc, batch, cf = entry["proc"], entry["batch"], entry["counterfactual"]
         step = np.arange(proc.seq_len)
-        lo, hi = proc.system.obs_range
+        lo, hi = proc.obs_ranges[0]
 
         ax = axes[row, 0]
-        ax.plot(step, batch["observable"][0], color="0.15", lw=1.1)
+        for channel in range(len(proc.obs_bins)):
+            ax.plot(step, batch["observable"][0][:, channel], lw=1.1)
         for start, letter in zip(np.arange(proc.m) * proc.n_steps, batch["letters"][0]):
             ax.axvspan(start, start + proc.n_steps, color=LETTER_COLOURS[letter], alpha=0.15, lw=0)
         ax.axhline(lo, color="tab:red", lw=0.7, ls=":")
@@ -119,7 +124,7 @@ def plot_all_systems(survey: dict):
         ax = axes[row, 1]
         for letter in range(proc.chain.n_states):
             actual = letter == cf["actual"]
-            ax.plot(step, cf["observable"][letter], color=LETTER_COLOURS[letter],
+            ax.plot(step, cf["observable"][letter][:, 0], color=LETTER_COLOURS[letter],
                     lw=1.8 if actual else 1.0, ls="-" if actual else "--",
                     alpha=1.0 if actual else 0.75)
         ax.axvline(cf["tick"] * proc.n_steps, color="0.3", lw=0.9)
@@ -130,6 +135,8 @@ def plot_all_systems(survey: dict):
         ax = axes[row, 2]
         report = entry["bins"]
         ax.bar(np.arange(proc.n_obs), report["counts"], width=1.0, color="tab:purple")
+        if len(proc.obs_bins) > 1:
+            ax.set_yscale("log")
         ax.set_title("bin occupancy" if row == 0 else "")
         ax.text(0.5, 0.92, f"{report['used_bins']}/{report['n_obs']} used, "
                            f"{report['clipped']:.2%} clipped", fontsize=7,

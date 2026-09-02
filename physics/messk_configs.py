@@ -34,7 +34,7 @@ SYSTEMS: dict[str, dict] = {
     "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01},
 }
 
-DRIVER = {"m": 16, "n_steps": 10, "n_obs": 181}
+DRIVER = {"m": 16, "n_steps": 10, "obs_bins": 181}
 MESSK_CONFIGS: dict[str, str] = {f"{system}_mess4": system for system in SYSTEMS}
 
 
