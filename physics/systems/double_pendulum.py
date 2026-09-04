@@ -37,6 +37,7 @@ class DoublePendulum:
 
     obs_range: tuple[float, float] = (-np.pi, np.pi)
     metric_names: tuple[str, ...] = ("omega1", "omega2")
+    state_names: tuple[str, ...] = ("theta1", "theta2", "omega1", "omega2")
 
     def actions(self, scale: float) -> np.ndarray:
         """Joint 1 negative/positive, then joint 2 negative/positive.

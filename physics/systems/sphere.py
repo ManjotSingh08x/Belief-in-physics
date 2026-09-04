@@ -41,6 +41,7 @@ class SphereBall:
     #: coordinate range -- otherwise most of the 181 bins would never be used.
     obs_range: tuple[float, float] = (0.05, 1.25)
     metric_names: tuple[str, ...] = ("v_meridional", "v_azimuthal")
+    state_names: tuple[str, ...] = ("theta", "psi", "dtheta", "dpsi")
 
     def actions(self, scale: float) -> np.ndarray:
         """North/south and west/east impulses in the local tangent plane."""

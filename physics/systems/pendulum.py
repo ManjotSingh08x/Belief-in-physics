@@ -28,6 +28,7 @@ class Pendulum:
     #: (lo, hi) of the binned observable, and the name of the metric column.
     obs_range: tuple[float, float] = (-np.pi / 2, np.pi / 2)
     metric_names: tuple[str, ...] = ("omega",)
+    state_names: tuple[str, ...] = ("theta", "omega")
 
     def actions(self, scale: float) -> np.ndarray:
         """Balanced weak/strong angular-velocity kicks, with no zero action."""

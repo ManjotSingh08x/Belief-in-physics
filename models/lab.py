@@ -20,6 +20,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from physics.visualise import tunable_fields  # noqa: F401  (re-exported for the notebooks)
+
 from .explore import fit_readout, load_model
 from .train import TrainConfig, pick_device, train
 from .transformer import ModelConfig, TinyTransformer
@@ -46,23 +48,6 @@ def counterfactual(proc, letters: np.ndarray, tick: int) -> dict:
     tokens = out["tokens"][:, branch:]
     out["separation"] = float(np.abs(tokens[:, None, :] - tokens[None, :, :]).max(-1).mean())
     return out
-
-
-def tunable_fields(system) -> dict[str, float]:
-    """Every scalar knob on a system dataclass, with its current value.
-
-    Derived from the dataclass rather than listed by hand, so a field added to a
-    system appears in the notebook without anyone remembering to add it. The two
-    exclusions are not scalars: `obs_range` is the channel's, and `metric_names`
-    is an identifier list.
-    """
-    return {
-        f.name: getattr(system, f.name)
-        for f in fields(system)
-        if f.name not in {"obs_range", "metric_names"}
-        and isinstance(getattr(system, f.name), (int, float))
-        and not isinstance(getattr(system, f.name), bool)
-    }
 
 
 def survey_systems(rng_seed: int = 20_260_829, n: int = 256, tick: int = 4, **overrides) -> dict:

@@ -182,4 +182,36 @@ This network resolves `www.kaggle.com` to a NAT64 address with no working gatewa
 
 ## 8. Interactive notebooks
 
-`notebooks/simulator.ipynb` (physics and channel only, no torch) and `notebooks/transformer.ipynb` (train, snapshot, probe, compare). Both build their process through `make_process`, so every parameter in this document is reachable from a free-text box with no slider bound. Neither notebook changes a default; they are views over the same code the experiments run.
+`notebooks/simulator.ipynb` (physics and channel only, no torch) and `notebooks/transformer.ipynb` (train, snapshot, probe, compare).
+Both build their process through `make_process`, so every parameter in this document is reachable from a free-text box with no slider bound.
+
+`notebooks/explorer.ipynb` is the visual counterpart: sliders over every parameter, ten graph types, and a stability verdict.
+It imports no torch either.
+Its controls come from `physics/controls.py` and its panels from `physics/visualise.py`, so the UI is version-controlled rather than pasted into cells.
+Each slider carries its own editable range boxes, so a value far outside the default neighbourhood is reachable without leaving the slider.
+
+None of the three notebooks changes a default; they are views over the same code the experiments run.
+
+### Stability thresholds
+
+These decide the `stable` verdict in `physics/visualise.py::stability`.
+They are reporting thresholds, not physics, and nothing in the training pipeline reads them.
+
+| Threshold | Value | Why |
+|---|---|---|
+| `lyapunov` | `> 0.05 /s` fails | fitted from a twin started `1e-8` away, over the stretch before the twins saturate at 10% of the state scale; above zero the trajectory forgets its own initial condition |
+| `clipped` | `> 1%` fails | the same 1% budget the per-system `obs_range` entries in section 3 were chosen against |
+| `gap_free_mean` | `< 1e-3` fails | driven and free runs indistinguishable, so the letters left no trace to learn from |
+| `used_bins` | `< 10%` of `n_obs` fails | most of the vocabulary never emitted |
+
+Measured at the committed defaults, one sequence of `m=40` ticks at seed 3:
+
+| System | lyapunov | clipped | bins used | driven-vs-free gap | verdict |
+|---|---:|---:|---:|---:|---|
+| pendulum | -0.579 | 0.00% | 105/181 | 1.250 | stable |
+| predator-prey | -0.197 | 0.00% | 131/181 | 0.897 | stable |
+| sphere | +0.081 | 0.00% | 47/181 | 0.703 | marginally chaotic |
+| double pendulum | +1.579 | 0.00% | 166/181 | 7.379 | chaotic, as expected |
+
+The double pendulum's positive exponent is the system, not a misconfiguration.
+The sphere's is small and its bin use is the lowest of the four, both consequences of `obs_range = (0.05, 1.25)` being far wider than the band theta visits - see the sphere entry in section 3.

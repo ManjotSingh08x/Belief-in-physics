@@ -33,6 +33,7 @@ class PredatorPrey:
 
     obs_range: tuple[float, float] = (0.0, 1.0)
     metric_names: tuple[str, ...] = ("dx_dt", "dy_dt")
+    state_names: tuple[str, ...] = ("log_prey", "log_predator")
 
     def actions(self, scale: float) -> np.ndarray:
         """Prey down/up, then predator down/up, in log-population space."""
