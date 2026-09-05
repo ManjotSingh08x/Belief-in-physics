@@ -3,7 +3,7 @@ State z = (theta, psi, theta_dot, psi_dot), theta measured from the downward
 vertical and psi the azimuth around it.
 
     theta'' = sin(theta) cos(theta) psi'^2 - (g/L) sin(theta) - gamma theta'
-    psi''   = -2 cot(theta) theta' psi'
+    psi''   = -2 cot(theta) theta' psi' - gamma psi'
 
 Gravity makes the constrained ball an oscillator instead of a freely drifting
 geodesic. Theta therefore stays inside physical turning points rather than being
@@ -29,7 +29,7 @@ THETA_MAX = np.pi - 0.15  # momentum keeps a real trajectory well clear of it
 class SphereBall:
     g: float = 9.8
     length: float = 1.0
-    gamma: float = 0.35  # sliding friction on the meridional swing
+    gamma: float = 0.35  # isotropic sliding friction on the sphere
     rate_max: float = 6.0
 
     #: The conical release: polar angle off the bottom, and the azimuthal rate
@@ -61,11 +61,10 @@ class SphereBall:
             - (self.g / self.length) * np.sin(th)
             - self.gamma * dth
         )
-        # No damping term on psi: friction acts on the swing, while the angular
-        # momentum about the vertical is conserved. That is what keeps the
-        # centrifugal barrier alive, so theta has a strict lower turning point
-        # and never reaches the coordinate singularity at the bottom.
-        return a_th, -2.0 * dth * dpsi / np.tan(th)
+        # Isotropic physical friction: drag opposes velocity in both meridional
+        # and azimuthal directions in the tangent plane.
+        a_psi = -2.0 * dth * dpsi / np.tan(th) - self.gamma * dpsi
+        return a_th, a_psi
 
     def flow(self, z: np.ndarray, dt: float, substeps: int = 1) -> np.ndarray:
         th, psi, dth, dpsi = (z[..., i].copy() for i in range(4))

@@ -280,6 +280,29 @@ class MessDriven:
             token = token * bins + index[..., channel]
         return token
 
+    def tokens_to_indices(self, token: np.ndarray) -> np.ndarray:
+        """Unpack integer tokens back to per-channel bin indices, shape (..., len(obs_bins))."""
+        tokens = np.asarray(token, dtype=np.int64)
+        indices = np.empty((*tokens.shape, len(self.obs_bins)), dtype=np.int64)
+        rem = tokens.copy()
+        for channel in reversed(range(len(self.obs_bins))):
+            bins = self.obs_bins[channel]
+            indices[..., channel] = rem % bins
+            rem = rem // bins
+        return indices
+
+    def undiscretise(self, token: np.ndarray) -> np.ndarray:
+        """Reconstruct continuous physical values from integer tokens.
+
+        Returns an array of shape (..., len(obs_bins)) in the physical units of each channel.
+        """
+        indices = self.tokens_to_indices(token)
+        out = np.empty(indices.shape, dtype=np.float64)
+        for channel, ((lo, hi), bins) in enumerate(zip(self.obs_ranges, self.obs_bins)):
+            denom = max(bins - 1, 1)
+            out[..., channel] = lo + indices[..., channel] / denom * (hi - lo)
+        return out
+
     def sample_batch(self, rng: np.random.Generator, n: int) -> dict:
         """tokens (n, L), beliefs (n, L, K), metric (n, L), moods (n, L)."""
         states, letters = self.chain.sample(rng, n, self.m)

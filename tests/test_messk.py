@@ -120,8 +120,8 @@ def test_every_action_produces_a_distinct_observation_sequence():
         for _ in range(proc.n_steps):
             state = system.flow(state, proc.dt)
             baseline = system.flow(baseline, proc.dt)
-            action_tokens.append(proc.discretise(system.observable(state)))
-            baseline_tokens.append(proc.discretise(system.observable(baseline))[0])
+            action_tokens.append(proc.observe(state))
+            baseline_tokens.append(proc.observe(baseline)[0])
 
         trajectories = np.stack(action_tokens, axis=1)
         baseline_trajectory = np.asarray(baseline_tokens)
@@ -146,7 +146,7 @@ def test_actions_remain_observably_distinct_on_typical_states():
         tokens = []
         for _ in range(proc.n_steps):
             forked = system.flow(forked, proc.dt)
-            tokens.append(proc.discretise(system.observable(forked)).reshape(n, 4))
+            tokens.append(proc.observe(forked).reshape(n, 4))
         trajectories = np.stack(tokens, axis=-1)
 
         for left, right in combinations(range(4), 2):

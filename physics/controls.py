@@ -126,7 +126,9 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
                                  rows=len(PANELS), style={"description_width": LABEL_W},
                                  layout=W.Layout(width="440px"))
     seed = W.IntText(value=0, description="seed", style={"description_width": LABEL_W})
-    bins = W.Text(value="181", description="bins per channel",
+    spec_default = make_process(default)
+    bins_default_str = "x".join(str(b) for b in spec_default.obs_bins) if len(spec_default.obs_bins) > 1 else str(spec_default.obs_bins[0])
+    bins = W.Text(value=bins_default_str, description="bins per channel",
                   style={"description_width": LABEL_W},
                   layout=W.Layout(width="440px"))
     live = W.Checkbox(value=True, description="redraw on change")
@@ -174,6 +176,7 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         spec = make_process(system_dd.value)
         params.rebuild(spec.system, redraw)
         dt_s.value, dv_s.value = spec.dt, spec.delta_v
+        bins.value = "x".join(str(b) for b in spec.obs_bins) if len(spec.obs_bins) > 1 else str(spec.obs_bins[0])
         if not build_only:
             redraw()
 
@@ -197,12 +200,16 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
 
 def sweep_ui(default: str = "double_pendulum_mess4"):
     """Scan one parameter and plot where the trajectory stays stable."""
+    import ast
     import matplotlib.pyplot as plt
 
     system_dd = W.Dropdown(options=sorted(MESSK_CONFIGS), value=default, description="system",
                            style={"description_width": LABEL_W})
     field_dd = W.Dropdown(options=[], description="parameter",
                           style={"description_width": LABEL_W})
+    base_text = W.Text(value="", description="fixed overrides",
+                       placeholder="e.g. a=1.5, kappa=3.5, delta_v=0.4",
+                       style={"description_width": LABEL_W}, layout=W.Layout(width="500px"))
     lo = W.FloatText(value=0.0, description="from", style={"description_width": "60px"},
                      layout=W.Layout(width="180px"))
     hi = W.FloatText(value=4.0, description="to", style={"description_width": "60px"},
@@ -214,27 +221,77 @@ def sweep_ui(default: str = "double_pendulum_mess4"):
 
     def reset(_=None) -> None:
         proc = make_process(system_dd.value)
-        options = ["delta_v", "dt", "n_steps"] + sorted(tunable_fields(proc.system))
+        options = ["delta_v", "dt", "n_steps", "stay", "alpha"] + sorted(tunable_fields(proc.system))
         field_dd.options = options
         field_dd.value = "delta_v"
+
+    def parse_overrides(text: str, proc) -> tuple[dict, dict, dict]:
+        sys_fields = set(tunable_fields(proc.system).keys()) | {"obs_range"}
+        chain_fields = {"stay", "alpha", "n_states"}
+        driver_fields = {"m", "n_steps", "dt", "delta_v", "obs_bins"}
+        s_kw, c_kw, d_kw = {}, {}, {}
+        for item in text.split(","):
+            item = item.strip()
+            if not item or "=" not in item:
+                continue
+            k, v = item.split("=", 1)
+            k, v = k.strip().replace("-", "_"), v.strip()
+            try:
+                val = ast.literal_eval(v)
+            except Exception:
+                try:
+                    val = float(v)
+                except Exception:
+                    val = v
+            if k in sys_fields:
+                s_kw[k] = val
+            elif k in chain_fields:
+                c_kw[k] = val
+            elif k in driver_fields:
+                d_kw[k] = int(val) if k in ("m", "n_steps") else val
+            else:
+                s_kw[k] = val
+        return s_kw, c_kw, d_kw
 
     def go(_=None) -> None:
         with out:
             out.clear_output(wait=True)
             values = np.linspace(lo.value, hi.value, int(steps.value))
             name, rows = field_dd.value, []
+            base_proc = make_process(system_dd.value)
+            base_sys, base_chain, base_driver = parse_overrides(base_text.value, base_proc)
+
             for v in values:
-                kwargs = ({"system": {name: float(v)}} if name in tunable_fields(
-                    make_process(system_dd.value).system) else {name: float(v)})
-                if name == "n_steps":
-                    kwargs = {"n_steps": max(1, int(round(v)))}
+                sys_kw = dict(base_sys)
+                chain_kw = dict(base_chain)
+                driver_kw = dict(base_driver)
+
+                if name in tunable_fields(base_proc.system):
+                    sys_kw[name] = float(v)
+                elif name in ("stay", "alpha", "n_states"):
+                    chain_kw[name] = float(v)
+                elif name == "n_steps":
+                    driver_kw["n_steps"] = max(1, int(round(v)))
+                elif name == "m":
+                    driver_kw["m"] = max(1, int(round(v)))
+                else:
+                    driver_kw[name] = float(v)
+
+                call_kw = dict(driver_kw)
+                if sys_kw:
+                    call_kw["system"] = sys_kw
+                if chain_kw:
+                    call_kw["chain"] = chain_kw
+
+                m_val = call_kw.pop("m", 24)
                 try:
-                    tr = trace(make_process(system_dd.value, m=24, **kwargs), seed=0)
+                    tr = trace(make_process(system_dd.value, m=m_val, **call_kw), seed=0)
                     rows.append({"value": v, **stability(tr)})
                 except Exception as exc:
                     rows.append({"value": v, "lyapunov": np.nan, "clipped": np.nan,
                                  "used_bins": 0, "n_obs": 1, "gap_free_mean": np.nan,
                                  "stable": False, "reasons": [str(exc)]})
+
             fig, axes = plt.subplots(1, 3, figsize=(15, 3.6))
             v = [r["value"] for r in rows]
             axes[0].plot(v, [r["lyapunov"] for r in rows], "o-", color="#c0392b")
@@ -250,7 +307,8 @@ def sweep_ui(default: str = "double_pendulum_mess4"):
                 ax.set_xlabel(name)
                 ax.grid(True, ls="--", alpha=0.5)
             good = [f"{r['value']:.4g}" for r in rows if r["stable"]]
-            fig.suptitle(f"{system_dd.value}: stable at {name} in "
+            override_str = f" (fixed: {base_text.value.strip()})" if base_text.value.strip() else ""
+            fig.suptitle(f"{system_dd.value}{override_str}: stable at {name} in "
                          f"{{{', '.join(good) if good else 'nothing in this range'}}}",
                          fontsize=11)
             fig.tight_layout()
@@ -260,7 +318,7 @@ def sweep_ui(default: str = "double_pendulum_mess4"):
     system_dd.observe(reset, "value")
     run.on_click(go)
     reset()
-    return W.VBox([W.HBox([system_dd, field_dd]), W.HBox([lo, hi, steps, run]), out])
+    return W.VBox([W.HBox([system_dd, field_dd]), base_text, W.HBox([lo, hi, steps, run]), out])
 
 
 def compute_optimal_gamma(
@@ -310,8 +368,12 @@ def compute_optimal_gamma(
             w_sq = 0.0
             for s in range(n_steps):
                 z_next = sysm.flow(z_flow, dt)
-                w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
-                w_sq += (w_mid ** 2).sum() * dt
+                if hasattr(sysm, "metric"):
+                    v_mid = sysm.metric(0.5 * (z_flow + z_next))
+                    w_sq += (v_mid ** 2).sum() * dt
+                else:
+                    w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
+                    w_sq += (w_mid ** 2).sum() * dt
                 z_flow = z_next
             z = z_flow
 
@@ -356,8 +418,12 @@ def compute_optimal_gamma(
         w_sq = 0.0
         for s in range(n_steps):
             z_next = sysm.flow(z_flow, dt)
-            w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
-            w_sq += (w_mid ** 2).mean() * dt
+            if hasattr(sysm, "metric"):
+                v_mid = sysm.metric(0.5 * (z_flow + z_next))
+                w_sq += (v_mid ** 2).sum(axis=-1).mean() * dt
+            else:
+                w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
+                w_sq += (w_mid ** 2).mean() * dt
             z_flow = z_next
         z = z_flow
 
@@ -385,10 +451,13 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
     """Interactive widget to compute and verify the optimal viscous damping gamma."""
     import matplotlib.pyplot as plt
 
+    spec = make_process(default_system)
+    system_dd = W.Dropdown(options=sorted(MESSK_CONFIGS), value=default_system, description="system",
+                           style={"description_width": LABEL_W})
     m_s, m_row = param_row("m (ticks)", 40, integer=True)
-    n_s, n_row = param_row("n_steps (per tick)", 10, integer=True)
-    dt_s, dt_row = param_row("dt", 0.02)
-    dv_s, dv_row = param_row("delta_v (kick scale)", 0.55)
+    n_s, n_row = param_row("n_steps (per tick)", spec.n_steps, integer=True)
+    dt_s, dt_row = param_row("dt", spec.dt)
+    dv_s, dv_row = param_row("delta_v (kick scale)", spec.delta_v)
     stay_s, stay_row = param_row("stay (chain)", 0.7)
     alpha_s, alpha_row = param_row("alpha (chain)", 0.7)
     for s in (stay_s, alpha_s):
@@ -399,12 +468,20 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
     report_html = W.HTML()
     out = W.Output()
 
+    def on_system_change(_=None):
+        new_spec = make_process(system_dd.value)
+        dt_s.value = new_spec.dt
+        dv_s.value = new_spec.delta_v
+        n_s.value = new_spec.n_steps
+
+    system_dd.observe(on_system_change, "value")
+
     def calculate(_=None):
         with out:
             out.clear_output(wait=True)
             report_html.value = "<i>Simulating ODE rollouts & finding optimal gamma...</i>"
             res = compute_optimal_gamma(
-                system_name=default_system,
+                system_name=system_dd.value,
                 m=int(m_s.value),
                 n_steps=int(n_s.value),
                 dt=float(dt_s.value),
@@ -448,6 +525,7 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
                "<p style='color: #666; font-size: 12px; margin-top: -6px;'>"
                "Finds the exact damping &gamma; where average energy bled by friction equals average energy injected by kicks."
                "</p>"),
+        system_dd,
         m_row, n_row, dt_row, dv_row, stay_row, alpha_row,
         W.HBox([calc_btn]),
         report_html,

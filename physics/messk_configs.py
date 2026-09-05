@@ -30,7 +30,7 @@ CHAIN = {"n_states": 4, "alpha": 0.7, "stay": 0.7}
 SYSTEMS: dict[str, dict] = {
     "pendulum": {"factory": Pendulum, "delta_v": 0.5477225575051661, "dt": 0.02},
     "predator_prey": {"factory": PredatorPrey, "delta_v": 0.35, "dt": 0.05},
-    "sphere": {"factory": SphereBall, "delta_v": 0.12, "dt": 0.04},
+    "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.04, "obs_bins": (30, 30)},
     "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01},
 }
 
@@ -55,7 +55,8 @@ def _demo() -> None:
         proc = make_process(name)
         actions = proc.actions
         assert proc.chain.n_states == actions.shape[0] == 4, name
-        assert proc.n_obs == 181 and proc.seq_len == 160, name
+        expected_vocab = {"sphere_mess4": 30 * 30}  # (181×181), others default to 181
+        assert proc.n_obs == expected_vocab.get(name, 181) and proc.seq_len == 160, name
         assert (actions != 0).any(axis=1).all(), f"{name} contains a no-op"
         assert len({tuple(row) for row in actions}) == 4, f"{name} repeats an action"
         assert abs(actions.sum(axis=0)).max() < 1e-12, f"{name} is directionally biased"
