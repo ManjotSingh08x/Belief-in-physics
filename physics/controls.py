@@ -263,6 +263,198 @@ def sweep_ui(default: str = "double_pendulum_mess4"):
     return W.VBox([W.HBox([system_dd, field_dd]), W.HBox([lo, hi, steps, run]), out])
 
 
+def compute_optimal_gamma(
+    system_name: str = "pendulum_mess4",
+    m: int = 40,
+    n_steps: int = 10,
+    dt: float = 0.02,
+    delta_v: float = 0.55,
+    stay: float = 0.7,
+    alpha: float = 0.7,
+    system_params: dict | None = None,
+    n_trajs: int = 32,
+    seed: int = 42,
+    max_iter: int = 6,
+) -> dict:
+    """Find the optimal viscous damping gamma balancing kick injection with dissipation."""
+    sys_kw = dict(system_params or {})
+    gamma = float(sys_kw.get("gamma", 1.0))
+    actions_scale = delta_v
+
+    for iteration in range(max_iter):
+        rng = np.random.default_rng(seed + iteration)
+        sys_kw["gamma"] = gamma
+        proc = make_process(
+            system_name,
+            system=sys_kw,
+            chain={"stay": stay, "alpha": alpha},
+            m=m, n_steps=n_steps, dt=dt, delta_v=actions_scale,
+        )
+        sysm = proc.system
+        letters = proc.chain.sample(rng, n_trajs, m)[1]
+        actions = proc.actions
+
+        z = sysm.initial_state(n_trajs)
+        total_injected = 0.0
+        total_omega_sq_int = 0.0
+        warmup = max(5, m // 4)
+
+        for t in range(m):
+            action = actions[letters[:, t]]
+            e_before = sysm.energy(z)
+            z_kicked = sysm.kick(z, action)
+            e_after = sysm.energy(z_kicked)
+            dE = (e_after - e_before).sum()
+
+            z_flow = z_kicked
+            w_sq = 0.0
+            for s in range(n_steps):
+                z_next = sysm.flow(z_flow, dt)
+                w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
+                w_sq += (w_mid ** 2).sum() * dt
+                z_flow = z_next
+            z = z_flow
+
+            if t >= warmup:
+                total_injected += dE
+                total_omega_sq_int += w_sq
+
+        gamma_est = float(total_injected / max(total_omega_sq_int, 1e-9))
+        if abs(gamma - gamma_est) < 0.005:
+            gamma = gamma_est
+            break
+        gamma = 0.5 * (gamma + gamma_est)
+
+    # Verification run with optimal gamma
+    rng = np.random.default_rng(seed + 999)
+    sys_kw["gamma"] = gamma
+    proc = make_process(
+        system_name,
+        system=sys_kw,
+        chain={"stay": stay, "alpha": alpha},
+        m=m, n_steps=n_steps, dt=dt, delta_v=actions_scale,
+    )
+    sysm = proc.system
+    letters = proc.chain.sample(rng, n_trajs, m)[1]
+    actions = proc.actions
+
+    z = sysm.initial_state(n_trajs)
+    warmup = max(5, m // 4)
+    active_ticks = m - warmup
+    t_inj, t_diss = 0.0, 0.0
+    cum_inj = []
+    cum_diss = []
+
+    for t in range(m):
+        action = actions[letters[:, t]]
+        e_before = sysm.energy(z)
+        z_kicked = sysm.kick(z, action)
+        e_after = sysm.energy(z_kicked)
+        dE = (e_after - e_before).mean()
+
+        z_flow = z_kicked
+        w_sq = 0.0
+        for s in range(n_steps):
+            z_next = sysm.flow(z_flow, dt)
+            w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
+            w_sq += (w_mid ** 2).mean() * dt
+            z_flow = z_next
+        z = z_flow
+
+        diss = gamma * w_sq
+        if t >= warmup:
+            t_inj += dE
+            t_diss += diss
+            cum_inj.append(t_inj)
+            cum_diss.append(t_diss)
+
+    mean_inj = t_inj / active_ticks
+    mean_diss = t_diss / active_ticks
+
+    return {
+        "gamma_opt": gamma,
+        "mean_injected": mean_inj,
+        "mean_dissipated": mean_diss,
+        "balance_ratio": mean_diss / max(mean_inj, 1e-9),
+        "cum_injected": np.array(cum_inj),
+        "cum_dissipated": np.array(cum_diss),
+    }
+
+
+def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
+    """Interactive widget to compute and verify the optimal viscous damping gamma."""
+    import matplotlib.pyplot as plt
+
+    m_s, m_row = param_row("m (ticks)", 40, integer=True)
+    n_s, n_row = param_row("n_steps (per tick)", 10, integer=True)
+    dt_s, dt_row = param_row("dt", 0.02)
+    dv_s, dv_row = param_row("delta_v (kick scale)", 0.55)
+    stay_s, stay_row = param_row("stay (chain)", 0.7)
+    alpha_s, alpha_row = param_row("alpha (chain)", 0.7)
+    for s in (stay_s, alpha_s):
+        s.min, s.max, s.step = 0.0, 1.0, 0.01
+
+    calc_btn = W.Button(description="Compute Optimal Gamma", button_style="primary",
+                        layout=W.Layout(width="240px"))
+    report_html = W.HTML()
+    out = W.Output()
+
+    def calculate(_=None):
+        with out:
+            out.clear_output(wait=True)
+            report_html.value = "<i>Simulating ODE rollouts & finding optimal gamma...</i>"
+            res = compute_optimal_gamma(
+                system_name=default_system,
+                m=int(m_s.value),
+                n_steps=int(n_s.value),
+                dt=float(dt_s.value),
+                delta_v=float(dv_s.value),
+                stay=float(stay_s.value),
+                alpha=float(alpha_s.value),
+            )
+            g_opt = res["gamma_opt"]
+            inj = res["mean_injected"]
+            diss = res["mean_dissipated"]
+            ratio = res["balance_ratio"]
+
+            report_html.value = (
+                f"<div style='font-family: monospace; font-size: 13px; line-height: 1.6; padding: 10px; "
+                f"background: #f8f9fa; border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 8px;'>"
+                f"<b>Optimal Viscous Damping (&gamma;*):</b> <span style='color: #2b78d6; font-size: 16px; font-weight: bold;'>{g_opt:.4f}</span><br>"
+                f"&bull; Energy added per tick: <b>{inj:.4f}</b> J<br>"
+                f"&bull; Energy bled per tick: <b>{diss:.4f}</b> J<br>"
+                f"&bull; Energy balance ratio (bled / added): <b>{ratio:.1%}</b> (target = 100%)"
+                f"</div>"
+            )
+
+            fig, ax = plt.subplots(figsize=(8, 3.2))
+            ticks = np.arange(len(res["cum_injected"]))
+            ax.plot(ticks, res["cum_injected"], label="Cumulative energy injected (kicks)", color="#c0392b", lw=1.8)
+            ax.plot(ticks, res["cum_dissipated"], label="Cumulative energy bled (viscosity)", color="#1baf7a", lw=1.8, ls="--")
+            ax.set_xlabel("tick (post-warmup)")
+            ax.set_ylabel("cumulative energy")
+            ax.set_title(f"Steady-State Energy Equilibrium (gamma* = {g_opt:.4f})")
+            ax.grid(True, ls="--", alpha=0.5)
+            ax.legend(fontsize=8, loc="upper left")
+            plt.tight_layout()
+            plt.show()
+            plt.close(fig)
+
+    calc_btn.on_click(calculate)
+    calculate()
+
+    return W.VBox([
+        W.HTML("<h4>Steady-State Energy Balance: Optimal Viscous Damping (&gamma;*)</h4>"
+               "<p style='color: #666; font-size: 12px; margin-top: -6px;'>"
+               "Finds the exact damping &gamma; where average energy bled by friction equals average energy injected by kicks."
+               "</p>"),
+        m_row, n_row, dt_row, dv_row, stay_row, alpha_row,
+        W.HBox([calc_btn]),
+        report_html,
+        out,
+    ])
+
+
 def _demo() -> None:
     import matplotlib
 

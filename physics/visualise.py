@@ -34,13 +34,46 @@ PHASE_SPACE: dict[str, dict] = {
 PANELS = (
     "observable", "energy", "metric", "phase", "states",
     "divergence", "spectrum", "tokens", "belief", "return_map",
+    "causal_effect",
 )
 
 INK, MUTED, GRID = "#0b0b0b", "#666666", "#e1e0d9"
 C_DRIVEN, C_FREE = "#2a78d6", "#888888"
 C_A, C_B = "#eb6834", "#1baf7a"
 C_ENERGY = "#4a3aa7"
-LETTER_COLOURS = ("#2a78d6", "#eb6834", "#1baf7a", "#c0392b")
+LETTER_COLOURS = (
+    "#8b0000",  # 0: - strong dv (dark deep red)
+    "#ff7043",  # 1: - weak dv (light red / warm orange)
+    "#48c774",  # 2: + weak dv (light green)
+    "#005a20",  # 3: + strong dv (dark green)
+)
+
+TICKER_CONFIG = {
+    0: {"name": "- strong dv", "marker": "v", "color": "#8b0000", "size": 48, "label": "-strong dv"},
+    1: {"name": "- weak dv",   "marker": "v", "color": "#ff7043", "size": 26, "label": "-weak dv"},
+    2: {"name": "+ weak dv",   "marker": "^", "color": "#48c774", "size": 26, "label": "+weak dv"},
+    3: {"name": "+ strong dv", "marker": "^", "color": "#005a20", "size": 48, "label": "+strong dv"},
+}
+
+
+def ticker_for_letter(letter: int) -> dict:
+    """Ticker styling: direction (triangle up/down), strength (color & size)."""
+    return TICKER_CONFIG[int(letter) % len(TICKER_CONFIG)]
+
+
+def ticker_legend_elements():
+    """Legend proxy items showing the 4 perturbation ticker types."""
+    from matplotlib.lines import Line2D
+    return [
+        Line2D([0], [0], marker="v", color="w", markerfacecolor="#8b0000",
+               markersize=7, label="-strong dv"),
+        Line2D([0], [0], marker="v", color="w", markerfacecolor="#ff7043",
+               markersize=5, label="-weak dv"),
+        Line2D([0], [0], marker="^", color="w", markerfacecolor="#48c774",
+               markersize=5, label="+weak dv"),
+        Line2D([0], [0], marker="^", color="w", markerfacecolor="#005a20",
+               markersize=7, label="+strong dv"),
+    ]
 
 
 def tunable_fields(system) -> dict[str, float]:
@@ -186,10 +219,15 @@ def stability(tr: dict) -> dict:
     }
 
 
-def _mark_kicks(ax, tr) -> None:
-    for tt, letter in zip(tr["tick_times"], tr["letters"]):
-        ax.axvline(tt, color=LETTER_COLOURS[letter % len(LETTER_COLOURS)],
-                   alpha=0.25, linestyle=":", lw=1.0)
+def _mark_kicks(ax, tr, y_data=None) -> None:
+    proc = tr["proc"]
+    for k, (tt, letter) in enumerate(zip(tr["tick_times"], tr["letters"])):
+        cfg = ticker_for_letter(letter)
+        ax.axvline(tt, color=cfg["color"], alpha=0.25, linestyle=":", lw=1.0)
+        if y_data is not None:
+            idx = min(k * proc.n_steps, len(y_data) - 1)
+            ax.scatter([tt], [y_data[idx]], marker=cfg["marker"], color=cfg["color"],
+                       s=cfg["size"], zorder=5, edgecolors="#ffffff", linewidths=0.5)
 
 
 def _panel_observable(ax, tr) -> None:
@@ -205,19 +243,29 @@ def _panel_observable(ax, tr) -> None:
     twin = ax.twinx()
     twin.step(tr["t"], tr["tokens_driven"], color=MUTED, alpha=0.3, where="post")
     twin.set_ylabel("token", color=MUTED)
-    _mark_kicks(ax, tr)
+    twin.grid(False)
+    if len(proc.obs_bins) == 1:
+        (lo, hi), bins = proc.obs_ranges[0], proc.obs_bins[0]
+        y_lo, y_hi = ax.get_ylim()
+        twin.set_ylim(
+            (y_lo - lo) / (hi - lo) * (bins - 1),
+            (y_hi - lo) / (hi - lo) * (bins - 1),
+        )
+    _mark_kicks(ax, tr, y_data=tr["obs_driven"][:, 0])
     ax.set_ylabel("observable")
     ax.set_title("observable and its token (red = range edge)")
-    ax.legend(fontsize=7, loc="upper right")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
 
 def _panel_energy(ax, tr) -> None:
     ax.plot(tr["t_state"], tr["energy_driven"], color=C_ENERGY, lw=1.4, label="driven")
     ax.plot(tr["t_state"], tr["energy_free"], color=C_FREE, lw=1.2, ls="--", label="free")
-    _mark_kicks(ax, tr)
+    _mark_kicks(ax, tr, y_data=tr["energy_driven"])
     ax.set_ylabel("energy")
     ax.set_title("energy: kicks inject, damping dissipates")
-    ax.legend(fontsize=7)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
 
 def _panel_metric(ax, tr) -> None:
@@ -227,9 +275,11 @@ def _panel_metric(ax, tr) -> None:
         ax.plot(tr["t"], tr["metric_driven"][:, c], color=colour, lw=1.3, label=f"driven {name}")
         ax.plot(tr["t"], tr["metric_free"][:, c], color=colour, lw=1.0, ls="--",
                 alpha=0.6, label=f"free {name}")
+    _mark_kicks(ax, tr, y_data=tr["metric_driven"][:, 0])
     ax.set_ylabel("metric")
     ax.set_title("probed metric (the physical quantity the readout targets)")
-    ax.legend(fontsize=7)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
 
 def _phase_xy(tr, key):
@@ -248,12 +298,19 @@ def _panel_phase(ax, tr) -> None:
         x, y = _phase_xy(tr, key)
         ax.plot(x, y, color=colour, lw=1.1, ls=ls, alpha=0.85, label=key)
     x, y = _phase_xy(tr, "driven")
-    ax.scatter(x[0], y[0], color="#1baf7a", s=45, zorder=5, label="start")
-    ax.scatter(x[-1], y[-1], color="#c0392b", s=45, zorder=5, label="end")
+    ax.scatter(x[0], y[0], color="#1baf7a", s=45, zorder=6, label="start")
+    ax.scatter(x[-1], y[-1], color="#c0392b", s=45, zorder=6, label="end")
+    proc = tr["proc"]
+    for k, letter in enumerate(tr["letters"]):
+        cfg = ticker_for_letter(letter)
+        idx = min(k * proc.n_steps, len(x) - 1)
+        ax.scatter([x[idx]], [y[idx]], marker=cfg["marker"], color=cfg["color"],
+                   s=cfg["size"], zorder=5, edgecolors="#ffffff", linewidths=0.5)
     ax.set_xlabel(spec.get("x", "z0"))
     ax.set_ylabel(spec.get("y", "z1"))
     ax.set_title("phase portrait")
-    ax.legend(fontsize=7)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
 
 def _panel_sphere(ax, tr) -> None:
@@ -282,18 +339,26 @@ def _panel_sphere(ax, tr) -> None:
     x, y, z = xyz("driven")
     ax.scatter([x[0]], [y[0]], [z[0]], color="#1baf7a", s=35, label="start")
     ax.scatter([x[-1]], [y[-1]], [z[-1]], color="#c0392b", s=35, label="end")
+    proc = tr["proc"]
+    for k, letter in enumerate(tr["letters"]):
+        cfg = ticker_for_letter(letter)
+        idx = min(k * proc.n_steps, len(x) - 1)
+        ax.scatter([x[idx]], [y[idx]], [z[idx]], marker=cfg["marker"], color=cfg["color"],
+                   s=cfg["size"], zorder=5, edgecolors="#ffffff", linewidths=0.5)
     ax.set_title("trajectory on the sphere")
-    ax.legend(fontsize=7)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right")
 
 
 def _panel_states(ax, tr) -> None:
     names = state_names(tr["proc"].system)
     for c, name in enumerate(names):
         ax.plot(tr["t_state"], tr["states_driven"][:, c], lw=1.2, label=name)
-    _mark_kicks(ax, tr)
+    _mark_kicks(ax, tr, y_data=tr["states_driven"][:, 0])
     ax.set_ylabel("state")
     ax.set_title("every state coordinate (driven)")
-    ax.legend(fontsize=7, ncol=2)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, ncol=3, loc="upper right")
 
 
 def _panel_divergence(ax, tr) -> None:
@@ -352,11 +417,112 @@ def _panel_return_map(ax, tr) -> None:
     ax.legend(fontsize=7)
 
 
+def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
+    """One letter's causal effect: counterfactual rollout branching at `tick`."""
+    proc = tr["proc"]
+    letters = tr["letters"]
+    k = proc.chain.n_states
+
+    tick = min(tick, max(0, proc.m - 1))
+    variants = np.tile(letters, (k, 1))
+    variants[:, tick] = np.arange(k)
+    out = proc.rollout(variants)
+
+    t = np.arange(proc.seq_len) * proc.dt
+    t_branch = tick * proc.n_steps * proc.dt
+
+    for l in range(k):
+        is_drawn = (l == letters[tick])
+        style = dict(lw=2.0, alpha=1.0, zorder=4) if is_drawn else dict(lw=1.1, alpha=0.65, zorder=3)
+        cfg = ticker_for_letter(l)
+        label = f"{cfg['name']}" + (" (drawn)" if is_drawn else "")
+        ax.plot(t, out["observable"][l, :, 0], color=cfg["color"], label=label, **style)
+
+    for (lo, hi) in proc.obs_ranges[:1]:
+        ax.axhline(lo, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
+        ax.axhline(hi, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
+
+    twin = ax.twinx()
+    twin.grid(False)
+    for l in range(k):
+        is_drawn = (l == letters[tick])
+        style = dict(lw=1.5, alpha=0.35, zorder=4) if is_drawn else dict(lw=0.8, alpha=0.2, zorder=3)
+        cfg = ticker_for_letter(l)
+        twin.step(t, out["tokens"][l], color=cfg["color"], where="post", **style)
+    twin.set_ylabel("token", color=MUTED)
+
+    if len(proc.obs_bins) == 1:
+        (lo, hi), bins = proc.obs_ranges[0], proc.obs_bins[0]
+        y_lo, y_hi = ax.get_ylim()
+        twin.set_ylim(
+            (y_lo - lo) / (hi - lo) * (bins - 1),
+            (y_hi - lo) / (hi - lo) * (bins - 1),
+        )
+
+    ax.axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
+
+    branch = tick * proc.n_steps
+    tok = out["tokens"][:, branch:]
+    sep = np.abs(tok[:, None, :] - tok[None, :, :]).max(-1).mean()
+
+    ax.set_ylabel("observable")
+    ax.set_title(f"causal effect at tick {tick} (sep = {sep:.1f} bins)")
+    ax.legend(fontsize=7, loc="upper right", ncol=min(4, k))
+
+
+def causal_effect(tr_or_proc, tick: int = 4, seed: int = 0):
+    """Standalone 2-row figure: continuous observable (top) and tokens (bottom)."""
+    import matplotlib.pyplot as plt
+
+    if isinstance(tr_or_proc, dict) and "proc" in tr_or_proc:
+        proc = tr_or_proc["proc"]
+        letters = tr_or_proc["letters"]
+    else:
+        proc = tr_or_proc
+        tr = trace(proc, seed=seed)
+        letters = tr["letters"]
+
+    tick = min(tick, max(0, proc.m - 1))
+    k = proc.chain.n_states
+    variants = np.tile(letters, (k, 1))
+    variants[:, tick] = np.arange(k)
+    out = proc.rollout(variants)
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 5.5), sharex=True)
+    t = np.arange(proc.seq_len) * proc.dt
+    t_branch = tick * proc.n_steps * proc.dt
+
+    for l in range(k):
+        is_drawn = (l == letters[tick])
+        style = dict(lw=2.0, alpha=1.0) if is_drawn else dict(lw=1.1, alpha=0.7)
+        cfg = ticker_for_letter(l)
+        label = f"{cfg['name']}" + (" (drawn)" if is_drawn else "")
+        axes[0].plot(t, out["observable"][l, :, 0], color=cfg["color"], label=label, **style)
+        axes[1].step(t, out["tokens"][l], color=cfg["color"], where="post", label=label, **style)
+
+    axes[0].axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
+    axes[1].axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
+    axes[0].set_ylabel("observable")
+    axes[1].set_ylabel("token")
+    axes[1].set_xlabel("time (s)")
+
+    branch = tick * proc.n_steps
+    tok = out["tokens"][:, branch:]
+    sep = np.abs(tok[:, None, :] - tok[None, :, :]).max(-1).mean()
+
+    sys_name = type(proc.system).__name__
+    axes[0].set_title(f"{sys_name}: alternative letters at tick {tick} (mean sep = {sep:.1f} bins)")
+    axes[0].legend(fontsize=7, ncol=min(4, k), loc="upper right")
+    fig.tight_layout()
+    return fig
+
+
 _PANEL_FUNCS = {
     "observable": _panel_observable, "energy": _panel_energy, "metric": _panel_metric,
     "phase": _panel_phase, "states": _panel_states, "divergence": _panel_divergence,
     "spectrum": _panel_spectrum, "tokens": _panel_tokens, "belief": _panel_belief,
-    "return_map": _panel_return_map,
+    "return_map": _panel_return_map, "causal_effect": _panel_causal_effect,
+    "causal": _panel_causal_effect,
 }
 
 
