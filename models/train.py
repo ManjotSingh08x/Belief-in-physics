@@ -40,12 +40,11 @@ def checkpoint_paths(directory, name: str, tag: str = ""):
     from pathlib import Path
 
     prefix = f"{name}{tag}_"
-    found = []
-    for path in Path(directory).glob(f"{prefix}*.pt"):
-        suffix = path.stem[len(prefix):]
-        if suffix.isdigit():
-            found.append((int(suffix), path))
-    return sorted(found)
+    return sorted(
+        (int(p.stem[len(prefix):]), p)
+        for p in Path(directory).glob(f"{prefix}*.pt")
+        if p.stem[len(prefix):].isdigit()
+    )
 
 
 def pick_device() -> str:
@@ -138,10 +137,12 @@ def train(
             )
 
     model.eval()
-    for target in pending:  # schedule entries past the final step
-        if on_checkpoint is not None:
-            on_checkpoint(target, model)
-        saved.append(target)
+    total_seen = steps * tokens_per_step
+    for target in pending:
+        if target <= total_seen:
+            if on_checkpoint is not None:
+                on_checkpoint(target, model)
+            saved.append(target)
 
     return {
         "history": history,

@@ -106,8 +106,8 @@ class MessKProcess:
         s = rng.integers(0, self.n_states, size=n)
         for t in range(m):
             states[:, t] = s
-            letters[:, t] = (rng.random((n, 1)) > E_cdf[s]).sum(axis=1)
-            s = (rng.random((n, 1)) > T_cdf[s]).sum(axis=1)
+            letters[:, t] = np.clip((rng.random((n, 1)) > E_cdf[s]).sum(axis=1), 0, self.n_states - 1)
+            s = np.clip((rng.random((n, 1)) > T_cdf[s]).sum(axis=1), 0, self.n_states - 1)
         states[:, m] = s
         return states, letters
 
@@ -213,10 +213,6 @@ class MessDriven:
     @property
     def seq_len(self) -> int:
         return self.m * self.n_steps
-
-    @property
-    def n_actions(self) -> int:
-        return self.chain.n_states
 
     @property
     def n_obs(self) -> int:
@@ -394,7 +390,12 @@ class MessDriven:
             "clipped": float(clipped.mean()),
             "channels": self.channel_names,
             "obs_range": tuple(self.obs_ranges[0]),
+            "obs_ranges": tuple(self.obs_ranges),
             "observed_range": (float(values[..., 0].min()), float(values[..., 0].max())),
+            "per_channel_observed_range": tuple(
+                (float(values[..., c].min()), float(values[..., c].max()))
+                for c in range(len(self.obs_bins))
+            ),
             "per_channel_clipped": tuple(
                 float(np.mean((values[..., c] < lo) | (values[..., c] > hi)))
                 for c, (lo, hi) in enumerate(self.obs_ranges)
@@ -441,21 +442,21 @@ class MessDriven:
         return feats, groups
 
 
-def token_window_features(tokens: np.ndarray, n_obs: int, window: int) -> np.ndarray:
-    """One-hot of the last `window` tokens at each position, (n, L, window*n_obs).
-
-    The myopic control. The exact belief is a contractive function of recent letters,
-    so if this predicts the belief as well as the residual stream does, then
-    "the model encodes the belief" and "the model remembers its recent input"
-    are the same statement and the first one claims nothing.
-    """
+def token_window_features(
+    tokens: np.ndarray, n_obs: int, window: int, steps_per_segment: int | None = None
+) -> np.ndarray:
+    """One-hot of the last `window` tokens at each position, plus optional segment phase."""
     n, L = tokens.shape
-    out = np.zeros((n, L, window * n_obs), dtype=np.float32)
+    extra = steps_per_segment or 0
+    out = np.zeros((n, L, window * n_obs + extra), dtype=np.float32)
     rows, cols = np.arange(n)[:, None], np.arange(L)[None, :]
     for w in range(window):
         past = np.clip(cols - w, 0, None)
         out[rows, cols, w * n_obs + tokens[rows, past]] = 1.0
-        out[:, :w, w * n_obs : (w + 1) * n_obs] = 0.0  # nothing that far back yet
+        out[:, :w, w * n_obs : (w + 1) * n_obs] = 0.0
+    if steps_per_segment:
+        phase = np.arange(L) % steps_per_segment
+        out[:, np.arange(L), window * n_obs + phase] = 1.0
     return out
 
 

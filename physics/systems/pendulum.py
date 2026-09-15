@@ -42,7 +42,7 @@ class Pendulum:
 
     def flow(self, z: np.ndarray, dt: float, substeps: int = 1) -> np.ndarray:
         theta, omega = z[..., 0].copy(), z[..., 1].copy()
-        h = dt
+        h = dt / substeps
         for _ in range(substeps):
             k1_th, k1_om = omega, self._accel(theta, omega)
             k2_th, k2_om = omega + h / 2 * k1_om, self._accel(theta + h / 2 * k1_th, omega + h / 2 * k1_om)

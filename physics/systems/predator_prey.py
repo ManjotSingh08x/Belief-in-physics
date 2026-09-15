@@ -50,7 +50,7 @@ class PredatorPrey:
 
     def flow(self, z: np.ndarray, dt: float, substeps: int = 1) -> np.ndarray:
         lx, ly = z[..., 0].copy(), z[..., 1].copy()
-        h = dt
+        h = dt / substeps
         for _ in range(substeps):
             k1x, k1y = self._rhs(lx, ly)
             k2x, k2y = self._rhs(lx + h / 2 * k1x, ly + h / 2 * k1y)
@@ -87,13 +87,17 @@ class PredatorPrey:
         return np.stack([dlx * np.exp(z[..., 0]), dly * np.exp(z[..., 1])], axis=-1)
 
     def energy(self, z: np.ndarray) -> np.ndarray:
-        """Lotka-Volterra Lyapunov function, strictly conserved only as kappa -> inf.
-        Used as a damping sanity check: it must decrease when kappa is finite.
+        """Shifted Lyapunov function V(x,y) centered at the damped fixed point.
+
+        V = d*(x - x* - x* ln(x/x*)) + b*(y - y* - y* ln(y/y*))
+        dV/dt = -(a/kappa)*(x - x*)^2 <= 0 strictly.
         """
         x, y = np.exp(z[..., 0]), np.exp(z[..., 1])
+        x_star = self.c / self.d
+        y_star = max((self.a - self.a * x_star / self.kappa) / self.b, 1e-4)
         return (
-            self.d * x - self.c * np.log(np.clip(x, 1e-9, None))
-            + self.b * y - self.a * np.log(np.clip(y, 1e-9, None))
+            self.d * (x - x_star - x_star * np.log(np.clip(x / x_star, 1e-9, None)))
+            + self.b * (y - y_star - y_star * np.log(np.clip(y / y_star, 1e-9, None)))
         )
 
 
@@ -103,12 +107,17 @@ def _demo() -> None:
     y_star = (pp.a - pp.a * x_star / pp.kappa) / pp.b
 
     z = pp.initial_state(1)
+    energies = [float(pp.energy(z)[0])]
     for _ in range(20000):
         z = pp.flow(z, 0.01)
+        energies.append(float(pp.energy(z)[0]))
     x_final, y_final = np.exp(z[0, 0]), np.exp(z[0, 1])
     assert abs(x_final - x_star) < 0.05 and abs(y_final - y_star) < 0.05, (
         f"must spiral into ({x_star:.3f},{y_star:.3f}), got ({x_final:.3f},{y_final:.3f})"
     )
+    e = np.array(energies)
+    decreasing_frac = (np.diff(e) <= 1e-12).mean()
+    assert decreasing_frac > 0.99, f"Lyapunov must decrease monotonically, got {decreasing_frac:.2%}"
 
     obs = pp.observable(z)
     assert 0.0 < obs[0] < 1.0, "prey share must stay in the unit interval"

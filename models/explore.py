@@ -28,15 +28,10 @@ from pathlib import Path
 import numpy as np
 import torch
 from sklearn.linear_model import Ridge
+from sklearn.model_selection import train_test_split
 
 from .analysis import residual_streams_batched, tick_features
 from .transformer import ModelConfig, TinyTransformer
-
-#: `n_heads` is the one shape a checkpoint does not pin down: the qkv projection
-#: has the same size however the heads divide it. Both trained architectures are
-#: listed, and `load_model` takes an override for anything else.
-HEADS_BY_WIDTH = {128: 1, 256: 4}
-
 
 def find_checkpoints(output_dir: str | Path) -> dict[str, Path]:
     """Every `.pt` under `output_dir`, labelled by path, newest name order."""
@@ -53,7 +48,7 @@ def config_from_state_dict(state: dict, n_heads: int | None = None) -> ModelConf
         vocab_size=int(vocab_size),
         n_ctx=int(state["pos_emb.weight"].shape[0]),
         n_layers=max(layers) + 1,
-        n_heads=n_heads or HEADS_BY_WIDTH.get(width, 1),
+        n_heads=n_heads or (4 if width == 256 else 1),
         d_model=width,
         d_mlp=int(state["blocks.0.mlp.0.weight"].shape[0]),
     )
@@ -129,11 +124,12 @@ def fit_readout(
             f"{features.shape[0]} rows for {features.shape[1]} features; raise n_fit "
             f"above {2 * features.shape[1] // proc.m} or turn whole_tick off"
         )
-    held = np.zeros(len(features), dtype=bool)
-    held[np.random.default_rng(seed + 1).permutation(len(features))[: len(features) // 5]] = True
-    ridge = Ridge(alpha=alpha).fit(features[~held], targets[~held])
-    predicted = ridge.predict(features[held])
-    truth = targets[held]
+    X_tr, X_val, y_tr, y_val = train_test_split(
+        features, targets, test_size=0.2, random_state=seed + 1
+    )
+    ridge = Ridge(alpha=alpha).fit(X_tr, y_tr)
+    predicted = ridge.predict(X_val)
+    truth = y_val
     scores = {
         name: float(
             1.0
@@ -143,7 +139,7 @@ def fit_readout(
         for name, c in groups.items()
     }
     return Readout(
-        ridge, groups, depths, whole_tick, scores, float((~held).sum() / features.shape[1])
+        ridge, groups, depths, whole_tick, scores, float(len(X_tr) / features.shape[1])
     )
 
 
@@ -174,9 +170,10 @@ def plot_sequence(proc, batch, index, model, readout, device: str = "cpu"):
         lo, hi = proc.obs_ranges[0]
         ax.plot(step, lo + tokens / (proc.n_obs - 1) * (hi - lo),
                 color="tab:orange", lw=0.8, ls="--", label=f"token ({proc.n_obs} bins)")
+    y_top = ax.get_ylim()[1]
     for tick, letter in zip(kicks, batch["letters"][index]):
         ax.axvline(tick, color="0.85", lw=0.8, zorder=0)
-        ax.text(tick, ax.get_ylim()[1], str(letter), fontsize=7, color="tab:red", va="top")
+        ax.text(tick, y_top, str(letter), fontsize=7, color="tab:red", va="top")
     ax.set_ylabel("observable")
     ax.set_title(f"physics and its quantisation into {'x'.join(map(str, proc.obs_bins))} bins; "
                  "red digits are the HMM letter kicking that tick")

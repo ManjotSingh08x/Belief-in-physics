@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import numpy as np
 
-LETTER_COLOURS = ("tab:blue", "tab:orange", "tab:green", "tab:red")
+STATE_COLOURS = ("tab:blue", "tab:orange", "tab:green", "tab:red")
+LETTER_COLOURS = STATE_COLOURS  # backward-compat alias
 
 
 def plot_generation(proc, batch, index: int = 0, tick: int | None = None, counterfactual=None):

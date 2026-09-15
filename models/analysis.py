@@ -132,6 +132,8 @@ def probe_layers(
 
 def best_layer(records: list[dict], group: str = "metric") -> dict:
     """Choose depth on validation data; callers report its separate test score."""
+    if not records:
+        return {}
     key = "r2_by_group_validation"
     live = [r for r in records if not np.isnan(r[key].get(group, np.nan))]
     return max(live, key=lambda r: r[key][group]) if live else records[-1]

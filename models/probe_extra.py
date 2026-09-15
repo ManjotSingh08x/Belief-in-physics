@@ -52,26 +52,7 @@ def simplex_coords(block: np.ndarray) -> np.ndarray:
     return block @ h
 
 
-def token_window_features(
-    tokens: np.ndarray, vocab_size: int, window: int, steps_per_segment: int
-) -> np.ndarray:
-    """One-hot bag of the last `window` tokens, plus one-hot position in segment.
-
-    Deliberately the dumbest sufficient-looking baseline. Positions before the
-    start of the sequence contribute nothing rather than a pad symbol, so the
-    early positions are honestly under-informed rather than given a extra feature
-    the transformer does not have.
-    """
-    n, L = tokens.shape
-    out = np.zeros((n, L, window * vocab_size + steps_per_segment), dtype=np.float32)
-    for lag in range(window):
-        src = tokens[:, : L - lag] if lag else tokens
-        rows = np.arange(n)[:, None]
-        cols = np.arange(lag, L)[None]
-        out[rows, cols, lag * vocab_size + src] = 1.0
-    phase = np.arange(L) % steps_per_segment
-    out[:, np.arange(L), window * vocab_size + phase] = 1.0
-    return out
+from physics.messk import token_window_features
 
 
 def sparse_token_window_features(

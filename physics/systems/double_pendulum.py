@@ -24,8 +24,8 @@ class DoublePendulum:
     l2: float = 1.0
     m1: float = 1.0
     m2: float = 1.0
-    gamma1: float = 0.5  # viscous damping on joint 1
-    gamma2: float = 0.5  # viscous damping on joint 2
+    gamma1: float = 2.5  # viscous damping on joint 1
+    gamma2: float = 2.5  # viscous damping on joint 2
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
 
@@ -72,7 +72,7 @@ class DoublePendulum:
 
     def flow(self, z: np.ndarray, dt: float, substeps: int = 1) -> np.ndarray:
         th1, th2, w1, w2 = (z[..., i].copy() for i in range(4))
-        h = dt
+        h = dt / substeps
         for _ in range(substeps):
             k1a, k1b = self._accel(th1, th2, w1, w2)
             k2t1, k2t2 = w1 + h / 2 * k1a, w2 + h / 2 * k1b

@@ -13,6 +13,7 @@ does both: drag to sweep, retype the bound to leave the neighbourhood entirely.
 from __future__ import annotations
 
 import ipywidgets as W
+import matplotlib.pyplot as plt
 import numpy as np
 from IPython.display import display
 
@@ -51,9 +52,13 @@ def param_row(name: str, value: float, integer: bool = False) -> tuple[W.Widget,
         low, high = lo_box.value, hi_box.value
         if high <= low:
             return
-        # Widen before narrowing, or an intermediate state raises min > max.
-        slider.min, slider.max = min(low, slider.min), max(high, slider.max)
-        slider.min, slider.max = low, high
+        # Set bounds in order that prevents slider.min > slider.max during update
+        if low > slider.max:
+            slider.max = high
+            slider.min = low
+        else:
+            slider.min = low
+            slider.max = high
         if not integer:
             slider.step = (high - low) / 200 or 0.01
 
@@ -93,21 +98,172 @@ def parse_bins(text: str) -> tuple[int, ...]:
     return bins
 
 
-def _verdict(report: dict) -> str:
-    colour = "#1baf7a" if report["stable"] else "#c0392b"
-    headline = "STABLE" if report["stable"] else "UNSTABLE: " + "; ".join(report["reasons"])
-    lo, hi = report["obs_range"]
-    olo, ohi = report["observed_range"]
+def classify_regime(lam: float) -> tuple[str, str, str]:
+    """Classify dynamical stability regime based on Lyapunov exponent."""
+    if lam < -0.02:
+        return "CONTRACTIVE", "#137333", "#e6f4ea"
+    elif lam > 0.05:
+        return "CHAOTIC", "#c5221f", "#fce8e6"
+    return "MARGINAL", "#b06000", "#fef7e0"
+
+
+def _verdict(report: dict, multi_reports: list[tuple[int, dict]] | None = None, active_seed: int = 0) -> str:
+    """Format a multi-seed aggregate stability audit table with transformer guidance."""
+    if not multi_reports:
+        multi_reports = [(active_seed, report)]
+
+    lams = [r["lyapunov"] for _, r in multi_reports]
+    passes = [r["stable"] for _, r in multi_reports]
+    clips = [r["clipped"] for _, r in multi_reports]
+    bins = [r["used_bins"] for _, r in multi_reports]
+    gaps = [r["gap_free_mean"] for _, r in multi_reports]
+    n_seeds = len(multi_reports)
+    pass_count = sum(passes)
+
+    mean_lam = float(np.mean(lams))
+    std_lam = float(np.std(lams))
+    min_lam = float(np.min(lams))
+    max_lam = float(np.max(lams))
+    mean_clip = float(np.mean(clips))
+    max_clip = float(np.max(clips))
+    mean_bins = float(np.mean(bins))
+    mean_gap = float(np.mean(gaps))
+    n_obs = report.get("n_obs", 181)
+
+    regime_name, reg_col, reg_bg = classify_regime(mean_lam)
+    if regime_name == "CONTRACTIVE" and any(classify_regime(l)[0] == "CHAOTIC" for l in lams):
+        regime_name = "MOSTLY CONTRACTIVE (MILD CHAOS IN SOME SEEDS)"
+
+    if pass_count == n_seeds:
+        status_text = f"STABLE ({pass_count}/{n_seeds} seeds pass)"
+        status_col, status_bg = "#137333", "#e6f4ea"
+    elif pass_count >= n_seeds * 0.7:
+        status_text = f"MARGINAL ({pass_count}/{n_seeds} seeds pass)"
+        status_col, status_bg = "#b06000", "#fef7e0"
+    else:
+        unstable_seeds = [s for s, r in multi_reports if not r["stable"]]
+        status_text = f"UNSTABLE ({pass_count}/{n_seeds} seeds pass; fail on seeds {unstable_seeds})"
+        status_col, status_bg = "#c5221f", "#fce8e6"
+
+    if mean_lam < -0.02 and max_lam <= 0.05 and mean_clip < 0.005:
+        guidance = (
+            "Optimal contractive dynamics. Perturbations contract exponentially, preserving causal chain memory. "
+            "Clean token distributions ideal for autoregressive transformer training with low cross-entropy."
+        )
+        g_bg, g_border, g_col = "#f0fdf4", "#22c55e", "#15803d"
+    elif mean_lam <= 0.05 and max_lam <= 0.10:
+        guidance = (
+            "Marginal / weakly damped dynamics. Trajectories maintain long-lived oscillations with slow dissipation. "
+            "Attention heads must track ongoing phase drift without relying on strong contractive damping."
+        )
+        g_bg, g_border, g_col = "#fffbeb", "#f59e0b", "#b45309"
+    else:
+        guidance = (
+            "Chaotic regime detected (&lambda; > 0). Exponential sensitivity quickly destroys causal letter predictability; "
+            "autoregressive error will compound. Increase viscous damping (&gamma;) or reduce kick scale (&delta;v)."
+        )
+        g_bg, g_border, g_col = "#fef2f2", "#ef4444", "#b91c1c"
+
+    channels = report.get("channels", ("observable",))
+    obs_ranges = report.get("obs_ranges", (report.get("obs_range", (-1.0, 1.0)),))
+    observed = report.get("per_channel_observed_range", ((report.get("observed_range", (0.0, 0.0))),))
+    channels_info = []
+    for i, ch in enumerate(channels):
+        lo, hi = obs_ranges[i] if i < len(obs_ranges) else (-1.0, 1.0)
+        olo, ohi = observed[i] if i < len(observed) else (0.0, 0.0)
+        channels_info.append(f"<b>{ch}</b>: domain [{lo:.2f}, {hi:.2f}] (active visits [{olo:.2f}, {ohi:.2f}])")
+    ch_str = " &nbsp;|&nbsp; ".join(channels_info)
+
+    seed_rows = []
+    for s, r in multi_reports:
+        s_lam = r["lyapunov"]
+        s_reg, s_col, s_bg = classify_regime(s_lam)
+        reasons_str = "; ".join(r["reasons"])
+        s_verdict = (
+            "<span style='color:#16a34a;font-weight:700'>&#10004; PASS</span>"
+            if r["stable"] else
+            f"<span style='color:#dc2626;font-weight:700'>&#10008; FAIL</span> <span style='font-size:9.5px;color:#64748b'>({reasons_str})</span>"
+        )
+        is_act = (s == active_seed)
+        row_style = "background:#eff6ff;font-weight:600;" if is_act else ""
+        act_tag = " <span style='color:#2563eb;font-size:9.5px;'>(active)</span>" if is_act else ""
+        s_clip = r["clipped"]
+        s_bins = r["used_bins"]
+        seed_rows.append(
+            f"<tr style='border-bottom:1px solid #f1f5f9;{row_style}'>"
+            f"<td style='padding:3px 6px;text-align:left;'>Seed {s}{act_tag}</td>"
+            f"<td style='padding:3px 6px;'><span style='background:{s_bg};color:{s_col};padding:1px 5px;border-radius:3px;font-size:9.5px;font-weight:700;'>{s_reg}</span></td>"
+            f"<td style='padding:3px 6px;'>{s_lam:+.3f}</td>"
+            f"<td style='padding:3px 6px;'>{s_clip:.2%}</td>"
+            f"<td style='padding:3px 6px;'>{s_bins}/{n_obs}</td>"
+            f"<td style='padding:3px 6px;text-align:left;'>{s_verdict}</td>"
+            f"</tr>"
+        )
+    seed_table_html = "".join(seed_rows)
+
+    pct_cov = mean_bins / max(n_obs, 1)
+    act_pct = report["used_bins"] / max(n_obs, 1)
+    act_lam = report["lyapunov"]
+    act_clip = report["clipped"]
+    act_gap_m = report["gap_free_mean"]
+    act_gap_x = report["gap_free_max"]
+
     return (
-        f"<div style='font-family:monospace;font-size:12px'>"
-        f"<b style='color:{colour}'>{headline}</b><br>"
-        f"lyapunov {report['lyapunov']:+.3f} /s &nbsp; "
-        f"clipped {report['clipped']:.2%} (per channel "
-        f"{', '.join(f'{c:.2%}' for c in report['per_channel_clipped'])})<br>"
-        f"bins used {report['used_bins']}/{report['n_obs']} &nbsp; "
-        f"channel 0 range [{lo:.3g}, {hi:.3g}] but visits [{olo:.3g}, {ohi:.3g}]<br>"
-        f"driven-vs-free gap mean {report['gap_free_mean']:.3g} max {report['gap_free_max']:.3g}"
-        f" &nbsp; free-run energy drift {report['energy_drift_free']:+.2%}"
+        f"<div style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;font-size:11.5px;line-height:1.45;color:#1e293b;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.05);max-width:620px;'>"
+        f"<div style='display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:8px;'>"
+        f"<div><span style='font-size:13px;font-weight:700;color:#0f172a;'>Multi-Seed Stability Audit</span>"
+        f"<span style='margin-left:8px;padding:2px 8px;border-radius:12px;font-size:10.5px;font-weight:700;background:{status_bg};color:{status_col};'>{status_text}</span></div>"
+        f"<div style='font-size:11px;'><b>Dynamics:</b> <span style='padding:2px 7px;border-radius:4px;font-weight:700;background:{reg_bg};color:{reg_col};'>{regime_name}</span></div>"
+        f"</div>"
+        f"<div style='background:{g_bg};border-left:3px solid {g_border};padding:6px 10px;border-radius:0 4px 4px 0;margin-bottom:9px;font-size:11px;color:{g_col};'>"
+        f"<b>Transformer Guidance:</b> {guidance}"
+        f"</div>"
+        f"<table style='width:100%;border-collapse:collapse;margin-bottom:9px;font-size:11px;'>"
+        f"<thead><tr style='background:#f8fafc;border-bottom:1px solid #e2e8f0;text-align:left;color:#64748b;'>"
+        f"<th style='padding:4px 6px;'>Metric</th>"
+        f"<th style='padding:4px 6px;'>Aggregate ({n_seeds} seeds)</th>"
+        f"<th style='padding:4px 6px;'>Active (Seed {active_seed})</th>"
+        f"<th style='padding:4px 6px;'>Transformer Target</th>"
+        f"</tr></thead>"
+        f"<tbody>"
+        f"<tr style='border-bottom:1px solid #f1f5f9;'>"
+        f"<td style='padding:4px 6px;font-weight:600;'>Lyapunov (&lambda;)</td>"
+        f"<td style='padding:4px 6px;'><b>{mean_lam:+.3f} &plusmn; {std_lam:.3f}</b> /s <span style='color:#64748b;font-size:10px;'>[{min_lam:+.2f}, {max_lam:+.2f}]</span></td>"
+        f"<td style='padding:4px 6px;font-weight:600;'>{act_lam:+.3f} /s</td>"
+        f"<td style='padding:4px 6px;color:#16a34a;'>&le; 0.00 /s (contractive)</td>"
+        f"</tr>"
+        f"<tr style='border-bottom:1px solid #f1f5f9;'>"
+        f"<td style='padding:4px 6px;font-weight:600;'>Boundary Clipping</td>"
+        f"<td style='padding:4px 6px;'>{mean_clip:.2%} <span style='color:#64748b;font-size:10px;'>(max {max_clip:.2%})</span></td>"
+        f"<td style='padding:4px 6px;'>{act_clip:.2%}</td>"
+        f"<td style='padding:4px 6px;color:#16a34a;'>&lt; 0.5% (no edge artifacts)</td>"
+        f"</tr>"
+        f"<tr style='border-bottom:1px solid #f1f5f9;'>"
+        f"<td style='padding:4px 6px;font-weight:600;'>Vocab Coverage</td>"
+        f"<td style='padding:4px 6px;'>{mean_bins:.1f} / {n_obs} ({pct_cov:.1%})</td>"
+        f"<td style='padding:4px 6px;'>{report['used_bins']} / {n_obs} ({act_pct:.1%})</td>"
+        f"<td style='padding:4px 6px;color:#2563eb;'>Balanced token use</td>"
+        f"</tr>"
+        f"<tr style='border-bottom:1px solid #f1f5f9;'>"
+        f"<td style='padding:4px 6px;font-weight:600;'>Action Signal Gap</td>"
+        f"<td style='padding:4px 6px;'>mean {mean_gap:.3g}</td>"
+        f"<td style='padding:4px 6px;'>mean {act_gap_m:.3g} (max {act_gap_x:.3g})</td>"
+        f"<td style='padding:4px 6px;color:#16a34a;'>&gt; 1e-3 (distinguishable)</td>"
+        f"</tr>"
+        f"</tbody></table>"
+        f"<div style='font-size:10.5px;color:#475569;margin-bottom:4px;padding:2px 0;'>{ch_str}</div>"
+        f"<div style='font-weight:700;color:#334155;margin:8px 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;'>Per-Seed Breakdown ({n_seeds} Realizations):</div>"
+        f"<table style='width:100%;border-collapse:collapse;font-size:10.5px;text-align:center;border:1px solid #e2e8f0;'>"
+        f"<thead><tr style='background:#f8fafc;color:#475569;border-bottom:1px solid #cbd5e1;'>"
+        f"<th style='padding:3px 6px;text-align:left;'>Seed</th>"
+        f"<th style='padding:3px 6px;'>Regime</th>"
+        f"<th style='padding:3px 6px;'>&lambda; (/s)</th>"
+        f"<th style='padding:3px 6px;'>Clipped</th>"
+        f"<th style='padding:3px 6px;'>Bins Used</th>"
+        f"<th style='padding:3px 6px;text-align:left;'>Verdict</th>"
+        f"</tr></thead>"
+        f"<tbody>{seed_table_html}</tbody>"
+        f"</table>"
         f"</div>"
     )
 
@@ -118,7 +274,7 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
     Returns the widget rather than displaying it, so a notebook cell can place
     it and a test can build it without a kernel front end.
     """
-    import matplotlib.pyplot as plt
+    import io
 
     system_dd = W.Dropdown(options=sorted(MESSK_CONFIGS), value=default, description="system",
                            style={"description_width": LABEL_W})
@@ -144,6 +300,7 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         s.min, s.max, s.step = 0.0, 1.0, 0.005
 
     params = ParamPanel()
+    img_out = W.Image(format="png", layout=W.Layout(max_width="100%"))
     out = W.Output()
     report_html = W.HTML()
 
@@ -155,7 +312,7 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
             m=int(m_s.value), n_steps=int(n_s.value), dt=float(dt_s.value),
             delta_v=float(dv_s.value), obs_bins=parse_bins(bins.value),
         )
-        return trace(proc, seed=int(seed.value))
+        return proc, trace(proc, seed=int(seed.value))
 
     def redraw(_=None) -> None:
         if not live.value and _ is not None:
@@ -163,14 +320,25 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         with out:
             out.clear_output(wait=True)
             try:
-                tr = build()
+                proc, tr = build()
             except Exception as exc:  # a bad parameter is a normal event here
                 report_html.value = f"<pre style='color:#c0392b'>{type(exc).__name__}: {exc}</pre>"
                 return
-            report_html.value = _verdict(stability(tr))
+
+            active_seed = int(seed.value)
+            active_rep = stability(tr)
+            # Evaluate 6 realizations across seeds for multi-seed stability audit
+            other_seeds = [s for s in range(6) if s != active_seed][:5]
+            multi_reports = [(active_seed, active_rep)]
+            for s in other_seeds:
+                multi_reports.append((s, stability(trace(proc, seed=s))))
+
+            report_html.value = _verdict(active_rep, multi_reports=multi_reports, active_seed=active_seed)
             fig = plot(tr, panels=panel_sel.value, title=system_dd.value)
-            plt.show()
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
             plt.close(fig)
+            img_out.value = buf.getvalue()
 
     def reset_system(_=None, build_only: bool = False) -> None:
         spec = make_process(system_dd.value)
@@ -193,6 +361,8 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
     draw_btn.on_click(lambda _: redraw())
 
     reset_system(build_only=True)
+    redraw()
+
     controls = W.VBox([
         W.HBox([system_dd, live, draw_btn]),
         W.HTML("<b>driver</b> - how the chain meets the physics"),
@@ -202,13 +372,12 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         params.box,
         W.HTML("<b>view</b>"), panel_sel, seed,
     ])
-    return W.VBox([W.HBox([controls, report_html]), out])
+    return W.VBox([W.HBox([controls, report_html]), img_out, out])
 
 
 def sweep_ui(default: str = "double_pendulum_mess4"):
     """Scan one parameter and plot where the trajectory stays stable."""
     import ast
-    import matplotlib.pyplot as plt
 
     system_dd = W.Dropdown(options=sorted(MESSK_CONFIGS), value=default, description="system",
                            style={"description_width": LABEL_W})
@@ -246,10 +415,7 @@ def sweep_ui(default: str = "double_pendulum_mess4"):
             try:
                 val = ast.literal_eval(v)
             except Exception:
-                try:
-                    val = float(v)
-                except Exception:
-                    val = v
+                val = v
             if k in sys_fields:
                 s_kw[k] = val
             elif k in chain_fields:
@@ -340,110 +506,87 @@ def compute_optimal_gamma(
     n_trajs: int = 32,
     seed: int = 42,
     max_iter: int = 6,
+    damping_field: str = "gamma",
 ) -> dict:
-    """Find the optimal viscous damping gamma balancing kick injection with dissipation."""
+    """Find the optimal viscous damping parameter balancing kick injection with dissipation."""
     sys_kw = dict(system_params or {})
-    gamma = float(sys_kw.get("gamma", 1.0))
-    actions_scale = delta_v
+    if damping_field not in sys_kw:
+        proc_check = make_process(system_name, system=sys_kw)
+        tf = tunable_fields(proc_check.system)
+        if damping_field not in tf:
+            for cand in ("gamma", "gamma1", "kappa"):
+                if cand in tf:
+                    damping_field = cand
+                    break
+
+    gamma = float(sys_kw.get(damping_field, 1.0))
+    warmup = max(5, m // 4)
+    active_ticks = m - warmup
+    t_inj, t_diss = 0.0, 0.0
+    cum_inj, cum_diss = [], []
 
     for iteration in range(max_iter):
         rng = np.random.default_rng(seed + iteration)
-        sys_kw["gamma"] = gamma
+        sys_kw[damping_field] = gamma
+        if damping_field == "gamma1":
+            sys_kw["gamma2"] = gamma
         proc = make_process(
             system_name,
             system=sys_kw,
             chain={"stay": stay, "alpha": alpha},
-            m=m, n_steps=n_steps, dt=dt, delta_v=actions_scale,
+            m=m, n_steps=n_steps, dt=dt, delta_v=delta_v,
         )
         sysm = proc.system
         letters = proc.chain.sample(rng, n_trajs, m)[1]
         actions = proc.actions
-
         z = sysm.initial_state(n_trajs)
-        total_injected = 0.0
-        total_omega_sq_int = 0.0
-        warmup = max(5, m // 4)
+
+        t_inj, t_diss = 0.0, 0.0
+        cum_inj, cum_diss = [], []
+        total_omega_sq = 0.0
 
         for t in range(m):
             action = actions[letters[:, t]]
             e_before = sysm.energy(z)
             z_kicked = sysm.kick(z, action)
             e_after = sysm.energy(z_kicked)
-            dE = (e_after - e_before).sum()
+            dE = float((e_after - e_before).mean())
 
             z_flow = z_kicked
             w_sq = 0.0
-            for s in range(n_steps):
+            for _ in range(n_steps):
                 z_next = sysm.flow(z_flow, dt)
-                if hasattr(sysm, "metric"):
-                    v_mid = sysm.metric(0.5 * (z_flow + z_next))
-                    w_sq += (v_mid ** 2).sum() * dt
+                if damping_field == "kappa":
+                    x = np.exp(z_flow[..., 0])
+                    x_star = getattr(sysm, "c", 0.8) / getattr(sysm, "d", 0.4)
+                    a = getattr(sysm, "a", 1.0)
+                    w_sq += float((a * (x - x_star) ** 2).mean()) * dt
                 else:
-                    w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
-                    w_sq += (w_mid ** 2).sum() * dt
+                    v_mid = sysm.metric(0.5 * (z_flow + z_next))
+                    w_sq += float((v_mid ** 2).sum(axis=-1).mean()) * dt
                 z_flow = z_next
             z = z_flow
 
-            if t >= warmup:
-                total_injected += dE
-                total_omega_sq_int += w_sq
+            dE_diss = float((e_after - sysm.energy(z_flow)).mean())
 
-        gamma_est = float(total_injected / max(total_omega_sq_int, 1e-9))
-        if abs(gamma - gamma_est) < 0.005:
+            if t >= warmup:
+                t_inj += dE
+                total_omega_sq += w_sq
+                t_diss += dE_diss
+                cum_inj.append(t_inj)
+                cum_diss.append(t_diss)
+
+        if damping_field == "kappa":
+            gamma_est = float(total_omega_sq / max(t_inj, 1e-9))
+        else:
+            gamma_est = float(t_inj / max(total_omega_sq, 1e-9))
+        if abs(gamma - gamma_est) < 0.005 or iteration == max_iter - 1:
             gamma = gamma_est
             break
         gamma = 0.5 * (gamma + gamma_est)
 
-    # Verification run with optimal gamma
-    rng = np.random.default_rng(seed + 999)
-    sys_kw["gamma"] = gamma
-    proc = make_process(
-        system_name,
-        system=sys_kw,
-        chain={"stay": stay, "alpha": alpha},
-        m=m, n_steps=n_steps, dt=dt, delta_v=actions_scale,
-    )
-    sysm = proc.system
-    letters = proc.chain.sample(rng, n_trajs, m)[1]
-    actions = proc.actions
-
-    z = sysm.initial_state(n_trajs)
-    warmup = max(5, m // 4)
-    active_ticks = m - warmup
-    t_inj, t_diss = 0.0, 0.0
-    cum_inj = []
-    cum_diss = []
-
-    for t in range(m):
-        action = actions[letters[:, t]]
-        e_before = sysm.energy(z)
-        z_kicked = sysm.kick(z, action)
-        e_after = sysm.energy(z_kicked)
-        dE = (e_after - e_before).mean()
-
-        z_flow = z_kicked
-        w_sq = 0.0
-        for s in range(n_steps):
-            z_next = sysm.flow(z_flow, dt)
-            if hasattr(sysm, "metric"):
-                v_mid = sysm.metric(0.5 * (z_flow + z_next))
-                w_sq += (v_mid ** 2).sum(axis=-1).mean() * dt
-            else:
-                w_mid = 0.5 * (z_flow[:, 1] + z_next[:, 1])
-                w_sq += (w_mid ** 2).mean() * dt
-            z_flow = z_next
-        z = z_flow
-
-        diss = gamma * w_sq
-        if t >= warmup:
-            t_inj += dE
-            t_diss += diss
-            cum_inj.append(t_inj)
-            cum_diss.append(t_diss)
-
     mean_inj = t_inj / active_ticks
     mean_diss = t_diss / active_ticks
-
     return {
         "gamma_opt": gamma,
         "mean_injected": mean_inj,
@@ -456,8 +599,6 @@ def compute_optimal_gamma(
 
 def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
     """Interactive widget to compute and verify the optimal viscous damping gamma."""
-    import matplotlib.pyplot as plt
-
     spec = make_process(default_system)
     system_dd = W.Dropdown(options=sorted(MESSK_CONFIGS), value=default_system, description="system",
                            style={"description_width": LABEL_W})
@@ -473,6 +614,7 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
     calc_btn = W.Button(description="Compute Optimal Gamma", button_style="primary",
                         layout=W.Layout(width="240px"))
     report_html = W.HTML()
+    img_out = W.Image(format="png", layout=W.Layout(max_width="100%"))
     out = W.Output()
 
     def on_system_change(_=None):
@@ -521,8 +663,11 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
             ax.grid(True, ls="--", alpha=0.5)
             ax.legend(fontsize=8, loc="upper left")
             plt.tight_layout()
-            plt.show()
+            import io
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
             plt.close(fig)
+            img_out.value = buf.getvalue()
 
     calc_btn.on_click(calculate)
     calculate()
@@ -536,6 +681,7 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
         m_row, n_row, dt_row, dv_row, stay_row, alpha_row,
         W.HBox([calc_btn]),
         report_html,
+        img_out,
         out,
     ])
 

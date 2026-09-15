@@ -21,7 +21,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from physics.messk import (  # noqa: E402
     MessKProcess,
     simplex_embedding,

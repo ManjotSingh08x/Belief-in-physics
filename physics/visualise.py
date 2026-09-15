@@ -50,19 +50,13 @@ INK, MUTED, GRID = "#0b0b0b", "#666666", "#e1e0d9"
 C_DRIVEN, C_FREE = "#2a78d6", "#888888"
 C_A, C_B = "#eb6834", "#1baf7a"
 C_ENERGY = "#4a3aa7"
-LETTER_COLOURS = (
-    "#8b0000",  # 0: - strong dv (dark deep red)
-    "#ff7043",  # 1: - weak dv (light red / warm orange)
-    "#48c774",  # 2: + weak dv (light green)
-    "#005a20",  # 3: + strong dv (dark green)
-)
-
 TICKER_CONFIG = {
     0: {"name": "- strong dv", "marker": "v", "color": "#8b0000", "size": 48, "label": "-strong dv"},
     1: {"name": "- weak dv",   "marker": "v", "color": "#ff7043", "size": 26, "label": "-weak dv"},
     2: {"name": "+ weak dv",   "marker": "^", "color": "#48c774", "size": 26, "label": "+weak dv"},
     3: {"name": "+ strong dv", "marker": "^", "color": "#005a20", "size": 48, "label": "+strong dv"},
 }
+LETTER_COLOURS = tuple(cfg["color"] for cfg in TICKER_CONFIG.values())
 
 
 def ticker_for_letter(letter: int) -> dict:
@@ -74,14 +68,9 @@ def ticker_legend_elements():
     """Legend proxy items showing the 4 perturbation ticker types."""
     from matplotlib.lines import Line2D
     return [
-        Line2D([0], [0], marker="v", color="w", markerfacecolor="#8b0000",
-               markersize=7, label="-strong dv"),
-        Line2D([0], [0], marker="v", color="w", markerfacecolor="#ff7043",
-               markersize=5, label="-weak dv"),
-        Line2D([0], [0], marker="^", color="w", markerfacecolor="#48c774",
-               markersize=5, label="+weak dv"),
-        Line2D([0], [0], marker="^", color="w", markerfacecolor="#005a20",
-               markersize=7, label="+strong dv"),
+        Line2D([0], [0], marker=cfg["marker"], color="w", markerfacecolor=cfg["color"],
+               markersize=7 if cfg["size"] > 30 else 5, label=cfg["label"])
+        for cfg in TICKER_CONFIG.values()
     ]
 
 
@@ -183,13 +172,15 @@ def lyapunov(tr: dict, eps: float = 1e-8) -> float:
     towards zero, which would read as "stable" for the most chaotic settings.
     """
     gap = np.maximum(tr["gap_twin"], 1e-300)
+    if len(gap) <= 2:
+        return 0.0
     ceiling = 0.1 * max(float(np.abs(tr["states_driven"]).max()), 1e-9)
     grown = np.flatnonzero(gap > ceiling)
     stop = int(grown[0]) if len(grown) else len(gap)
-    stop = max(stop, 8)
+    stop = min(len(gap), max(stop, min(8, len(gap))))
     if stop <= 2:
         return 0.0
-    t, y = tr["t_state"][:stop], np.log(gap[:stop] / max(eps, 1e-300))
+    t, y = tr["t_state"][:stop], np.log(gap[:stop])
     return float(np.polyfit(t, y, 1)[0])
 
 
@@ -229,8 +220,11 @@ def stability(tr: dict) -> dict:
         "energy_drift_free": drift,
         "gap_free_mean": float(tr["gap_free"].mean()),
         "gap_free_max": float(tr["gap_free"].max()),
-        "observed_range": report["observed_range"],
+        "channels": report.get("channels", proc.channel_names),
+        "obs_ranges": report.get("obs_ranges", proc.obs_ranges),
         "obs_range": report["obs_range"],
+        "observed_range": report["observed_range"],
+        "per_channel_observed_range": report.get("per_channel_observed_range", ()),
         "stable": not reasons,
         "reasons": reasons,
     }
@@ -247,17 +241,20 @@ def _mark_kicks(ax, tr, y_data=None) -> None:
                        s=cfg["size"], zorder=5, edgecolors="#ffffff", linewidths=0.5)
 
 
+def _mask_wraps(y: np.ndarray, thresh: float = np.pi) -> np.ndarray:
+    """Mask angular jump wrap-arounds with NaN so lines don't slice across plots."""
+    y = np.asarray(y, dtype=float).copy()
+    y[np.abs(np.diff(y, prepend=y[0])) > thresh] = np.nan
+    return y
+
+
 def _panel_observable(ax, tr) -> None:
     proc = tr["proc"]
     for c, name in enumerate(proc.channel_names):
         # Mask wrap jumps if coordinate is an azimuthal/wrapping angle
-        y_d = tr["obs_driven"][:, c].copy()
-        y_f = tr["obs_free"][:, c].copy()
+        y_d, y_f = tr["obs_driven"][:, c], tr["obs_free"][:, c]
         if "psi" in name.lower() or "th" in name.lower():
-            j_d = np.abs(np.diff(y_d, prepend=y_d[0])) > np.pi
-            j_f = np.abs(np.diff(y_f, prepend=y_f[0])) > np.pi
-            y_d[j_d] = np.nan
-            y_f[j_f] = np.nan
+            y_d, y_f = _mask_wraps(y_d), _mask_wraps(y_f)
 
         ax.plot(tr["t"], y_d, color=(C_DRIVEN, C_A)[c % 2], lw=1.4,
                 label=f"driven {name}")
@@ -287,15 +284,15 @@ def _panel_observable(ax, tr) -> None:
         step_colors = ("#e67e22", "#9b59b6")
         for c, name in enumerate(proc.channel_names):
             col = step_colors[c % len(step_colors)]
-            y_tok = recon_obs[:, c].copy()
+            y_tok = recon_obs[:, c]
             if "psi" in name.lower() or "th" in name.lower():
-                j_tok = np.abs(np.diff(y_tok, prepend=y_tok[0])) > np.pi
-                y_tok[j_tok] = np.nan
+                y_tok = _mask_wraps(y_tok)
             ax.step(tr["t"], y_tok, color=col, lw=1.1, ls=":", where="post", alpha=0.75,
                     label=f"token {name} (recon)")
 
     _mark_kicks(ax, tr, y_data=tr["obs_driven"][:, 0])
-    ax.set_ylabel("observable (rad)" if "theta" in proc.channel_names[0] else "observable")
+    ch0 = proc.channel_names[0]
+    ax.set_ylabel(f"{ch0} (rad)" if "th" in ch0.lower() or "psi" in ch0.lower() else ch0)
     title_suffix = f" & tokens reconverted to ({', '.join(proc.channel_names)})" if len(proc.obs_bins) > 1 else " and its token"
     ax.set_title(f"observable{title_suffix} (red = range edge)")
     y_lo, y_hi = ax.get_ylim()
@@ -311,7 +308,7 @@ def _panel_energy(ax, tr) -> None:
     ax.plot(tr["t_state"], tr["energy_free"], color=C_FREE, lw=1.2, ls="--", label="free")
     _mark_kicks(ax, tr, y_data=tr["energy_driven"])
     ax.set_ylabel("energy")
-    ax.set_title("energy: kicks inject, damping dissipates")
+    ax.set_title(f"energy: kicks inject, damping dissipates (λ={lyapunov(tr):+.2f}/s)")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
@@ -343,16 +340,19 @@ def _panel_phase(ax, tr) -> None:
     if spec.get("sphere"):
         return _panel_sphere(ax, tr)
 
-    # Free run in dashed subtle line
+    # Free run in dashed subtle line with wrap masking
     xf, yf = _phase_xy(tr, "free")
-    ax.plot(xf, yf, color=C_FREE, lw=1.0, ls="--", alpha=0.6, label="free")
+    ax.plot(_mask_wraps(xf), _mask_wraps(yf), color=C_FREE, lw=1.0, ls="--", alpha=0.6, label="free")
 
-    # Driven trajectory in blue-to-yellow time gradient
+    # Driven trajectory in blue-to-yellow time gradient with wrap masking
     xd, yd = _phase_xy(tr, "driven")
     points = np.array([xd, yd]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    valid = (np.abs(points[1:, 0, 0] - points[:-1, 0, 0]) <= np.pi) & (np.abs(points[1:, 0, 1] - points[:-1, 0, 1]) <= np.pi)
+    segments = segments[valid]
+    times = np.linspace(0, 1, len(points) - 1)[valid]
     lc = LineCollection(segments, cmap=TIME_GRADIENT, norm=plt.Normalize(0, 1), lw=1.8, alpha=0.9)
-    lc.set_array(np.linspace(0, 1, len(segments)))
+    lc.set_array(times)
     ax.add_collection(lc)
 
     ax.scatter(xd[0], yd[0], color="#1a5fb4", s=50, edgecolors="#ffffff", lw=1.2, zorder=6, label="start")
@@ -365,7 +365,6 @@ def _panel_phase(ax, tr) -> None:
 
 
 def _panel_sphere(ax, tr) -> None:
-    """The sphere's phase diagram is the sphere itself; drawn as a clean, enlarged spherical bowl."""
     def xyz(key):
         s = tr[f"states_{key}"]
         th, psi = s[:, 0], s[:, 1]
@@ -374,29 +373,23 @@ def _panel_sphere(ax, tr) -> None:
     th_all = tr["states_driven"][:, 0]
     th_max = min(max(float(th_all.max()) * 1.15, 0.75), np.pi * 0.48)
 
-    # 1. Draw the spherical bowl from bottom pole (theta=0, z=-1) up to th_max
     v = np.linspace(0.0, th_max, 16)
     u = np.linspace(0, 2 * np.pi, 32)
     X_bowl = np.outer(np.cos(u), np.sin(v))
     Y_bowl = np.outer(np.sin(u), np.sin(v))
     Z_bowl = -np.outer(np.ones_like(u), np.cos(v))
 
-    # Subtle wireframe grid of the bowl
     ax.plot_wireframe(X_bowl, Y_bowl, Z_bowl, color=GRID, alpha=0.35, lw=0.5)
 
-    # Rim circle at top of visited bowl
     u_rim = np.linspace(0, 2 * np.pi, 64)
     ax.plot(np.sin(th_max) * np.cos(u_rim), np.sin(th_max) * np.sin(u_rim),
         -np.cos(th_max) * np.ones_like(u_rim), color="#95a5a6", ls=":", lw=0.8, alpha=0.6)
 
-    # Mark bottom pole (0, 0, -1) as a reference anchor
     ax.scatter([0], [0], [-1.0], color="#7f8c8d", marker="+", s=40, alpha=0.6)
 
-    # 2. Free trajectory (subtle dashed grey)
     xf, yf, zf = xyz("free")
     ax.plot(xf, yf, zf, color="#95a5a6", lw=1.0, ls="--", alpha=0.55)
 
-    # 3. Driven trajectory in blue-to-yellow gradient
     xd, yd, zd = xyz("driven")
     points = np.array([xd, yd, zd]).T.reshape(-1, 1, 3)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
@@ -406,14 +399,12 @@ def _panel_sphere(ax, tr) -> None:
     lc.set_linewidth(2.2)
     ax.add_collection3d(lc)
 
-    # Only mark start and end points
     ax.scatter([xd[0]], [yd[0]], [zd[0]], color="#1a5fb4", s=55, edgecolors="#ffffff", lw=1.2, zorder=8)
     ax.text(xd[0], yd[0], zd[0] + 0.03, "start", color="#1a5fb4", fontsize=8.5, fontweight="bold", zorder=9)
 
     ax.scatter([xd[-1]], [yd[-1]], [zd[-1]], color="#fb8500", s=55, edgecolors="#ffffff", lw=1.2, zorder=8)
     ax.text(xd[-1], yd[-1], zd[-1] + 0.03, "end", color="#fb8500", fontsize=8.5, fontweight="bold", zorder=9)
 
-    # 4. Framing, zoom, and clean transparent panes
     span_xy = float(np.sin(th_max))
     z_min = -1.0
     z_max = -float(np.cos(th_max))
@@ -447,19 +438,18 @@ def _panel_states(ax, tr) -> None:
     states = tr["states_driven"]
 
     # Detect if state has rate coordinates with very different scales from angles (e.g. Sphere, Double Pendulum)
-    has_rates = len(names) >= 3 and any("dot" in n.lower() or n.lower() in ("dtheta", "dpsi", "w1", "w2", "omega") for n in names)
-
+    has_rates = len(names) >= 4 and len(names) % 2 == 0
     if has_rates:
-        angle_indices = [i for i, n in enumerate(names) if not ("dot" in n.lower() or n.lower() in ("dtheta", "dpsi", "w1", "w2", "omega"))]
-        rate_indices = [i for i, n in enumerate(names) if i not in angle_indices]
+        mid = len(names) // 2
+        angle_indices = list(range(mid))
+        rate_indices = list(range(mid, len(names)))
 
         colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
         for idx in angle_indices:
             name = names[idx]
-            vals = states[:, idx].copy()
+            vals = states[:, idx]
             if "psi" in name.lower() or "th" in name.lower():
-                jumps = np.abs(np.diff(vals, prepend=vals[0])) > np.pi
-                vals[jumps] = np.nan
+                vals = _mask_wraps(vals)
             ax.plot(t, vals, lw=1.3, color=colors[idx % len(colors)], label=f"{name} (rad)")
         ax.set_ylabel("angle (rad)")
 
@@ -485,10 +475,9 @@ def _panel_states(ax, tr) -> None:
         ax.legend(handles=h1 + h2 + ticker_legend_elements(), fontsize=6.5, ncol=min(4, len(names)), loc="upper right")
     else:
         for c, name in enumerate(names):
-            vals = states[:, c].copy()
+            vals = states[:, c]
             if "psi" in name.lower() or "th" in name.lower():
-                jumps = np.abs(np.diff(vals, prepend=vals[0])) > np.pi
-                vals[jumps] = np.nan
+                vals = _mask_wraps(vals)
             ax.plot(t, vals, lw=1.2, label=name)
         _mark_kicks(ax, tr, y_data=states[:, 0])
         ax.set_ylabel("state")
@@ -559,19 +548,18 @@ def _panel_tokens(ax, tr) -> None:
         th = recon[:, 0]
         psi = recon[:, 1]
         is_angle = ("psi" in name1.lower() or "th" in name1.lower()) and not is_cartesian
-        jumps = np.abs(np.diff(psi, prepend=psi[0])) > np.pi if is_angle else np.zeros_like(psi, dtype=bool)
+        points = np.stack([th, psi], axis=-1)
+        segments = np.stack([points[:-1], points[1:]], axis=1)
+        if is_angle:
+            valid = np.abs(np.diff(psi)) <= np.pi
+            segments = segments[valid]
+            t_vals = np.linspace(0, 1, len(th) - 1)[valid]
+        else:
+            t_vals = np.linspace(0, 1, len(segments))
 
-        segments = []
-        t_vals = []
-        N = len(th)
-        for i in range(N - 1):
-            if not jumps[i + 1]:
-                segments.append([[th[i], psi[i]], [th[i + 1], psi[i + 1]]])
-                t_vals.append(i / N)
-
-        if segments:
+        if len(segments) > 0:
             lc = LineCollection(segments, cmap=TIME_GRADIENT, norm=plt.Normalize(0, 1), lw=1.6, alpha=0.9)
-            lc.set_array(np.array(t_vals))
+            lc.set_array(t_vals)
             ax.add_collection(lc)
 
         ax.scatter(th[0], psi[0], color="#1a5fb4", s=45, edgecolors="#ffffff", lw=1.0, zorder=6, label="start")
@@ -611,22 +599,33 @@ def _panel_return_map(ax, tr) -> None:
     ax.legend(fontsize=7)
 
 
-def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
-    """One letter's causal effect: counterfactual rollout branching at `tick`."""
-    proc = tr["proc"]
-    letters = tr["letters"]
-    k = proc.chain.n_states
-
+def _causal_rollouts(proc, letters, tick: int):
+    """Common rollout logic for counterfactual causal analysis branching at `tick`."""
     tick = min(tick, max(0, proc.m - 1))
+    k = proc.chain.n_states
     variants = np.tile(letters, (k, 1))
     variants[:, tick] = np.arange(k)
     out = proc.rollout(variants)
-
     t = np.arange(proc.seq_len) * proc.dt
     t_branch = tick * proc.n_steps * proc.dt
+    branch = tick * proc.n_steps
+    tok = out["tokens"][:, branch:]
+    indices = proc.tokens_to_indices(tok)
+    diff = indices[:, None, :, :] - indices[None, :, :, :]
+    sep = float(np.linalg.norm(diff, axis=-1).max(-1).mean())
+    prefix = "grid " if len(proc.obs_bins) > 1 else ""
+    sep_label = f"{prefix}sep = {sep:.1f} bins"
+
+    return tick, k, out, t, t_branch, sep_label
+
+
+def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
+    """One letter's causal effect: counterfactual rollout branching at `tick`."""
+    proc = tr["proc"]
+    tick, k, out, t, t_branch, sep_label = _causal_rollouts(proc, tr["letters"], tick)
 
     for l in range(k):
-        is_drawn = (l == letters[tick])
+        is_drawn = (l == tr["letters"][tick])
         style = dict(lw=2.0, alpha=1.0, zorder=4) if is_drawn else dict(lw=1.1, alpha=0.65, zorder=3)
         cfg = ticker_for_letter(l)
         label = f"{cfg['name']}" + (" (drawn)" if is_drawn else "")
@@ -636,38 +635,25 @@ def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
         ax.axhline(lo, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
         ax.axhline(hi, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
 
-    branch = tick * proc.n_steps
-    tok = out["tokens"][:, branch:]
-
     if len(proc.obs_bins) == 1:
         twin = ax.twinx()
         twin.grid(False)
         for l in range(k):
-            is_drawn = (l == letters[tick])
+            is_drawn = (l == tr["letters"][tick])
             style = dict(lw=1.5, alpha=0.35, zorder=4) if is_drawn else dict(lw=0.8, alpha=0.2, zorder=3)
             cfg = ticker_for_letter(l)
             twin.step(t, out["tokens"][l], color=cfg["color"], where="post", **style)
         twin.set_ylabel("token", color=MUTED)
         (lo, hi), bins = proc.obs_ranges[0], proc.obs_bins[0]
         y_lo, y_hi = ax.get_ylim()
-        twin.set_ylim(
-            (y_lo - lo) / (hi - lo) * (bins - 1),
-            (y_hi - lo) / (hi - lo) * (bins - 1),
-        )
-        sep = np.abs(tok[:, None, :] - tok[None, :, :]).max(-1).mean()
-        sep_label = f"sep = {sep:.1f} bins"
+        twin.set_ylim((y_lo - lo) / (hi - lo) * (bins - 1), (y_hi - lo) / (hi - lo) * (bins - 1))
     else:
-        # Multi-channel: reconvert tokens to physical angles
         for l in range(k):
-            is_drawn = (l == letters[tick])
+            is_drawn = (l == tr["letters"][tick])
             style = dict(lw=1.5, alpha=0.4, zorder=4) if is_drawn else dict(lw=0.8, alpha=0.2, zorder=3)
             cfg = ticker_for_letter(l)
             recon_l = proc.undiscretise(out["tokens"][l])
             ax.step(t, recon_l[:, 0], color=cfg["color"], ls=":", where="post", **style)
-        indices = proc.tokens_to_indices(tok)
-        diff = indices[:, None, :, :] - indices[None, :, :, :]
-        sep = np.linalg.norm(diff, axis=-1).max(-1).mean()
-        sep_label = f"grid sep = {sep:.1f} bins"
 
     ax.axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
     ax.set_ylabel(f"{proc.channel_names[0]} (rad)" if "theta" in proc.channel_names[0] else "observable")
@@ -680,23 +666,14 @@ def causal_effect(tr_or_proc, tick: int = 4, seed: int = 0):
     import matplotlib.pyplot as plt
 
     if isinstance(tr_or_proc, dict) and "proc" in tr_or_proc:
-        proc = tr_or_proc["proc"]
-        letters = tr_or_proc["letters"]
+        proc, letters = tr_or_proc["proc"], tr_or_proc["letters"]
     else:
         proc = tr_or_proc
-        tr = trace(proc, seed=seed)
-        letters = tr["letters"]
+        letters = trace(proc, seed=seed)["letters"]
 
-    tick = min(tick, max(0, proc.m - 1))
-    k = proc.chain.n_states
-    variants = np.tile(letters, (k, 1))
-    variants[:, tick] = np.arange(k)
-    out = proc.rollout(variants)
+    tick, k, out, t, t_branch, sep_label = _causal_rollouts(proc, letters, tick)
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 5.5), sharex=True)
-    t = np.arange(proc.seq_len) * proc.dt
-    t_branch = tick * proc.n_steps * proc.dt
-
     for l in range(k):
         is_drawn = (l == letters[tick])
         style = dict(lw=2.0, alpha=1.0) if is_drawn else dict(lw=1.1, alpha=0.7)
@@ -719,19 +696,8 @@ def causal_effect(tr_or_proc, tick: int = 4, seed: int = 0):
     axes[1].set_ylabel(f"token recon ({', '.join(proc.channel_names)})" if len(proc.obs_bins) > 1 else "token")
     axes[1].set_xlabel("time (s)")
 
-    branch = tick * proc.n_steps
-    tok = out["tokens"][:, branch:]
-    if len(proc.obs_bins) > 1:
-        indices = proc.tokens_to_indices(tok)
-        diff = indices[:, None, :, :] - indices[None, :, :, :]
-        sep = np.linalg.norm(diff, axis=-1).max(-1).mean()
-        sep_str = f"grid sep = {sep:.1f} bins"
-    else:
-        sep = np.abs(tok[:, None, :] - tok[None, :, :]).max(-1).mean()
-        sep_str = f"mean sep = {sep:.1f} bins"
-
     sys_name = type(proc.system).__name__
-    axes[0].set_title(f"{sys_name}: alternative letters at tick {tick} ({sep_str})")
+    axes[0].set_title(f"{sys_name}: alternative letters at tick {tick} ({sep_label})")
     axes[0].legend(fontsize=7, ncol=min(4, k), loc="upper right")
     if len(proc.obs_bins) > 1:
         axes[1].legend(fontsize=6.5, ncol=min(4, k), loc="upper right")
@@ -744,7 +710,6 @@ _PANEL_FUNCS = {
     "phase": _panel_phase, "states": _panel_states, "divergence": _panel_divergence,
     "spectrum": _panel_spectrum, "tokens": _panel_tokens, "belief": _panel_belief,
     "return_map": _panel_return_map, "causal_effect": _panel_causal_effect,
-    "causal": _panel_causal_effect,
 }
 
 
