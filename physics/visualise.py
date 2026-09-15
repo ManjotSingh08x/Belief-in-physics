@@ -261,17 +261,20 @@ def _panel_observable(ax, tr) -> None:
         ax.axhline(hi, color="#c0392b", lw=0.7, alpha=0.5)
 
     recon_obs = proc.undiscretise(tr["tokens_driven"])
+    twin = None
     if len(proc.obs_bins) == 1:
         twin = ax.twinx()
         twin.step(tr["t"], tr["tokens_driven"], color=MUTED, alpha=0.3, where="post")
         twin.set_ylabel("token", color=MUTED)
         twin.grid(False)
         (lo, hi), bins = proc.obs_ranges[0], proc.obs_bins[0]
-        y_lo, y_hi = ax.get_ylim()
-        twin.set_ylim(
-            (y_lo - lo) / (hi - lo) * (bins - 1),
-            (y_hi - lo) / (hi - lo) * (bins - 1),
-        )
+        def _sync_twin(a):
+            y_l, y_h = a.get_ylim()
+            twin.set_ylim(
+                (y_l - lo) / (hi - lo) * (bins - 1),
+                (y_h - lo) / (hi - lo) * (bins - 1),
+            )
+        ax.callbacks.connect("ylim_changed", _sync_twin)
     else:
         # Multi-channel system: reconvert tokens and mask wrap jumps
         step_colors = ("#e67e22", "#9b59b6")
@@ -290,6 +293,8 @@ def _panel_observable(ax, tr) -> None:
     ax.set_title(f"observable{title_suffix} (red = range edge)")
     y_lo, y_hi = ax.get_ylim()
     ax.set_ylim(y_lo, y_hi + 0.22 * (y_hi - y_lo))
+    if twin is not None:
+        _sync_twin(ax)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles + ticker_legend_elements(), fontsize=7, loc="upper right", ncol=3)
 
