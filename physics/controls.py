@@ -177,6 +177,13 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         params.rebuild(spec.system, redraw)
         dt_s.value, dv_s.value = spec.dt, spec.delta_v
         bins.value = "x".join(str(b) for b in spec.obs_bins) if len(spec.obs_bins) > 1 else str(spec.obs_bins[0])
+        if system_dd.value == "sphere_mess4" and "tokens" not in panel_sel.value:
+            cur = list(panel_sel.value)
+            if "metric" in cur:
+                cur[cur.index("metric")] = "tokens"
+            else:
+                cur.append("tokens")
+            panel_sel.value = tuple(cur)
         if not build_only:
             redraw()
 

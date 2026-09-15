@@ -216,24 +216,36 @@ def cmd_seeds(system_name: str, params: dict, n_seeds: int = 10) -> None:
     proc, _ = create_process_from_dict(system_name, params)
     clipped_arr, lyap_arr, bins_arr, stable_count = [], [], [], 0
 
-    print(f"Evaluating {system_name} across {n_seeds} random seeds (0 to {n_seeds-1})...")
+    print(f"\nEvaluating {system_name} across {n_seeds} random seeds (0 to {n_seeds-1})...")
+    print("-" * 72)
+    print(f" {'Seed':>4s} | {'Lyapunov (/s)':>14s} | {'Clipped':>9s} | {'Used Bins':>12s} | {'Status':>8s}")
+    print("-" * 72)
+
     for s in range(n_seeds):
         tr = trace(proc, seed=s)
         st = stability(tr)
         clipped_arr.append(st["clipped"])
         lyap_arr.append(st["lyapunov"])
         bins_arr.append(st["used_bins"])
+        status_str = "✓ PASS" if st["stable"] else "✗ FAIL"
         if st["stable"]:
             stable_count += 1
+        print(f" {s:>4d} | {st['lyapunov']:>+14.4f} | {st['clipped']:>8.2%} | {st['used_bins']:>5d} / {proc.n_obs:<4d} | {status_str:>8s}")
 
-    print("\n" + "=" * 68)
+    print("-" * 72)
+    mean_l, std_l = np.mean(lyap_arr), np.std(lyap_arr)
+    mean_c, std_c = np.mean(clipped_arr), np.std(clipped_arr)
+    mean_b, std_b = np.mean(bins_arr), np.std(bins_arr)
+
+    print(f" {'MEAN':>4s} | {mean_l:>+8.4f} ± {std_l:<5.4f} | {mean_c:>5.2%} ± {std_c:<4.2%} | {mean_b:>5.1f} ± {std_b:<4.1f}   | {stable_count}/{n_seeds} pass")
+    print("=" * 72)
     print(f"MULTI-SEED STABILITY SUMMARY ({n_seeds} seeds)")
-    print("=" * 68)
+    print("=" * 72)
     print(f"Pass Rate:            {stable_count} / {n_seeds} ({stable_count / n_seeds * 100:.1f}%)")
-    print(f"Lyapunov Exponent:    mean = {np.mean(lyap_arr):+.4f} / s, min = {np.min(lyap_arr):+.4f}, max = {np.max(lyap_arr):+.4f}")
-    print(f"Clipped Fraction:     mean = {np.mean(clipped_arr):.2%}, max = {np.max(clipped_arr):.2%}")
-    print(f"Used Bins:            mean = {np.mean(bins_arr):.1f} / {proc.n_obs} ({np.mean(bins_arr)/proc.n_obs*100:.1f}%)")
-    print("=" * 68)
+    print(f"Lyapunov Exponent:    mean = {mean_l:+.4f} ± {std_l:.4f} / s (min = {np.min(lyap_arr):+.4f}, max = {np.max(lyap_arr):+.4f})")
+    print(f"Clipped Fraction:     mean = {mean_c:.2%} ± {std_c:.2%} (max = {np.max(clipped_arr):.2%})")
+    print(f"Used Bins:            mean = {mean_b:.1f} ± {std_b:.1f} / {proc.n_obs} ({mean_b / proc.n_obs * 100:.1f}%)")
+    print("=" * 72)
 
 
 def cmd_sweep(system_name: str, params: dict, sweep_param: str, val_lo: float, val_hi: float, steps: int, seed: int = 0) -> None:

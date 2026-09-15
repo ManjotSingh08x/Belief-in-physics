@@ -37,9 +37,8 @@ class SphereBall:
     theta0: float = 0.6
     psi_dot0: float = 2.0
 
-    #: The band theta actually visits under the driving impulses, not the full
-    #: coordinate range -- otherwise most of the 181 bins would never be used.
-    obs_range: tuple[float, float] = (0.05, 1.25)
+    #: The full 0 to 90 degree lower hemisphere mapped to [-1.0, 1.0] in Cartesian coordinates.
+    obs_range: tuple[float, float] = (-1.0, 1.0)
     metric_names: tuple[str, ...] = ("v_meridional", "v_azimuthal")
     state_names: tuple[str, ...] = ("theta", "psi", "dtheta", "dpsi")
 
@@ -68,7 +67,7 @@ class SphereBall:
 
     def flow(self, z: np.ndarray, dt: float, substeps: int = 1) -> np.ndarray:
         th, psi, dth, dpsi = (z[..., i].copy() for i in range(4))
-        h = dt
+        h = dt / substeps
         for _ in range(substeps):
             k1a, k1b = self._accel(th, dth, dpsi)
             k2a, k2b = self._accel(th + h / 2 * dth, dth + h / 2 * k1a, dpsi + h / 2 * k1b)
@@ -89,18 +88,20 @@ class SphereBall:
         dpsi = np.clip(z[..., 3] + action[..., 1] / radius, -self.rate_max, self.rate_max)
         return np.stack([th, z[..., 1], dth, dpsi], axis=-1)
 
-    observable_names: tuple[str, ...] = ("theta", "psi")
+    observable_names: tuple[str, ...] = ("x", "y")
 
     @property
     def obs_ranges(self) -> tuple[tuple[float, float], ...]:
-        return (self.obs_range, (-np.pi, np.pi))
+        return (self.obs_range, self.obs_range)
 
     def observable(self, z: np.ndarray) -> np.ndarray:
-        return z[..., 0]  # polar angle from the bottom
+        th, psi = z[..., 0], z[..., 1]
+        return np.sin(th) * np.cos(psi)
 
     def observables(self, z: np.ndarray) -> np.ndarray:
-        """Polar angle, then the azimuth it is swinging around."""
-        return np.stack([z[..., 0], z[..., 1]], axis=-1)
+        """Project spherical coordinates to 2D Cartesian (x, y) on the horizontal plane."""
+        th, psi = z[..., 0], z[..., 1]
+        return np.stack([np.sin(th) * np.cos(psi), np.sin(th) * np.sin(psi)], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         th, dth, dpsi = z[..., 0], z[..., 2], z[..., 3]
@@ -112,6 +113,29 @@ class SphereBall:
         th, dth, dpsi = z[..., 0], z[..., 2], z[..., 3]
         kinetic = 0.5 * self.length**2 * (dth**2 + (np.sin(th) * dpsi) ** 2)
         return kinetic - self.g * self.length * np.cos(th)
+
+    def state_gap(self, z1: np.ndarray, z2: np.ndarray) -> np.ndarray:
+        """Physical distance in the sphere's tangent bundle phase space T(S^2).
+
+        Using physical Cartesian positions and velocities avoids coordinate
+        artifacts where azimuthal angular velocity dpsi inflates near the bottom pole.
+        """
+        th1, psi1, dth1, dpsi1 = z1[..., 0], z1[..., 1], z1[..., 2], z1[..., 3]
+        th2, psi2, dth2, dpsi2 = z2[..., 0], z2[..., 1], z2[..., 2], z2[..., 3]
+        r1 = self.length * np.stack([np.sin(th1) * np.cos(psi1), np.sin(th1) * np.sin(psi1), -np.cos(th1)], axis=-1)
+        r2 = self.length * np.stack([np.sin(th2) * np.cos(psi2), np.sin(th2) * np.sin(psi2), -np.cos(th2)], axis=-1)
+        v1 = self.length * np.stack([
+            dth1 * np.cos(th1) * np.cos(psi1) - dpsi1 * np.sin(th1) * np.sin(psi1),
+            dth1 * np.cos(th1) * np.sin(psi1) + dpsi1 * np.sin(th1) * np.cos(psi1),
+            dth1 * np.sin(th1),
+        ], axis=-1)
+        v2 = self.length * np.stack([
+            dth2 * np.cos(th2) * np.cos(psi2) - dpsi2 * np.sin(th2) * np.sin(psi2),
+            dth2 * np.cos(th2) * np.sin(psi2) + dpsi2 * np.sin(th2) * np.cos(psi2),
+            dth2 * np.sin(th2),
+        ], axis=-1)
+        return np.sqrt(np.sum((r1 - r2) ** 2, axis=-1) + np.sum((v1 - v2) ** 2, axis=-1))
+
 
 
 def _demo() -> None:
@@ -143,6 +167,12 @@ def _demo() -> None:
     east = s.kick(start, np.array([[0.0, 0.7]]))
     assert abs(north[0, 2] + 0.7) < 1e-12
     assert east[0, 3] > start[0, 3]
+
+    obs = s.observables(start)
+    assert obs.shape == (1, 2)
+    assert abs(obs[0, 0] - np.sin(s.theta0)) < 1e-12
+    assert abs(obs[0, 1]) < 1e-12
+    assert s.obs_ranges == ((-1.0, 1.0), (-1.0, 1.0))
     print("sphere ok")
 
 

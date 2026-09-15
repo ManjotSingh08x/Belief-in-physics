@@ -166,8 +166,12 @@ def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8) -> dict:
         out[f"obs_{key}"] = np.asarray(obs[key])
         out[f"metric_{key}"] = np.asarray(metric[key])
         out[f"tokens_{key}"] = proc.discretise(np.asarray(obs[key]))
-    out["gap_free"] = np.linalg.norm(out["states_driven"] - out["states_free"], axis=-1)
-    out["gap_twin"] = np.linalg.norm(out["states_driven"] - out["states_twin"], axis=-1)
+    if hasattr(sysm, "state_gap"):
+        out["gap_free"] = sysm.state_gap(out["states_driven"], out["states_free"])
+        out["gap_twin"] = sysm.state_gap(out["states_driven"], out["states_twin"])
+    else:
+        out["gap_free"] = np.linalg.norm(out["states_driven"] - out["states_free"], axis=-1)
+        out["gap_twin"] = np.linalg.norm(out["states_driven"] - out["states_twin"], axis=-1)
     return out
 
 
@@ -210,7 +214,10 @@ def stability(tr: dict) -> dict:
         reasons.append(f"diverges from its own twin (lambda={exponent:+.2f}/s)")
     if tr["gap_free"].mean() < 1e-3:
         reasons.append("kicks leave no visible trace")
-    min_bins = min(0.1 * report["n_obs"], max(10, 0.1 * len(tr["obs_driven"])))
+    if len(proc.obs_bins) == 1:
+        min_bins = min(0.1 * report["n_obs"], max(10, 0.1 * len(tr["obs_driven"])))
+    else:
+        min_bins = max(10, min(int(0.05 * report["n_obs"]), int(0.03 * len(tr["obs_driven"]))))
     if report["used_bins"] < min_bins:
         reasons.append(f"uses {report['used_bins']}/{report['n_obs']} bins")
     return {
@@ -529,6 +536,8 @@ def _panel_tokens(ax, tr) -> None:
         (lo0, hi0), (lo1, hi1) = proc.obs_ranges[:2]
         b0, b1 = proc.obs_bins[:2]
 
+        is_cartesian = (name0.lower() == "x" and name1.lower() == "y")
+
         H, xedges, yedges = np.histogram2d(
             recon[:, 0], recon[:, 1],
             bins=[b0, b1],
@@ -536,13 +545,20 @@ def _panel_tokens(ax, tr) -> None:
         )
         ax.imshow(
             H.T, origin="lower", extent=[lo0, hi0, lo1, hi1],
-            aspect="auto", cmap="Blues", interpolation="nearest", alpha=0.65
+            aspect="equal" if is_cartesian else "auto",
+            cmap="Blues", interpolation="nearest", alpha=0.65
         )
+
+        if is_cartesian:
+            th_circ = np.linspace(0, 2 * np.pi, 200)
+            ax.plot(np.cos(th_circ), np.sin(th_circ), color="#c0392b", ls="--", lw=1.2, alpha=0.65, label="equator (θ=90°)")
+            ax.set_xlim(lo0 * 1.05, hi0 * 1.05)
+            ax.set_ylim(lo1 * 1.05, hi1 * 1.05)
 
         # Build continuous path segments without wrap-around cuts in channel 1 (e.g. psi)
         th = recon[:, 0]
         psi = recon[:, 1]
-        is_angle = "psi" in name1.lower() or "th" in name1.lower()
+        is_angle = ("psi" in name1.lower() or "th" in name1.lower()) and not is_cartesian
         jumps = np.abs(np.diff(psi, prepend=psi[0])) > np.pi if is_angle else np.zeros_like(psi, dtype=bool)
 
         segments = []
@@ -560,8 +576,12 @@ def _panel_tokens(ax, tr) -> None:
 
         ax.scatter(th[0], psi[0], color="#1a5fb4", s=45, edgecolors="#ffffff", lw=1.0, zorder=6, label="start")
         ax.scatter(th[-1], psi[-1], color="#fb8500", s=45, edgecolors="#ffffff", lw=1.0, zorder=6, label="end")
-        ax.set_xlabel(f"{name0} (rad)" if "th" in name0.lower() else name0)
-        ax.set_ylabel(f"{name1} (rad)" if "psi" in name1.lower() or "th" in name1.lower() else name1)
+        if is_cartesian:
+            ax.set_xlabel("x = sin(θ) cos(ψ)")
+            ax.set_ylabel("y = sin(θ) sin(ψ)")
+        else:
+            ax.set_xlabel(f"{name0} (rad)" if "th" in name0.lower() else name0)
+            ax.set_ylabel(f"{name1} (rad)" if "psi" in name1.lower() or "th" in name1.lower() else name1)
         used = int((np.bincount(tr["tokens_driven"], minlength=proc.n_obs) > 0).sum())
         ax.set_title(f"token grid ({b0}\u00d7{b1}): {used}/{proc.n_obs} cells (blue \u2192 yellow)")
         ax.legend(fontsize=7, loc="upper right")
