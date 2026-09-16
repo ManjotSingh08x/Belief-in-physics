@@ -5,6 +5,7 @@ from __future__ import annotations
 from itertools import combinations
 
 import numpy as np
+import pytest
 
 from physics.messk import (
     MessDriven,
@@ -190,3 +191,17 @@ def test_features_line_up_with_their_groups():
     assert np.allclose(feats[:, :, groups["belief"]], want_belief)
     assert groups["belief"].stop - groups["belief"].start == 3
     assert np.allclose(feats[:, :, groups["mood"]].sum(-1), 1.0)
+
+
+def test_sample_batch_accepts_explicit_initial_states():
+    proc = make_process("pendulum_mess4", m=2, n_steps=2)
+    shifted = proc.system.initial_state(3)
+    shifted[:, 0] += 0.2
+
+    ordinary = proc.sample_batch(np.random.default_rng(9), 3)
+    explicit = proc.sample_batch(np.random.default_rng(9), 3, initial_state=shifted)
+
+    assert np.array_equal(ordinary["letters"], explicit["letters"])
+    assert not np.allclose(ordinary["observable"], explicit["observable"])
+    with pytest.raises(ValueError, match="initial_state"):
+        proc.sample_batch(np.random.default_rng(9), 3, initial_state=np.zeros((2, 2)))

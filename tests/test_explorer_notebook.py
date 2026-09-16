@@ -20,12 +20,7 @@ from physics import visualise as V
 from physics.controls import explorer, optimal_gamma_ui, sweep_ui
 from physics.messk_configs import MESSK_CONFIGS, make_process
 
-
-ARTIFACTS_DIR = Path("/home/manjot/.gemini/antigravity-ide/brain/1d056a77-ebe2-44ba-8cab-85487bea7c8e/scratch")
-ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def test_explorer_notebook_cell3_dashboard():
+def test_explorer_notebook_cell3_dashboard(tmp_path: Path):
     """REASON: Verifies Cell 3 in explorer.ipynb: builds the interactive explorer widget
     for sphere_mess4 and renders the 4-panel dashboard (observable, tokens, energy, phase).
     """
@@ -37,7 +32,7 @@ def test_explorer_notebook_cell3_dashboard():
                  title="sphere_mess4 (Cartesian 2D Grid & Orbit)")
     assert fig is not None
 
-    out_path = ARTIFACTS_DIR / "explorer_cell3_dashboard.png"
+    out_path = tmp_path / "explorer_cell3_dashboard.png"
     fig.savefig(out_path, format="png", bbox_inches="tight", dpi=100)
     plt.close(fig)
 
@@ -50,7 +45,7 @@ def test_explorer_notebook_cell5_sweep_ui():
     assert w is not None
 
 
-def test_explorer_notebook_cell7_comparisons():
+def test_explorer_notebook_cell7_comparisons(tmp_path: Path):
     """REASON: Verifies Cell 7 in explorer.ipynb: runs M_TICKS=40 side-by-side comparisons
     across all four systems for both physical observables and discrete token distributions.
     """
@@ -63,7 +58,7 @@ def test_explorer_notebook_cell7_comparisons():
     # 1. Physical observables
     fig_obs = V.compare(traces, panel="observable")
     assert fig_obs is not None
-    out_obs = ARTIFACTS_DIR / "explorer_cell7_observables.png"
+    out_obs = tmp_path / "explorer_cell7_observables.png"
     fig_obs.savefig(out_obs, format="png", bbox_inches="tight", dpi=100)
     plt.close(fig_obs)
     assert out_obs.exists() and out_obs.stat().st_size > 20000
@@ -71,7 +66,7 @@ def test_explorer_notebook_cell7_comparisons():
     # 2. Discrete tokens
     fig_tok = V.compare(traces, panel="tokens")
     assert fig_tok is not None
-    out_tok = ARTIFACTS_DIR / "explorer_cell7_tokens.png"
+    out_tok = tmp_path / "explorer_cell7_tokens.png"
     fig_tok.savefig(out_tok, format="png", bbox_inches="tight", dpi=100)
     plt.close(fig_tok)
     assert out_tok.exists() and out_tok.stat().st_size > 20000
@@ -131,7 +126,7 @@ def test_explorer_notebook_cell9_stability_tables():
     assert len(multi_rows) == 4
 
 
-def test_explorer_notebook_cell11_causal_effect():
+def test_explorer_notebook_cell11_causal_effect(tmp_path: Path):
     """REASON: Verifies Cell 11 in explorer.ipynb: 2D Cartesian causal branching diagram
     for sphere_mess4, testing non-collapsing bifurcation and pairwise token separation.
     """
@@ -142,7 +137,7 @@ def test_explorer_notebook_cell11_causal_effect():
     fig = V.causal_effect(proc, tick=tick, seed=0)
     assert fig is not None
 
-    out_causal = ARTIFACTS_DIR / "explorer_cell11_causal.png"
+    out_causal = tmp_path / "explorer_cell11_causal.png"
     fig.savefig(out_causal, format="png", bbox_inches="tight", dpi=100)
     plt.close(fig)
     assert out_causal.exists() and out_causal.stat().st_size > 20000

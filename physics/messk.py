@@ -299,13 +299,24 @@ class MessDriven:
             out[..., channel] = lo + indices[..., channel] / denom * (hi - lo)
         return out
 
-    def sample_batch(self, rng: np.random.Generator, n: int) -> dict:
+    def sample_batch(
+        self,
+        rng: np.random.Generator,
+        n: int,
+        initial_state: np.ndarray | None = None,
+    ) -> dict:
         """tokens (n, L), beliefs (n, L, K), metric (n, L), moods (n, L)."""
         states, letters = self.chain.sample(rng, n, self.m)
         tick_beliefs = self.chain.beliefs(letters)
 
         sys_, actions = self.system, self.actions
-        z = sys_.initial_state(n)
+        expected = sys_.initial_state(n)
+        z = expected if initial_state is None else np.asarray(initial_state, dtype=np.float64)
+        if z.shape != expected.shape or not np.isfinite(z).all():
+            raise ValueError(
+                f"initial_state must be finite with shape {expected.shape}, got {z.shape}"
+            )
+        z = z.copy()
         obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(sys_.metric_names)))
         for t in range(self.m):
