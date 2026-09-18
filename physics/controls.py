@@ -18,7 +18,7 @@ import numpy as np
 from IPython.display import display
 
 from .messk_configs import MESSK_CONFIGS, make_process
-from .visualise import PANELS, plot, stability, trace, tunable_fields
+from .visualise import PANELS, auto_dt, plot, stability, trace, tunable_fields
 
 LABEL_W = "150px"
 
@@ -686,6 +686,320 @@ def optimal_gamma_ui(default_system: str = "pendulum_mess4") -> W.Widget:
     ])
 
 
+def _detect_damping_field(system_name: str, damping_field: str | None = None) -> str:
+    if damping_field is not None:
+        return damping_field
+    proc = make_process(system_name)
+    tf = tunable_fields(proc.system)
+    for cand in ("gamma", "gamma1", "kappa"):
+        if cand in tf:
+            return cand
+    return "gamma"
+
+
+def grid_screen(
+    system_name: str,
+    delta_v_values: list[float],
+    damping_values: list[float],
+    damping_field: str | None = None,
+    dt: float | None = None,
+    n_steps: int = 10,
+    m: int = 24,
+    n_seeds: int = 10,
+    obs_bins=181,
+    verbose: bool = False,
+) -> dict:
+    """Screen a 2D grid of (delta_v, damping) configs across multiple random seeds.
+
+    For each cell, runs trace() + stability() across n_seeds. Reports per-cell:
+      - pass_rate: fraction of seeds passing all checks
+      - mean and std of lyapunov exponent
+      - mean clipping percentage
+      - mean used bins
+      - mean bayes gap
+      - GO / NO-GO verdict
+    """
+    field = _detect_damping_field(system_name, damping_field)
+    if dt is None:
+        dt = auto_dt(system_name)["dt"]
+
+    grid_results = []
+    for dv in delta_v_values:
+        for d_val in damping_values:
+            sys_kw = {field: float(d_val)}
+            if field == "gamma1":
+                sys_kw["gamma2"] = float(d_val)
+            proc = make_process(
+                system_name,
+                system=sys_kw,
+                delta_v=float(dv),
+                dt=float(dt),
+                m=int(m),
+                n_steps=int(n_steps),
+                obs_bins=obs_bins,
+            )
+            seed_reports = []
+            for seed in range(n_seeds):
+                tr = trace(proc, seed=seed)
+                seed_reports.append(stability(tr))
+
+            pass_count = sum(1 for s in seed_reports if s["stable"])
+            pass_rate = pass_count / n_seeds
+            lyap_vals = [s["lyapunov"] for s in seed_reports]
+            clip_vals = [s["clipped"] for s in seed_reports]
+            bin_vals = [s["used_bins"] for s in seed_reports]
+            gap_vals = [s["gap_free_mean"] for s in seed_reports]
+            bg_vals = [s["bayes_gap"] for s in seed_reports]
+
+            mean_lyap = float(np.mean(lyap_vals))
+            std_lyap = float(np.std(lyap_vals))
+            mean_clip = float(np.mean(clip_vals))
+            mean_bins = float(np.mean(bin_vals))
+            mean_gap = float(np.mean(gap_vals))
+            mean_bg = float(np.mean(bg_vals))
+
+            verdict = "GO" if (pass_rate >= 0.8 and mean_bg >= 0.15) else "NO-GO"
+            all_reasons = sorted(list({r for s in seed_reports for r in s["reasons"]}))
+
+            cell = {
+                "delta_v": float(dv),
+                field: float(d_val),
+                "damping_field": field,
+                "damping_value": float(d_val),
+                "pass_rate": pass_rate,
+                "lyapunov_mean": mean_lyap,
+                "lyapunov_std": std_lyap,
+                "clipped_mean": mean_clip,
+                "used_bins_mean": mean_bins,
+                "gap_free_mean": mean_gap,
+                "bayes_gap_mean": mean_bg,
+                "verdict": verdict,
+                "reasons": all_reasons,
+            }
+            grid_results.append(cell)
+            if verbose:
+                print(f"dv={dv:.4f} {field}={d_val:.4f} -> {verdict} (pass={pass_rate:.0%}, bg={mean_bg:.3f}, lyap={mean_lyap:+.2f})")
+
+    passing = [c for c in grid_results if c["verdict"] == "GO"]
+    res = GridScreenResult({
+        "system": system_name,
+        "dt": float(dt),
+        "damping_field": field,
+        "n_steps": int(n_steps),
+        "m": int(m),
+        "grid": grid_results,
+        "passing": passing,
+    })
+    return res
+
+
+def render_grid_html(result: dict) -> str:
+    """Format grid screening output as an HTML heatmap matrix."""
+    system = result.get("system", "")
+    field = result.get("damping_field", "damping")
+    dt = result.get("dt", 0.0)
+    grid = result.get("grid", [])
+    if not grid:
+        return "<p>Empty grid results.</p>"
+
+    dvs = sorted(list({c["delta_v"] for c in grid}))
+    damps = sorted(list({c["damping_value"] for c in grid}), reverse=True)
+    lookup = {(c["delta_v"], c["damping_value"]): c for c in grid}
+
+    html = [
+        "<div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, monospace; margin: 12px 0;'>",
+        f"<h4 style='margin: 0 0 8px 0; font-size: 14px;'>Grid Screening: {system} (dt={dt:.4f}, damping={field})</h4>",
+        "<table style='border-collapse: collapse; text-align: center; font-size: 12px; border: 1px solid #334155;'>",
+        "<tr>",
+        f"<th style='border: 1px solid #334155; padding: 7px 10px; background: #0f172a; color: #94a3b8; font-weight: 600;'>{field} \\ Δv</th>",
+    ]
+    for dv in dvs:
+        html.append(f"<th style='border: 1px solid #334155; padding: 7px 10px; background: #1e293b; color: #f8fafc; font-weight: 600;'>{dv:.4g}</th>")
+    html.append("</tr>")
+
+    for damp in damps:
+        html.append("<tr>")
+        html.append(f"<td style='border: 1px solid #334155; padding: 7px 10px; font-weight: 600; background: #1e293b; color: #f8fafc;'>{damp:.4g}</td>")
+        for dv in dvs:
+            cell = lookup.get((dv, damp))
+            if cell is None:
+                html.append("<td style='border: 1px solid #334155; padding: 6px; background: #1e293b; color: #64748b;'>-</td>")
+                continue
+            pr = cell["pass_rate"]
+            bg = cell["bayes_gap_mean"]
+            ly = cell["lyapunov_mean"]
+            if pr >= 0.8 and bg >= 0.15:
+                bg_col = "#d4edda"
+                text_col = "#0f5132"
+                border_col = "#badbcc"
+            elif pr >= 0.5:
+                bg_col = "#fff3cd"
+                text_col = "#664d03"
+                border_col = "#ffecb5"
+            else:
+                bg_col = "#f8d7da"
+                text_col = "#842029"
+                border_col = "#f5c2c7"
+
+            cell_content = f"<b style='font-size: 13px;'>{pr:.0%}</b><br><span style='font-size: 10px; opacity: 0.9;'>bg={bg:.2f}<br>λ={ly:+.2f}</span>"
+            html.append(f"<td style='border: 1px solid {border_col}; padding: 6px 8px; background: {bg_col}; color: {text_col}; min-width: 80px;'>{cell_content}</td>")
+        html.append("</tr>")
+
+    html.append("</table>")
+    html.append("<p style='font-size: 11px; opacity: 0.8; margin-top: 6px;'>Passing criteria: pass_rate ≥ 80% and bayes_gap ≥ 0.15 nats</p>")
+    html.append("</div>")
+    return "\n".join(html)
+
+
+class GridScreenResult(dict):
+    """Dictionary holding grid_screen results with rich HTML display in notebooks."""
+
+    def _repr_html_(self) -> str:
+        return render_grid_html(self)
+
+
+def display_grid(result: dict) -> None:
+    """Render and display grid screen result in a notebook."""
+    from IPython.display import HTML, display
+    display(HTML(render_grid_html(result)))
+
+
+
+def n_recalibrate(
+    system_name: str,
+    delta_v: float,
+    damping_value: float,
+    damping_field: str | None = None,
+    dt: float | None = None,
+    n_values: list[int] = (5, 10, 15, 20),
+    m: int = 24,
+    n_seeds: int = 10,
+    obs_bins=181,
+) -> list[dict]:
+    """Test multiple n_steps values for a locked (delta_v, damping, dt) config.
+
+    Returns list of dicts, one per n value, with stability metrics
+    aggregated over n_seeds seeds.
+    """
+    field = _detect_damping_field(system_name, damping_field)
+    if dt is None:
+        dt = auto_dt(system_name)["dt"]
+
+    results = []
+    for n in n_values:
+        sys_kw = {field: float(damping_value)}
+        if field == "gamma1":
+            sys_kw["gamma2"] = float(damping_value)
+        proc = make_process(
+            system_name,
+            system=sys_kw,
+            delta_v=float(delta_v),
+            dt=float(dt),
+            m=int(m),
+            n_steps=int(n),
+            obs_bins=obs_bins,
+        )
+        seed_reports = [stability(trace(proc, seed=seed)) for seed in range(n_seeds)]
+
+        pass_count = sum(1 for s in seed_reports if s["stable"])
+        pass_rate = pass_count / n_seeds
+        mean_lyap = float(np.mean([s["lyapunov"] for s in seed_reports]))
+        std_lyap = float(np.std([s["lyapunov"] for s in seed_reports]))
+        mean_clip = float(np.mean([s["clipped"] for s in seed_reports]))
+        mean_bins = float(np.mean([s["used_bins"] for s in seed_reports]))
+        mean_gap = float(np.mean([s["gap_free_mean"] for s in seed_reports]))
+        mean_bg = float(np.mean([s["bayes_gap"] for s in seed_reports]))
+        verdict = "GO" if (pass_rate >= 0.8 and mean_bg >= 0.15) else "NO-GO"
+        all_reasons = sorted(list({r for s in seed_reports for r in s["reasons"]}))
+
+        results.append({
+            "n_steps": int(n),
+            "delta_v": float(delta_v),
+            "damping_field": field,
+            "damping_value": float(damping_value),
+            "dt": float(dt),
+            "pass_rate": pass_rate,
+            "lyapunov_mean": mean_lyap,
+            "lyapunov_std": std_lyap,
+            "clipped_mean": mean_clip,
+            "used_bins_mean": mean_bins,
+            "gap_free_mean": mean_gap,
+            "bayes_gap_mean": mean_bg,
+            "verdict": verdict,
+            "reasons": all_reasons,
+        })
+    return results
+
+
+def grid_screen_ui(system_name: str = "pendulum_mess4") -> W.Widget:
+    """Interactive widget to configure and run grid_screen."""
+    system_dd = W.Dropdown(
+        options=sorted(MESSK_CONFIGS),
+        value=system_name if system_name in MESSK_CONFIGS else sorted(MESSK_CONFIGS)[0],
+        description="System:",
+        style={"description_width": LABEL_W},
+    )
+    field_lbl = W.HTML(value="")
+    dv_input = W.Text(value="0.3, 0.55, 0.8", description="Δv values:", style={"description_width": LABEL_W})
+    damping_input = W.Text(value="0.8, 1.2, 1.6", description="Damping values:", style={"description_width": LABEL_W})
+    dt_box = W.FloatText(value=0.02, description="dt:", style={"description_width": LABEL_W}, layout=W.Layout(width="220px"))
+    auto_dt_btn = W.Button(description="Auto dt", button_style="info", layout=W.Layout(width="90px"))
+    n_box = W.IntText(value=10, description="n_steps:", style={"description_width": LABEL_W}, layout=W.Layout(width="220px"))
+    m_box = W.IntText(value=24, description="m (ticks):", style={"description_width": LABEL_W}, layout=W.Layout(width="220px"))
+    seeds_box = W.IntText(value=10, description="n_seeds:", style={"description_width": LABEL_W}, layout=W.Layout(width="220px"))
+    run_btn = W.Button(description="Run Grid Screen", button_style="primary", layout=W.Layout(width="200px"))
+    out = W.Output()
+
+    def update_field(*_):
+        f = _detect_damping_field(system_dd.value)
+        field_lbl.value = f"<span style='color:#555;'>Damping field: <b>{f}</b></span>"
+        damping_input.description = f"{f} values:"
+    system_dd.observe(update_field, "value")
+    update_field()
+
+    def on_auto_dt(_):
+        res = auto_dt(system_dd.value)
+        dt_box.value = res["dt"]
+    auto_dt_btn.on_click(on_auto_dt)
+
+    def on_run(_):
+        out.clear_output()
+        with out:
+            try:
+                dvs = [float(x.strip()) for x in dv_input.value.split(",") if x.strip()]
+                damps = [float(x.strip()) for x in damping_input.value.split(",") if x.strip()]
+                print(f"Running grid screen on {system_dd.value} ({len(dvs)}×{len(damps)} cells × {seeds_box.value} seeds)...")
+                res = grid_screen(
+                    system_name=system_dd.value,
+                    delta_v_values=dvs,
+                    damping_values=damps,
+                    dt=dt_box.value,
+                    n_steps=n_box.value,
+                    m=m_box.value,
+                    n_seeds=seeds_box.value,
+                )
+                import pandas as pd
+                df = pd.DataFrame(res["grid"])
+                display(df)
+                print(f"Done! {len(res['passing'])}/{len(res['grid'])} cells passed GO criteria.")
+            except Exception as e:
+                print(f"Error: {e}")
+
+    run_btn.on_click(on_run)
+
+    return W.VBox([
+        W.HTML("<h4>2D Parameter Grid Screening (10 Seeds)</h4>"),
+        system_dd,
+        field_lbl,
+        dv_input,
+        damping_input,
+        W.HBox([dt_box, auto_dt_btn]),
+        W.HBox([n_box, m_box, seeds_box]),
+        run_btn,
+        out,
+    ])
+
+
 def _demo() -> None:
     import matplotlib
 
@@ -710,6 +1024,11 @@ def _demo() -> None:
     tr = trace(make_process("pendulum_mess4", m=6), seed=0)
     assert "STABLE" in _verdict(stability(tr))
     assert explorer() is not None and sweep_ui() is not None
+    res = grid_screen("pendulum_mess4", [0.55], [1.2], n_steps=6, m=6, n_seeds=2)
+    assert len(res["grid"]) == 1
+    recal = n_recalibrate("pendulum_mess4", 0.55, 1.2, dt=0.02, n_values=[5, 10], m=6, n_seeds=2)
+    assert len(recal) == 2
+    assert grid_screen_ui() is not None
     print("controls ok")
 
 

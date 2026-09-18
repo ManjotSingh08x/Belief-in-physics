@@ -184,6 +184,48 @@ def lyapunov(tr: dict, eps: float = 1e-8) -> float:
     return float(np.polyfit(t, y, 1)[0])
 
 
+def _bayes_gap(proc, n_samples: int = 100, seed: int = 42) -> float:
+    """Cross-entropy gap H(obs) - H(obs | letters) in nats.
+
+    Measures how much knowing the hidden letter sequence reduces uncertainty
+    about observations. If gap ~ 0, kicks leave no learnable trace.
+    """
+    rng = np.random.default_rng(seed)
+    _, letters = proc.chain.sample(rng, n_samples, proc.m)
+    tokens = proc.rollout(letters)["tokens"]
+    flat = tokens.reshape(-1)
+    _, counts = np.unique(flat, return_counts=True)
+    p = counts / counts.sum()
+    h_marginal = -float(np.sum(p * np.log(np.maximum(p, 1e-300))))
+    h_cond_list = []
+    for row in tokens:
+        _, r_counts = np.unique(row, return_counts=True)
+        r_p = r_counts / r_counts.sum()
+        h_cond_list.append(-float(np.sum(r_p * np.log(np.maximum(r_p, 1e-300)))))
+    return float(max(0.0, h_marginal - float(np.mean(h_cond_list))))
+
+
+def _sync_curve(chain, n_priors: int = 200, max_letters: int = 200, seed: int = 0) -> tuple[list[tuple[int, float]], int]:
+    """Total-variation distance vs letter count between diverse-prior beliefs.
+
+    Returns (curve, sync_length) where curve is list of (letter_index, tv_dist).
+    """
+    rng = np.random.default_rng(seed)
+    b = rng.dirichlet(np.ones(chain.n_states), size=n_priors)
+    _, letters = chain.sample(rng, 1, max_letters)
+    joint = chain.joint
+    curve = []
+    sync_len = -1
+    for t, l in enumerate(letters[0], 1):
+        b = b @ joint[l]
+        b /= np.maximum(b.sum(axis=1, keepdims=True), 1e-300)
+        tv = float(0.5 * np.abs(b - b.mean(axis=0)).sum(axis=1).max())
+        curve.append((t, tv))
+        if tv < 0.01 and sync_len == -1:
+            sync_len = t
+    return curve, sync_len
+
+
 def stability(tr: dict) -> dict:
     """The numbers that decide whether a parameter setting is usable.
 
@@ -211,6 +253,12 @@ def stability(tr: dict) -> dict:
         min_bins = max(10, min(int(0.05 * report["n_obs"]), int(0.03 * len(tr["obs_driven"]))))
     if report["used_bins"] < min_bins:
         reasons.append(f"uses {report['used_bins']}/{report['n_obs']} bins")
+
+    bg = _bayes_gap(proc)
+    sync_curve, sync_len = _sync_curve(proc.chain)
+    if bg < 0.05:
+        reasons.append(f"insufficient letter trace in observations (bayes_gap={bg:.3f} nats)")
+
     return {
         "lyapunov": exponent,
         "clipped": report["clipped"],
@@ -220,6 +268,9 @@ def stability(tr: dict) -> dict:
         "energy_drift_free": drift,
         "gap_free_mean": float(tr["gap_free"].mean()),
         "gap_free_max": float(tr["gap_free"].max()),
+        "bayes_gap": bg,
+        "sync_curve": sync_curve,
+        "sync_length": sync_len,
         "channels": report.get("channels", proc.channel_names),
         "obs_ranges": report.get("obs_ranges", proc.obs_ranges),
         "obs_range": report["obs_range"],
@@ -227,6 +278,70 @@ def stability(tr: dict) -> dict:
         "per_channel_observed_range": report.get("per_channel_observed_range", ()),
         "stable": not reasons,
         "reasons": reasons,
+    }
+
+
+def auto_dt(
+    system,
+    threshold: float = 0.001,
+    dt_candidates: list[float] | None = None,
+    n_steps: int | None = None,
+    t_span: float = 1.0,
+) -> dict:
+    """Find largest dt where free-trajectory integration error < threshold.
+
+    Uses Richardson extrapolation: for each candidate dt, compare
+    energy after flowing for duration t_span at dt vs at dt/2.
+    The relative energy difference is the integration error.
+
+    Returns dict with 'dt', 'drift_at_dt', 'all_results'.
+    """
+    if isinstance(system, str):
+        from .messk_configs import MESSK_CONFIGS, SYSTEMS, make_process
+        if system in MESSK_CONFIGS:
+            system = make_process(system).system
+        elif system in SYSTEMS:
+            system = SYSTEMS[system]["factory"]()
+        elif f"{system}_mess4" in MESSK_CONFIGS:
+            system = make_process(f"{system}_mess4").system
+        else:
+            raise ValueError(f"unknown system {system!r}")
+
+    if dt_candidates is None:
+        dt_candidates = [0.2, 0.1, 0.05, 0.04, 0.02, 0.01, 0.005, 0.002, 0.001]
+    candidates = sorted(dt_candidates, reverse=True)
+    all_results = []
+    chosen_dt = candidates[-1]
+    chosen_drift = None
+
+    for dt in candidates:
+        k_steps = n_steps if n_steps is not None else max(1, int(round(t_span / dt)))
+        z0 = system.initial_state(1)
+        z1 = z0.copy()
+        for _ in range(k_steps):
+            z1 = system.flow(z1, dt)
+        e1 = float(system.energy(z1)[0])
+
+        z2 = z0.copy()
+        for _ in range(2 * k_steps):
+            z2 = system.flow(z2, dt / 2.0)
+        e2 = float(system.energy(z2)[0])
+
+        e0 = float(system.energy(z0)[0])
+        drift = abs(e1 - e2) / max(abs(e0), 1e-12)
+        all_results.append((dt, drift))
+        if drift < threshold and chosen_drift is None:
+            chosen_dt = dt
+            chosen_drift = drift
+
+    if chosen_drift is None:
+        chosen_drift = all_results[-1][1]
+        chosen_dt = all_results[-1][0]
+
+    return {
+        "dt": chosen_dt,
+        "drift_at_dt": chosen_drift,
+        "all_results": all_results,
     }
 
 
@@ -781,6 +896,12 @@ def _demo() -> None:
         s = stability(tr)
         assert 0.0 <= s["clipped"] <= 1.0 and s["used_bins"] >= 1
         assert isinstance(s["stable"], bool)
+        assert "bayes_gap" in s and s["bayes_gap"] >= 0.0
+        assert "sync_curve" in s and len(s["sync_curve"]) > 0
+        assert "sync_length" in s
+
+    dt_info = auto_dt("pendulum_mess4", threshold=0.01)
+    assert dt_info["dt"] > 0 and len(dt_info["all_results"]) > 0
 
     # A chaotic setting must read as more sensitive than a heavily damped one.
     from .systems.double_pendulum import DoublePendulum
