@@ -176,7 +176,7 @@ class MessDriven:
     delta_v: float = 0.3
     m: int = 16  # chain ticks
     n_steps: int = 10  # physics steps per tick
-    dt: float = 0.02
+    dt: float = 0.2
     #: Bins per observation channel. An int or a one-tuple is the single-channel
     #: case every committed run used. `(181, 181)` bins the system's first two
     #: channels and combines them into one token, so the vocabulary is the

@@ -135,6 +135,14 @@ def train(
             history.append(
                 {"step": step, "train_loss": float(loss.item()), "eval_loss": eval_loss}
             )
+            print_every = max(config.log_every, max(1, steps // 200))
+            if step % print_every == 0 or step == steps - 1:
+                lr_curr = schedule.get_last_lr()[0]
+                print(
+                    f"train [{step:5d}/{steps} ({step / steps:5.1%})] "
+                    f"loss: {loss.item():.4f} | eval_loss: {eval_loss:.4f} | lr: {lr_curr:.2e}",
+                    flush=True,
+                )
 
     model.eval()
     total_seen = steps * tokens_per_step

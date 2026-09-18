@@ -8,7 +8,6 @@ Naive combinatorial sweep = 800+ training runs. This plan uses CPU-only pre-flig
 
 ---
 
-## Decisions Locked (from /grill-me)
 
 | Decision | Choice |
 |---|---|
@@ -158,7 +157,6 @@ Each run:
 
 ## Stage 2: Alpha Sweep (12 Runs)
 
-**Goal:** Core scientific contribution. Test whether transformer representations scale with emission ambiguity.
 
 ### Pre-step: Compute empirical sync-length per alpha
 
