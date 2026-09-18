@@ -1,0 +1,266 @@
+{
+  "pendulum_mess4": {
+    "n_eval": 384,
+    "belief_memory_letters": 7,
+    "steps_per_tick": 10,
+    "residual_depth_selected_on_validation": 2,
+    "residual_validation_r2": 0.1542070389110455,
+    "by_window": [
+      {
+        "window": 1,
+        "ridge_alpha": 1.0,
+        "belief_from_tokens": 0.11546849815630349,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": 0.009348939511822987
+      },
+      {
+        "window": 2,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.21607305807981692,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": -0.09125562041169044
+      },
+      {
+        "window": 4,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.22899804671100665,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": -0.10418060904288018
+      },
+      {
+        "window": 8,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.252664022558248,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": -0.12784658489012152
+      },
+      {
+        "window": 16,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.2793499556406466,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": -0.1545325179725201
+      },
+      {
+        "window": 32,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.22901463146148937,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": -0.1041971937933629
+      },
+      {
+        "window": 64,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.06989785413373513,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": 0.054919583534391345
+      },
+      {
+        "window": 80,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.04974036478537602,
+        "belief_from_resid": 0.12481743766812647,
+        "excess": 0.07507707288275045
+      }
+    ],
+    "wall_seconds": 27.898665316868573
+  },
+  "predator_prey_mess4": {
+    "n_eval": 384,
+    "belief_memory_letters": 7,
+    "steps_per_tick": 10,
+    "residual_depth_selected_on_validation": 3,
+    "residual_validation_r2": 0.1549892102729423,
+    "by_window": [
+      {
+        "window": 1,
+        "ridge_alpha": 10.0,
+        "belief_from_tokens": 0.10963270607904844,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": 0.05411046566076293
+      },
+      {
+        "window": 2,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.1328750543452578,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": 0.030868117394553585
+      },
+      {
+        "window": 4,
+        "ridge_alpha": 1.0,
+        "belief_from_tokens": 0.1639699221846481,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": -0.0002267504448367208
+      },
+      {
+        "window": 8,
+        "ridge_alpha": 1.0,
+        "belief_from_tokens": 0.2017357148647956,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": -0.037992543124984235
+      },
+      {
+        "window": 16,
+        "ridge_alpha": 10.0,
+        "belief_from_tokens": 0.20073371239970175,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": -0.03699054065989038
+      },
+      {
+        "window": 32,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.15248851186169524,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": 0.011254659878116136
+      },
+      {
+        "window": 64,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.10365981738462664,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": 0.060083354355184734
+      },
+      {
+        "window": 80,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.10401462851510264,
+        "belief_from_resid": 0.16374317173981137,
+        "excess": 0.05972854322470873
+      }
+    ],
+    "wall_seconds": 18.825196135789156
+  },
+  "sphere_mess4": {
+    "n_eval": 384,
+    "belief_memory_letters": 7,
+    "steps_per_tick": 10,
+    "residual_depth_selected_on_validation": 1,
+    "residual_validation_r2": 0.07486189397312108,
+    "by_window": [
+      {
+        "window": 1,
+        "ridge_alpha": 1.0,
+        "belief_from_tokens": 0.031693082446132004,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": 0.04414211720671486
+      },
+      {
+        "window": 2,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.03712571949492005,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": 0.038709480157926815
+      },
+      {
+        "window": 4,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.05778276843862492,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": 0.018052431214221946
+      },
+      {
+        "window": 8,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.0675747430709448,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": 0.008260456581902068
+      },
+      {
+        "window": 16,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.12973675142548557,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": -0.05390155177263871
+      },
+      {
+        "window": 32,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.1737558029025702,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": -0.09792060324972333
+      },
+      {
+        "window": 64,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.09032529431209413,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": -0.014490094659247263
+      },
+      {
+        "window": 80,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.08035133050464398,
+        "belief_from_resid": 0.07583519965284687,
+        "excess": -0.004516130851797112
+      }
+    ],
+    "wall_seconds": 24.463904791977257
+  },
+  "double_pendulum_mess4": {
+    "n_eval": 384,
+    "belief_memory_letters": 7,
+    "steps_per_tick": 10,
+    "residual_depth_selected_on_validation": 1,
+    "residual_validation_r2": 0.02342487757588289,
+    "by_window": [
+      {
+        "window": 1,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.02123085645176141,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.004225034813218752
+      },
+      {
+        "window": 2,
+        "ridge_alpha": 0.1,
+        "belief_from_tokens": 0.022486411673229734,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.005480590034687077
+      },
+      {
+        "window": 4,
+        "ridge_alpha": 100.0,
+        "belief_from_tokens": 0.01842541927952727,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.0014195976409846142
+      },
+      {
+        "window": 8,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.024521145723052418,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.007515324084509761
+      },
+      {
+        "window": 16,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.025623032020432996,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.008617210381890339
+      },
+      {
+        "window": 32,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.018211666300528135,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": -0.001205844661985478
+      },
+      {
+        "window": 64,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.00591719143663579,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": 0.011088630201906868
+      },
+      {
+        "window": 80,
+        "ridge_alpha": 1000.0,
+        "belief_from_tokens": 0.0028541293418953284,
+        "belief_from_resid": 0.017005821638542657,
+        "excess": 0.014151692296647329
+      }
+    ],
+    "wall_seconds": 23.550687262322754
+  }
+}

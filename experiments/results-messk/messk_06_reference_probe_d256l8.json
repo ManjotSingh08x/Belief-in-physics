@@ -1,0 +1,457 @@
+{
+  "pendulum_mess4": {
+    "protocol": "one row per tick at its final step; belief probabilities and physical metric",
+    "metric_names": [
+      "omega"
+    ],
+    "ridge_alphas": [
+      1.0,
+      10.0,
+      100.0,
+      1000.0,
+      10000.0
+    ],
+    "n_depths": 4,
+    "tag": "_d256l8",
+    "n_eval_sequences": 6144,
+    "model_seed": 0,
+    "evaluation_seed": 20260829,
+    "analysis_commit": "53dac7a",
+    "device": "cpu",
+    "trained": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.7016084717594272,
+          "test_r2": 0.6976248938904516,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.9389602575388727,
+          "test_r2": 0.9356264998555698,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.5023594167265462,
+          "test_r2": 0.5022427378915051,
+          "alpha": 10.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.7819611230986843,
+          "test_r2": 0.7734033832354662,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "random_init": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.43456876594024985,
+          "test_r2": 0.43297521697672486,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.8913414219817267,
+          "test_r2": 0.8931384454327601,
+          "alpha": 1.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.34964953878583144,
+          "test_r2": 0.3451826534893413,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.41921629377517977,
+          "test_r2": 0.4204403476434535,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "raw_tokens": {
+      "belief": {
+        "validation_r2": 0.4552044559746773,
+        "test_r2": 0.4543546507247617,
+        "window": 20,
+        "alpha": 1.0,
+        "feature_dim": 3630
+      },
+      "metric": {
+        "validation_r2": 0.9783135964369656,
+        "test_r2": 0.9765306479825139,
+        "window": 10,
+        "alpha": 1.0,
+        "feature_dim": 1820
+      }
+    },
+    "wall_seconds": 391.9997562719509
+  },
+  "predator_prey_mess4": {
+    "protocol": "one row per tick at its final step; belief probabilities and physical metric",
+    "metric_names": [
+      "dx_dt",
+      "dy_dt"
+    ],
+    "ridge_alphas": [
+      1.0,
+      10.0,
+      100.0,
+      1000.0,
+      10000.0
+    ],
+    "n_depths": 4,
+    "tag": "_d256l8",
+    "n_eval_sequences": 6144,
+    "model_seed": 0,
+    "evaluation_seed": 20260829,
+    "analysis_commit": "53dac7a",
+    "device": "cpu",
+    "trained": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.8201696834305717,
+          "test_r2": 0.8233116900874309,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.9904853366920991,
+          "test_r2": 0.9901899463880226,
+          "alpha": 10.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.6563440601571742,
+          "test_r2": 0.6638062008607613,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.9625846885580999,
+          "test_r2": 0.9631268599956366,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "random_init": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.4404388479455147,
+          "test_r2": 0.4384246982189829,
+          "alpha": 10.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.9029181806158936,
+          "test_r2": 0.8995629122572257,
+          "alpha": 10.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.29670199857667057,
+          "test_r2": 0.29289485751792477,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.7735650005910623,
+          "test_r2": 0.7651485394819896,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "raw_tokens": {
+      "belief": {
+        "validation_r2": 0.640939013631852,
+        "test_r2": 0.6394813039997465,
+        "window": 40,
+        "alpha": 1.0,
+        "feature_dim": 7250
+      },
+      "metric": {
+        "validation_r2": 0.9515277113339109,
+        "test_r2": 0.9522053935625767,
+        "window": 40,
+        "alpha": 1.0,
+        "feature_dim": 7250
+      }
+    },
+    "wall_seconds": 426.0722165242769
+  },
+  "sphere_mess4": {
+    "protocol": "one row per tick at its final step; belief probabilities and physical metric",
+    "metric_names": [
+      "v_meridional",
+      "v_azimuthal"
+    ],
+    "ridge_alphas": [
+      1.0,
+      10.0,
+      100.0,
+      1000.0,
+      10000.0
+    ],
+    "n_depths": 4,
+    "tag": "_d256l8",
+    "n_eval_sequences": 6144,
+    "model_seed": 0,
+    "evaluation_seed": 20260829,
+    "analysis_commit": "53dac7a",
+    "device": "cpu",
+    "trained": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.9568785985254664,
+          "test_r2": 0.9524903000000932,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.9987187054612823,
+          "test_r2": 0.99835599167891,
+          "alpha": 10.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.8636834685160697,
+          "test_r2": 0.857988495368279,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.9881893928254983,
+          "test_r2": 0.9873527457685467,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "random_init": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.45483298756263857,
+          "test_r2": 0.4429012967359321,
+          "alpha": 10.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.9819490738762268,
+          "test_r2": 0.9808042572193383,
+          "alpha": 1.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.3386772648644692,
+          "test_r2": 0.32774362546013003,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.8571328152295776,
+          "test_r2": 0.8617632486911259,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "raw_tokens": {
+      "belief": {
+        "validation_r2": 0.5723135697577468,
+        "test_r2": 0.5721016292625342,
+        "window": 40,
+        "alpha": 1.0,
+        "feature_dim": 7250
+      },
+      "metric": {
+        "validation_r2": 0.9851378380774483,
+        "test_r2": 0.9847193124939926,
+        "window": 40,
+        "alpha": 1.0,
+        "feature_dim": 7250
+      }
+    },
+    "wall_seconds": 411.11649245675653
+  },
+  "double_pendulum_mess4": {
+    "protocol": "one row per tick at its final step; belief probabilities and physical metric",
+    "metric_names": [
+      "omega1",
+      "omega2"
+    ],
+    "ridge_alphas": [
+      1.0,
+      10.0,
+      100.0,
+      1000.0,
+      10000.0
+    ],
+    "n_depths": 4,
+    "tag": "_d256l8",
+    "n_eval_sequences": 6144,
+    "model_seed": 0,
+    "evaluation_seed": 20260829,
+    "analysis_commit": "53dac7a",
+    "device": "cpu",
+    "trained": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.31389760681178774,
+          "test_r2": 0.31057281890050814,
+          "alpha": 10000.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.5519209888836699,
+          "test_r2": 0.5524874312950985,
+          "alpha": 1000.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.2249825047127287,
+          "test_r2": 0.2232528797724754,
+          "alpha": 10.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.4231865691783995,
+          "test_r2": 0.42025022940974144,
+          "alpha": 10.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "random_init": {
+      "whole_tick": {
+        "belief": {
+          "validation_r2": 0.211779924321559,
+          "test_r2": 0.2166546718565467,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        },
+        "metric": {
+          "validation_r2": 0.2729399698582219,
+          "test_r2": 0.2556995574356907,
+          "alpha": 100.0,
+          "feature_dim": 10240,
+          "n_train_rows": 58976,
+          "rows_per_feature": 5.759375
+        }
+      },
+      "last_position": {
+        "belief": {
+          "validation_r2": 0.16956980474322003,
+          "test_r2": 0.16945125049103704,
+          "alpha": 10.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        },
+        "metric": {
+          "validation_r2": 0.23548719299240634,
+          "test_r2": 0.2230155542228715,
+          "alpha": 1.0,
+          "feature_dim": 1024,
+          "n_train_rows": 58976,
+          "rows_per_feature": 57.59375
+        }
+      }
+    },
+    "raw_tokens": {
+      "belief": {
+        "validation_r2": 0.16909787412394386,
+        "test_r2": 0.17436156171803396,
+        "window": 20,
+        "alpha": 100.0,
+        "feature_dim": 3630
+      },
+      "metric": {
+        "validation_r2": 0.2759532512625732,
+        "test_r2": 0.2701452819585131,
+        "window": 80,
+        "alpha": 1000.0,
+        "feature_dim": 14490
+      }
+    },
+    "wall_seconds": 399.8931802897714
+  }
+}
