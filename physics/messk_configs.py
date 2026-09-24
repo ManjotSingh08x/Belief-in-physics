@@ -28,10 +28,10 @@ CHAIN = {"n_states": 4, "alpha": 0.7, "stay": 0.7}
 #: other systems. The pendulum value sqrt(0.3) gives the variance-matched ladder
 #: {-1.64,-0.55,+0.55,+1.64}, whose mean squared impulse is 1.5.
 SYSTEMS: dict[str, dict] = {
-    "pendulum": {"factory": Pendulum, "delta_v": 0.5477225575051661, "dt": 0.02},
-    "predator_prey": {"factory": PredatorPrey, "delta_v": 0.35, "dt": 0.05},
-    "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.04, "obs_bins": (30, 30)},
-    "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01},
+    "pendulum": {"factory": Pendulum, "delta_v": 0.5477225575051661, "dt": 0.02, "integration_dt": 0.01},
+    "predator_prey": {"factory": PredatorPrey, "delta_v": 0.35, "dt": 0.05, "integration_dt": 0.01},
+    "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.04, "integration_dt": 0.01, "obs_bins": (30, 30)},
+    "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01, "integration_dt": 0.01},
 }
 
 DRIVER = {"m": 16, "n_steps": 10, "obs_bins": 181}

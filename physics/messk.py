@@ -177,6 +177,7 @@ class MessDriven:
     m: int = 16  # chain ticks
     n_steps: int = 10  # physics steps per tick
     dt: float = 0.2
+    integration_dt: float | None = None
     #: Bins per observation channel. An int or a one-tuple is the single-channel
     #: case every committed run used. `(181, 181)` bins the system's first two
     #: channels and combines them into one token, so the vocabulary is the
@@ -195,6 +196,15 @@ class MessDriven:
                 f"but {len(bins)} bin counts were given"
             )
         object.__setattr__(self, "obs_bins", bins)
+        integration_dt = self.dt if self.integration_dt is None else self.integration_dt
+        ratio = self.dt / integration_dt
+        if integration_dt <= 0 or not np.isclose(ratio, round(ratio)):
+            raise ValueError("dt must be a positive integer multiple of integration_dt")
+        object.__setattr__(self, "integration_dt", float(integration_dt))
+
+    def flow(self, z: np.ndarray) -> np.ndarray:
+        """Advance one physics sampling gap using the configured internal step."""
+        return self.system.flow(z, self.dt, substeps=round(self.dt / self.integration_dt))
 
     @property
     def actions(self) -> np.ndarray:
@@ -323,7 +333,7 @@ class MessDriven:
             # The impulse lands once per tick, before that tick's steps.
             z = sys_.kick(z, actions[letters[:, t]])
             for s in range(self.n_steps):
-                z = sys_.flow(z, self.dt)
+                z = self.flow(z)
                 obs[:, t * self.n_steps + s] = self.channels(z)
                 metric[:, t * self.n_steps + s] = sys_.metric(z)
 
@@ -360,7 +370,7 @@ class MessDriven:
         for t in range(self.m):
             z = self.system.kick(z, self.actions[letters[:, t]])
             for s in range(self.n_steps):
-                z = self.system.flow(z, self.dt)
+                z = self.flow(z)
                 at = t * self.n_steps + s
                 obs[:, at] = self.channels(z)
                 metric[:, at] = self.system.metric(z)

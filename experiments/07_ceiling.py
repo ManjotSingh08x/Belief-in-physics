@@ -51,7 +51,7 @@ def replay(proc, states: np.ndarray, letters: np.ndarray) -> tuple[np.ndarray, n
     z = proc.system.kick(states, proc.actions[letters])
     tokens = np.empty((len(letters), proc.n_steps), dtype=np.int64)
     for step in range(proc.n_steps):
-        z = proc.system.flow(z, proc.dt)
+        z = proc.flow(z)
         tokens[:, step] = proc.observe(z)
     return z, tokens
 
@@ -108,7 +108,7 @@ def oracle_entropy(proc, batch: dict, index: int) -> float:
             belief = batch["beliefs"][index, (tick - 1) * proc.n_steps]
             letter_probs = belief @ emission
             branch = proc.system.kick(np.repeat(z, k, axis=0), proc.actions[np.arange(k)])
-            first = proc.discretise(proc.system.observable(proc.system.flow(branch, proc.dt)))
+            first = proc.discretise(proc.system.observable(proc.flow(branch)))
             mass = np.bincount(first, weights=letter_probs, minlength=proc.n_obs)
             live = mass[mass > 0]
             total += float(-(live * np.log(live)).sum())

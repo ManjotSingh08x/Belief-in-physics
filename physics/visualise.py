@@ -14,6 +14,7 @@ loadable on a machine with no model installed.
 from __future__ import annotations
 
 from dataclasses import fields
+from functools import lru_cache
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, Normalize
@@ -131,7 +132,7 @@ def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8) -> dict:
         z_d = sysm.kick(z_d, action)
         z_t = sysm.kick(z_t, action)
         for _ in range(proc.n_steps):
-            z_d, z_f, z_t = sysm.flow(z_d, dt), sysm.flow(z_f, dt), sysm.flow(z_t, dt)
+            z_d, z_f, z_t = proc.flow(z_d), proc.flow(z_f), proc.flow(z_t)
             for key, z in (("driven", z_d), ("free", z_f), ("twin", z_t)):
                 states[key].append(z[0].copy())
                 energy[key].append(float(sysm.energy(z)[0]))
@@ -184,28 +185,28 @@ def lyapunov(tr: dict, eps: float = 1e-8) -> float:
     return float(np.polyfit(t, y, 1)[0])
 
 
+@lru_cache(maxsize=512)
 def _bayes_gap(proc, n_samples: int = 100, seed: int = 42) -> float:
-    """Cross-entropy gap H(obs) - H(obs | letters) in nats.
+    """Mean positional token entropy in nats for deterministic letter-conditioned runs.
 
-    Measures how much knowing the hidden letter sequence reduces uncertainty
-    about observations. If gap ~ 0, kicks leave no learnable trace.
+    With a fixed initial state and known letters the rollout is deterministic, so
+    H(token_t | letters) is zero. The Bayes gap is therefore the marginal token
+    entropy at each position, averaged over positions. Computing one global token
+    histogram would mix temporal variation with letter information.
     """
     rng = np.random.default_rng(seed)
     _, letters = proc.chain.sample(rng, n_samples, proc.m)
     tokens = proc.rollout(letters)["tokens"]
-    flat = tokens.reshape(-1)
-    _, counts = np.unique(flat, return_counts=True)
-    p = counts / counts.sum()
-    h_marginal = -float(np.sum(p * np.log(np.maximum(p, 1e-300))))
-    h_cond_list = []
-    for row in tokens:
-        _, r_counts = np.unique(row, return_counts=True)
-        r_p = r_counts / r_counts.sum()
-        h_cond_list.append(-float(np.sum(r_p * np.log(np.maximum(r_p, 1e-300)))))
-    return float(max(0.0, h_marginal - float(np.mean(h_cond_list))))
+    entropies = []
+    for position in tokens.T:
+        _, counts = np.unique(position, return_counts=True)
+        p = counts / counts.sum()
+        entropies.append(-float(np.sum(p * np.log(np.maximum(p, 1e-300)))))
+    return float(np.mean(entropies))
 
 
-def _sync_curve(chain, n_priors: int = 200, max_letters: int = 200, seed: int = 0) -> tuple[list[tuple[int, float]], int]:
+@lru_cache(maxsize=64)
+def _sync_curve(chain, n_priors: int = 200, max_letters: int = 200, seed: int = 0) -> tuple[tuple[tuple[int, float], ...], int]:
     """Total-variation distance vs letter count between diverse-prior beliefs.
 
     Returns (curve, sync_length) where curve is list of (letter_index, tv_dist).
@@ -223,7 +224,28 @@ def _sync_curve(chain, n_priors: int = 200, max_letters: int = 200, seed: int = 
         curve.append((t, tv))
         if tv < 0.01 and sync_len == -1:
             sync_len = t
-    return curve, sync_len
+    return tuple(curve), sync_len
+
+
+def _state_bound_fraction(tr: dict) -> float:
+    """Fraction of driven states pinned to an explicit numerical safety bound."""
+    system = tr["proc"].system
+    names = tuple(system.state_names)
+    states = tr["states_driven"][1:]
+    bounded_axes = []
+    for attr, predicate in (
+        ("log_bound", lambda name: name.startswith("log_")),
+        ("omega_max", lambda name: "omega" in name),
+        ("rate_max", lambda name: name in {"dtheta", "dpsi"}),
+    ):
+        bound = getattr(system, attr, None)
+        if bound is None or not np.isfinite(bound):
+            continue
+        bounded_axes.extend((index, float(bound)) for index, name in enumerate(names) if predicate(name))
+    if not bounded_axes:
+        return 0.0
+    hits = [np.isclose(np.abs(states[:, index]), bound, rtol=0.0, atol=1e-10) for index, bound in bounded_axes]
+    return float(np.mean(np.column_stack(hits)))
 
 
 def stability(tr: dict) -> dict:
@@ -241,6 +263,9 @@ def stability(tr: dict) -> dict:
     e = tr["energy_free"]
     drift = float((e[-1] - e[0]) / max(abs(e[0]), 1e-12))
     reasons = []
+    finite = all(np.isfinite(tr[key]).all() for key in ("states_driven", "obs_driven", "metric_driven"))
+    if not finite:
+        reasons.append("trajectory contains non-finite values")
     if report["clipped"] > 0.01:
         reasons.append(f"clips {report['clipped']:.1%} of samples")
     if exponent > 0.05:
@@ -254,6 +279,8 @@ def stability(tr: dict) -> dict:
     if report["used_bins"] < min_bins:
         reasons.append(f"uses {report['used_bins']}/{report['n_obs']} bins")
 
+    state_bound_fraction = _state_bound_fraction(tr)
+
     bg = _bayes_gap(proc)
     sync_curve, sync_len = _sync_curve(proc.chain)
     if bg < 0.05:
@@ -266,11 +293,13 @@ def stability(tr: dict) -> dict:
         "used_bins": report["used_bins"],
         "n_obs": report["n_obs"],
         "energy_drift_free": drift,
+        "finite": finite,
         "gap_free_mean": float(tr["gap_free"].mean()),
         "gap_free_max": float(tr["gap_free"].max()),
         "bayes_gap": bg,
         "sync_curve": sync_curve,
         "sync_length": sync_len,
+        "state_bound_fraction": state_bound_fraction,
         "channels": report.get("channels", proc.channel_names),
         "obs_ranges": report.get("obs_ranges", proc.obs_ranges),
         "obs_range": report["obs_range"],
@@ -693,7 +722,7 @@ def _panel_tokens(ax, tr) -> None:
 def _panel_belief(ax, tr) -> None:
     for k in range(tr["beliefs"].shape[1]):
         ax.step(np.arange(tr["proc"].m), tr["beliefs"][:, k], where="post", lw=1.2,
-                color=LETTER_COLOURS[k % len(LETTER_COLOURS)], label=f"P(mood {k})")
+                color=LETTER_COLOURS[k % len(LETTER_COLOURS)], label=f"P(HMM state {k})")
     ax.scatter(np.arange(tr["proc"].m), np.full(tr["proc"].m, -0.05),
                c=[LETTER_COLOURS[l % len(LETTER_COLOURS)] for l in tr["letters"]],
                marker="s", s=22)

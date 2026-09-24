@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from IPython.display import display
 
-from .messk_configs import MESSK_CONFIGS, make_process
+from .messk_configs import MESSK_CONFIGS, SYSTEMS, make_process
 from .visualise import PANELS, auto_dt, plot, stability, trace, tunable_fields
 
 LABEL_W = "150px"
@@ -555,7 +555,7 @@ def compute_optimal_gamma(
             z_flow = z_kicked
             w_sq = 0.0
             for _ in range(n_steps):
-                z_next = sysm.flow(z_flow, dt)
+                z_next = proc.flow(z_flow)
                 if damping_field == "kappa":
                     x = np.exp(z_flow[..., 0])
                     x_star = getattr(sysm, "c", 0.8) / getattr(sysm, "d", 0.4)
@@ -697,6 +697,76 @@ def _detect_damping_field(system_name: str, damping_field: str | None = None) ->
     return "gamma"
 
 
+def _fixed_dt(system_name: str) -> float:
+    """Committed physics sampling gap; dt is not a sweep axis."""
+    return float(SYSTEMS[MESSK_CONFIGS[system_name]]["dt"])
+
+
+def _damping_strength(field: str, value: float) -> float:
+    """Positive damping coefficient used by n*damping comparisons."""
+    return 1.0 / value if field == "kappa" else value
+
+
+def _damping_value(field: str, strength: float) -> float:
+    return 1.0 / strength if field == "kappa" else strength
+
+
+def _sweep_system_kwargs(
+    system_name: str,
+    field: str,
+    damping_value: float,
+    system_overrides: dict | None = None,
+    unbounded_rates: bool = True,
+) -> dict:
+    """System kwargs for screening, with velocity clamps disabled by default."""
+    system_key = MESSK_CONFIGS[system_name]
+    kwargs = dict(system_overrides or {})
+    if unbounded_rates:
+        if system_key in {"pendulum", "double_pendulum"}:
+            kwargs.setdefault("omega_max", np.inf)
+        elif system_key == "sphere":
+            kwargs.setdefault("rate_max", np.inf)
+    kwargs[field] = float(damping_value)
+    if field == "gamma1":
+        kwargs["gamma2"] = float(damping_value)
+    return kwargs
+
+
+def _screen_process(proc, n_seeds: int) -> dict:
+    reports = [stability(trace(proc, seed=seed)) for seed in range(n_seeds)]
+    values = lambda key: [report[key] for report in reports]
+    bound_failures = sum(report["state_bound_fraction"] > 0.001 for report in reports)
+    pass_rate = sum(
+        report["stable"] and report["state_bound_fraction"] <= 0.001
+        for report in reports
+    ) / n_seeds
+    reasons = {reason for report in reports for reason in report["reasons"]}
+    if bound_failures:
+        reasons.add(f"state safety bound exceeded on {bound_failures}/{n_seeds} seeds")
+    return {
+        "pass_rate": pass_rate,
+        "lyapunov_mean": float(np.mean(values("lyapunov"))),
+        "lyapunov_std": float(np.std(values("lyapunov"))),
+        "clipped_mean": float(np.mean(values("clipped"))),
+        "state_bound_mean": float(np.mean(values("state_bound_fraction"))),
+        "used_bins_mean": float(np.mean(values("used_bins"))),
+        "gap_free_mean": float(np.mean(values("gap_free_mean"))),
+        "bayes_gap_mean": float(np.mean(values("bayes_gap"))),
+        "verdict": "GO" if pass_rate >= 0.8 and float(np.mean(values("bayes_gap"))) >= 0.15 else "NO-GO",
+        "reasons": sorted(reasons),
+    }
+
+
+def _candidate_rank(cell: dict) -> tuple:
+    return (
+        cell["pass_rate"],
+        -cell["state_bound_mean"],
+        -cell["clipped_mean"],
+        cell["bayes_gap_mean"],
+        cell["used_bins_mean"],
+    )
+
+
 def grid_screen(
     system_name: str,
     delta_v_values: list[float],
@@ -707,6 +777,8 @@ def grid_screen(
     m: int = 24,
     n_seeds: int = 10,
     obs_bins=181,
+    system_overrides: dict | None = None,
+    unbounded_rates: bool = True,
     verbose: bool = False,
 ) -> dict:
     """Screen a 2D grid of (delta_v, damping) configs across multiple random seeds.
@@ -721,14 +793,14 @@ def grid_screen(
     """
     field = _detect_damping_field(system_name, damping_field)
     if dt is None:
-        dt = auto_dt(system_name)["dt"]
+        dt = _fixed_dt(system_name)
 
     grid_results = []
     for dv in delta_v_values:
         for d_val in damping_values:
-            sys_kw = {field: float(d_val)}
-            if field == "gamma1":
-                sys_kw["gamma2"] = float(d_val)
+            sys_kw = _sweep_system_kwargs(
+                system_name, field, d_val, system_overrides, unbounded_rates
+            )
             proc = make_process(
                 system_name,
                 system=sys_kw,
@@ -738,47 +810,19 @@ def grid_screen(
                 n_steps=int(n_steps),
                 obs_bins=obs_bins,
             )
-            seed_reports = []
-            for seed in range(n_seeds):
-                tr = trace(proc, seed=seed)
-                seed_reports.append(stability(tr))
-
-            pass_count = sum(1 for s in seed_reports if s["stable"])
-            pass_rate = pass_count / n_seeds
-            lyap_vals = [s["lyapunov"] for s in seed_reports]
-            clip_vals = [s["clipped"] for s in seed_reports]
-            bin_vals = [s["used_bins"] for s in seed_reports]
-            gap_vals = [s["gap_free_mean"] for s in seed_reports]
-            bg_vals = [s["bayes_gap"] for s in seed_reports]
-
-            mean_lyap = float(np.mean(lyap_vals))
-            std_lyap = float(np.std(lyap_vals))
-            mean_clip = float(np.mean(clip_vals))
-            mean_bins = float(np.mean(bin_vals))
-            mean_gap = float(np.mean(gap_vals))
-            mean_bg = float(np.mean(bg_vals))
-
-            verdict = "GO" if (pass_rate >= 0.8 and mean_bg >= 0.15) else "NO-GO"
-            all_reasons = sorted(list({r for s in seed_reports for r in s["reasons"]}))
-
             cell = {
                 "delta_v": float(dv),
                 field: float(d_val),
                 "damping_field": field,
                 "damping_value": float(d_val),
-                "pass_rate": pass_rate,
-                "lyapunov_mean": mean_lyap,
-                "lyapunov_std": std_lyap,
-                "clipped_mean": mean_clip,
-                "used_bins_mean": mean_bins,
-                "gap_free_mean": mean_gap,
-                "bayes_gap_mean": mean_bg,
-                "verdict": verdict,
-                "reasons": all_reasons,
+                "damping_strength": _damping_strength(field, float(d_val)),
+                **_screen_process(proc, n_seeds),
             }
             grid_results.append(cell)
             if verbose:
-                print(f"dv={dv:.4f} {field}={d_val:.4f} -> {verdict} (pass={pass_rate:.0%}, bg={mean_bg:.3f}, lyap={mean_lyap:+.2f})")
+                print(f"dv={dv:.4f} {field}={d_val:.4f} -> {cell['verdict']} "
+                      f"(pass={cell['pass_rate']:.0%}, bg={cell['bayes_gap_mean']:.3f}, "
+                      f"lyap={cell['lyapunov_mean']:+.2f})")
 
     passing = [c for c in grid_results if c["verdict"] == "GO"]
     res = GridScreenResult({
@@ -787,6 +831,7 @@ def grid_screen(
         "damping_field": field,
         "n_steps": int(n_steps),
         "m": int(m),
+        "unbounded_rates": unbounded_rates,
         "grid": grid_results,
         "passing": passing,
     })
@@ -828,6 +873,7 @@ def render_grid_html(result: dict) -> str:
             pr = cell["pass_rate"]
             bg = cell["bayes_gap_mean"]
             ly = cell["lyapunov_mean"]
+            bound = cell["state_bound_mean"]
             if pr >= 0.8 and bg >= 0.15:
                 bg_col = "#d4edda"
                 text_col = "#0f5132"
@@ -841,7 +887,7 @@ def render_grid_html(result: dict) -> str:
                 text_col = "#842029"
                 border_col = "#f5c2c7"
 
-            cell_content = f"<b style='font-size: 13px;'>{pr:.0%}</b><br><span style='font-size: 10px; opacity: 0.9;'>bg={bg:.2f}<br>λ={ly:+.2f}</span>"
+            cell_content = f"<b style='font-size: 13px;'>{pr:.0%}</b><br><span style='font-size: 10px; opacity: 0.9;'>bg={bg:.2f}<br>λ={ly:+.2f}<br>bound={bound:.1%}</span>"
             html.append(f"<td style='border: 1px solid {border_col}; padding: 6px 8px; background: {bg_col}; color: {text_col}; min-width: 80px;'>{cell_content}</td>")
         html.append("</tr>")
 
@@ -875,21 +921,23 @@ def n_recalibrate(
     m: int = 24,
     n_seeds: int = 10,
     obs_bins=181,
+    system_overrides: dict | None = None,
+    unbounded_rates: bool = True,
 ) -> list[dict]:
-    """Test multiple n_steps values for a locked (delta_v, damping, dt) config.
+    """Test multiple impulse spacings for a locked (delta_v, damping, dt) config.
 
     Returns list of dicts, one per n value, with stability metrics
     aggregated over n_seeds seeds.
     """
     field = _detect_damping_field(system_name, damping_field)
     if dt is None:
-        dt = auto_dt(system_name)["dt"]
+        dt = _fixed_dt(system_name)
 
     results = []
     for n in n_values:
-        sys_kw = {field: float(damping_value)}
-        if field == "gamma1":
-            sys_kw["gamma2"] = float(damping_value)
+        sys_kw = _sweep_system_kwargs(
+            system_name, field, damping_value, system_overrides, unbounded_rates
+        )
         proc = make_process(
             system_name,
             system=sys_kw,
@@ -899,36 +947,122 @@ def n_recalibrate(
             n_steps=int(n),
             obs_bins=obs_bins,
         )
-        seed_reports = [stability(trace(proc, seed=seed)) for seed in range(n_seeds)]
-
-        pass_count = sum(1 for s in seed_reports if s["stable"])
-        pass_rate = pass_count / n_seeds
-        mean_lyap = float(np.mean([s["lyapunov"] for s in seed_reports]))
-        std_lyap = float(np.std([s["lyapunov"] for s in seed_reports]))
-        mean_clip = float(np.mean([s["clipped"] for s in seed_reports]))
-        mean_bins = float(np.mean([s["used_bins"] for s in seed_reports]))
-        mean_gap = float(np.mean([s["gap_free_mean"] for s in seed_reports]))
-        mean_bg = float(np.mean([s["bayes_gap"] for s in seed_reports]))
-        verdict = "GO" if (pass_rate >= 0.8 and mean_bg >= 0.15) else "NO-GO"
-        all_reasons = sorted(list({r for s in seed_reports for r in s["reasons"]}))
-
         results.append({
-            "n_steps": int(n),
+            "n": int(n),
             "delta_v": float(delta_v),
             "damping_field": field,
             "damping_value": float(damping_value),
+            "damping_strength": _damping_strength(field, float(damping_value)),
             "dt": float(dt),
-            "pass_rate": pass_rate,
-            "lyapunov_mean": mean_lyap,
-            "lyapunov_std": std_lyap,
-            "clipped_mean": mean_clip,
-            "used_bins_mean": mean_bins,
-            "gap_free_mean": mean_gap,
-            "bayes_gap_mean": mean_bg,
-            "verdict": verdict,
-            "reasons": all_reasons,
+            **_screen_process(proc, n_seeds),
         })
     return results
+
+
+def cascade_screen(
+    system_name: str,
+    delta_v_values: list[float],
+    damping_values: list[float],
+    *,
+    dt: float | None = None,
+    base_n: int = 10,
+    n_down: int = 5,
+    n_up: int = 20,
+    m: int = 24,
+    n_seeds: int = 10,
+    obs_bins=181,
+    keep_stage1: int = 6,
+    keep_final: int = 15,
+    system_overrides: dict | None = None,
+    unbounded_rates: bool = True,
+) -> dict:
+    """Two-stage screen: delta_v x damping, then the five requested n/damping conditions."""
+    if not (0 < n_down < base_n < n_up):
+        raise ValueError("require 0 < n_down < base_n < n_up")
+    if keep_stage1 < 1 or keep_final < 1:
+        raise ValueError("candidate counts must be positive")
+    dt = _fixed_dt(system_name) if dt is None else float(dt)
+    stage1 = grid_screen(
+        system_name,
+        delta_v_values,
+        damping_values,
+        dt=dt,
+        n_steps=base_n,
+        m=m,
+        n_seeds=n_seeds,
+        obs_bins=obs_bins,
+        system_overrides=system_overrides,
+        unbounded_rates=unbounded_rates,
+    )
+    pool = stage1["passing"] or stage1["grid"]
+    bases = sorted(pool, key=_candidate_rank, reverse=True)[:keep_stage1]
+    field = stage1["damping_field"]
+    expanded = []
+    for base_rank, base in enumerate(bases, 1):
+        strength = base["damping_strength"]
+        conditions = (
+            ("base", base_n, strength),
+            ("n_up_gamma_down", n_up, strength * base_n / n_up),
+            ("n_down_gamma_up", n_down, strength * base_n / n_down),
+            ("n_up_gamma_constant", n_up, strength),
+            ("n_down_gamma_constant", n_down, strength),
+        )
+        for condition, n, condition_strength in conditions:
+            raw_damping = _damping_value(field, condition_strength)
+            sys_kw = _sweep_system_kwargs(
+                system_name, field, raw_damping, system_overrides, unbounded_rates
+            )
+            proc = make_process(
+                system_name,
+                system=sys_kw,
+                delta_v=base["delta_v"],
+                dt=dt,
+                m=m,
+                n_steps=n,
+                obs_bins=obs_bins,
+            )
+            expanded.append({
+                "system": system_name,
+                "base_rank": base_rank,
+                "condition": condition,
+                "dt": dt,
+                "n": n,
+                "delta_v": base["delta_v"],
+                "damping_field": field,
+                "damping_value": raw_damping,
+                "damping_strength": condition_strength,
+                "n_times_damping": n * condition_strength,
+                **_screen_process(proc, n_seeds),
+            })
+
+    stable = [candidate for candidate in expanded if candidate["verdict"] == "GO"]
+    selected = []
+    quota = max(1, keep_final // 5)
+    for condition in ("base", "n_up_gamma_down", "n_down_gamma_up", "n_up_gamma_constant", "n_down_gamma_constant"):
+        candidates = sorted(
+            (candidate for candidate in stable if candidate["condition"] == condition),
+            key=_candidate_rank,
+            reverse=True,
+        )
+        selected.extend(candidates[:quota])
+    if len(selected) < keep_final:
+        selected_ids = {id(candidate) for candidate in selected}
+        remainder = sorted(
+            (candidate for candidate in stable if id(candidate) not in selected_ids),
+            key=_candidate_rank,
+            reverse=True,
+        )
+        selected.extend(remainder[:keep_final - len(selected)])
+    return {
+        "system": system_name,
+        "dt": dt,
+        "base_n": base_n,
+        "damping_field": field,
+        "stage1": stage1,
+        "bases": bases,
+        "expanded": expanded,
+        "selected": selected[:keep_final],
+    }
 
 
 def grid_screen_ui(system_name: str = "pendulum_mess4") -> W.Widget:

@@ -132,8 +132,8 @@ def test_sphere_actions_distinct_in_cartesian():
     baseline = system.initial_state(1)
     action_tokens, baseline_tokens = [], []
     for _ in range(proc.n_steps):
-        state = system.flow(state, proc.dt)
-        baseline = system.flow(baseline, proc.dt)
+        state = proc.flow(state)
+        baseline = proc.flow(baseline)
         action_tokens.append(proc.observe(state))
         baseline_tokens.append(proc.observe(baseline)[0])
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import matplotlib
 matplotlib.use("Agg")
+import numpy as np
 import pytest
 
 from physics.controls import compute_optimal_gamma, explorer, parse_bins
@@ -134,3 +135,27 @@ def test_best_layer_empty_records_guard():
 
     assert best_layer([]) == {}
 
+
+def test_cascade_screen_builds_five_n_damping_conditions():
+    from physics.controls import cascade_screen
+
+    result = cascade_screen(
+        "pendulum_mess4",
+        delta_v_values=[0.55],
+        damping_values=[0.8],
+        base_n=2,
+        n_down=1,
+        n_up=4,
+        m=3,
+        n_seeds=1,
+        keep_stage1=1,
+        keep_final=5,
+    )
+    by_condition = {row["condition"]: row for row in result["expanded"]}
+    assert set(by_condition) == {
+        "base", "n_up_gamma_down", "n_down_gamma_up",
+        "n_up_gamma_constant", "n_down_gamma_constant",
+    }
+    baseline_product = by_condition["base"]["n_times_damping"]
+    assert np.isclose(by_condition["n_up_gamma_down"]["n_times_damping"], baseline_product)
+    assert np.isclose(by_condition["n_down_gamma_up"]["n_times_damping"], baseline_product)

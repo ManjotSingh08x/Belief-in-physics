@@ -82,6 +82,14 @@ def test_tokens_stay_in_vocabulary():
         assert batch["tokens"].min() >= 0 and batch["tokens"].max() < proc.n_obs, name
 
 
+def test_sampling_gap_uses_internal_physics_steps():
+    proc = make_process("predator_prey_mess4")
+    state = proc.system.initial_state(2)
+    expected_steps = round(proc.dt / proc.integration_dt)
+    assert expected_steps == 5
+    assert np.allclose(proc.flow(state), proc.system.flow(state, proc.dt, substeps=expected_steps))
+
+
 def test_all_four_systems_use_mess4_without_noop_or_repeated_actions():
     assert set(MESSK_CONFIGS) == {
         "pendulum_mess4",
@@ -119,8 +127,8 @@ def test_every_action_produces_a_distinct_observation_sequence():
         baseline = system.initial_state(1)
         action_tokens, baseline_tokens = [], []
         for _ in range(proc.n_steps):
-            state = system.flow(state, proc.dt)
-            baseline = system.flow(baseline, proc.dt)
+            state = proc.flow(state)
+            baseline = proc.flow(baseline)
             action_tokens.append(proc.observe(state))
             baseline_tokens.append(proc.observe(baseline)[0])
 
@@ -140,13 +148,13 @@ def test_actions_remain_observably_distinct_on_typical_states():
         for _ in range(8):
             state = system.kick(state, proc.actions[rng.integers(0, 4, size=n)])
             for _ in range(proc.n_steps):
-                state = system.flow(state, proc.dt)
+                state = proc.flow(state)
 
         forked = np.repeat(state, 4, axis=0)
         forked = system.kick(forked, np.tile(proc.actions, (n, 1)))
         tokens = []
         for _ in range(proc.n_steps):
-            forked = system.flow(forked, proc.dt)
+            forked = proc.flow(forked)
             tokens.append(proc.observe(forked).reshape(n, 4))
         trajectories = np.stack(tokens, axis=-1)
 
