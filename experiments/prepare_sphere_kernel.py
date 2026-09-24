@@ -1,7 +1,11 @@
 """Package one non-overlapping Sphere sweep slice as a Kaggle notebook."""
 
 import argparse
+import base64
+import io
 import json
+import subprocess
+import zipfile
 from pathlib import Path
 
 
@@ -15,10 +19,19 @@ def main():
     if not 0 <= args.start < args.stop <= 60:
         parser.error("the Sphere seed-0 alpha sweep has exactly 60 runs")
 
-    source = Path(__file__).resolve().parents[1] / "notebooks/three_phase_pipeline.ipynb"
+    root = Path(__file__).resolve().parents[1]
+    source = root / "notebooks/three_phase_pipeline.ipynb"
     notebook = json.loads(source.read_text())
+    archive_bytes = io.BytesIO()
+    with zipfile.ZipFile(archive_bytes, "w", zipfile.ZIP_DEFLATED) as archive:
+        for package in ("models", "physics"):
+            for path in sorted((root / package).rglob("*.py")):
+                archive.write(path, path.relative_to(root))
+    payload = base64.b64encode(archive_bytes.getvalue()).decode("ascii")
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     settings = {
-        "BELIEF_REPO_BRANCH": "codex/sphere-alpha-sweep",
+        "BELIEF_REPO_ROOT": "/kaggle/working/Belief-in-physics",
+        "BELIEF_SOURCE_REVISION": revision,
         "BELIEF_RUN_FULL_SWEEP": "1",
         "BELIEF_SYSTEM_FILTER": "sphere",
         "BELIEF_SEED_FILTER": "0",
@@ -26,7 +39,10 @@ def main():
         "BELIEF_RUN_STOP": str(args.stop),
         "BELIEF_NOTEBOOK_DEVICE": "cuda",
     }
-    setup = "import os\n" + "\n".join(
+    setup = "import base64, io, os, zipfile\nfrom pathlib import Path\n"
+    setup += "root = Path('/kaggle/working/Belief-in-physics')\nroot.mkdir(parents=True, exist_ok=True)\n"
+    setup += f"with zipfile.ZipFile(io.BytesIO(base64.b64decode({payload!r}))) as archive:\n    archive.extractall(root)\n"
+    setup += "\n".join(
         f"os.environ[{key!r}] = {value!r}" for key, value in settings.items()
     ) + "\n"
     notebook["cells"].insert(1, {
