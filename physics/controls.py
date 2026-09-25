@@ -17,7 +17,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from IPython.display import display
 
-from .messk_configs import MESSK_CONFIGS, make_process
+from .messk_configs import (
+    DOUBLE_PENDULUM_BINS,
+    MESSK_CONFIGS,
+    make_process,
+    set_double_pendulum_bins,
+)
 from .visualise import PANELS, auto_dt, plot, stability, trace, tunable_fields
 
 LABEL_W = "150px"
@@ -345,7 +350,7 @@ def explorer(default: str = "pendulum_mess4", panels=("observable", "energy", "m
         params.rebuild(spec.system, redraw)
         dt_s.value, dv_s.value = spec.dt, spec.delta_v
         bins.value = "x".join(str(b) for b in spec.obs_bins) if len(spec.obs_bins) > 1 else str(spec.obs_bins[0])
-        if system_dd.value == "sphere_mess4" and "tokens" not in panel_sel.value:
+        if system_dd.value in ("sphere_mess4", "double_pendulum_mess4") and "tokens" not in panel_sel.value:
             cur = list(panel_sel.value)
             if "metric" in cur:
                 cur[cur.index("metric")] = "tokens"
@@ -706,7 +711,7 @@ def grid_screen(
     n_steps: int = 10,
     m: int = 24,
     n_seeds: int = 10,
-    obs_bins=181,
+    obs_bins=None,
     verbose: bool = False,
 ) -> dict:
     """Screen a 2D grid of (delta_v, damping) configs across multiple random seeds.
@@ -729,15 +734,16 @@ def grid_screen(
             sys_kw = {field: float(d_val)}
             if field == "gamma1":
                 sys_kw["gamma2"] = float(d_val)
-            proc = make_process(
-                system_name,
+            proc_kw = dict(
                 system=sys_kw,
                 delta_v=float(dv),
                 dt=float(dt),
                 m=int(m),
                 n_steps=int(n_steps),
-                obs_bins=obs_bins,
             )
+            if obs_bins is not None:
+                proc_kw["obs_bins"] = obs_bins
+            proc = make_process(system_name, **proc_kw)
             seed_reports = []
             for seed in range(n_seeds):
                 tr = trace(proc, seed=seed)
@@ -874,7 +880,7 @@ def n_recalibrate(
     n_values: list[int] = (5, 10, 15, 20),
     m: int = 24,
     n_seeds: int = 10,
-    obs_bins=181,
+    obs_bins=None,
 ) -> list[dict]:
     """Test multiple n_steps values for a locked (delta_v, damping, dt) config.
 
@@ -890,15 +896,16 @@ def n_recalibrate(
         sys_kw = {field: float(damping_value)}
         if field == "gamma1":
             sys_kw["gamma2"] = float(damping_value)
-        proc = make_process(
-            system_name,
+        proc_kw = dict(
             system=sys_kw,
             delta_v=float(delta_v),
             dt=float(dt),
             m=int(m),
             n_steps=int(n),
-            obs_bins=obs_bins,
         )
+        if obs_bins is not None:
+            proc_kw["obs_bins"] = obs_bins
+        proc = make_process(system_name, **proc_kw)
         seed_reports = [stability(trace(proc, seed=seed)) for seed in range(n_seeds)]
 
         pass_count = sum(1 for s in seed_reports if s["stable"])

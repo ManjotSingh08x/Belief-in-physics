@@ -406,8 +406,11 @@ def _panel_observable(ax, tr) -> None:
                     label=f"token {name} (recon)")
 
     _mark_kicks(ax, tr, y_data=tr["obs_driven"][:, 0])
-    ch0 = proc.channel_names[0]
-    ax.set_ylabel(f"{ch0} (rad)" if "th" in ch0.lower() or "psi" in ch0.lower() else ch0)
+    if len(proc.obs_bins) > 1:
+        ax.set_ylabel(f"{', '.join(proc.channel_names)} (rad)" if any("th" in n.lower() or "psi" in n.lower() for n in proc.channel_names) else ", ".join(proc.channel_names))
+    else:
+        ch0 = proc.channel_names[0]
+        ax.set_ylabel(f"{ch0} (rad)" if "th" in ch0.lower() or "psi" in ch0.lower() else ch0)
     title_suffix = f" & tokens reconverted to ({', '.join(proc.channel_names)})" if len(proc.obs_bins) > 1 else " and its token"
     ax.set_title(f"observable{title_suffix} (red = range edge)")
     y_lo, y_hi = ax.get_ylim()
@@ -641,6 +644,7 @@ def _panel_tokens(ax, tr) -> None:
         b0, b1 = proc.obs_bins[:2]
 
         is_cartesian = (name0.lower() == "x" and name1.lower() == "y")
+        is_equal_range = abs((hi0 - lo0) - (hi1 - lo1)) < 1e-6
 
         H, xedges, yedges = np.histogram2d(
             recon[:, 0], recon[:, 1],
@@ -649,7 +653,7 @@ def _panel_tokens(ax, tr) -> None:
         )
         ax.imshow(
             H.T, origin="lower", extent=[lo0, hi0, lo1, hi1],
-            aspect="equal" if is_cartesian else "auto",
+            aspect="equal" if (is_cartesian or is_equal_range) else "auto",
             cmap="Blues", interpolation="nearest", alpha=0.65
         )
 
@@ -658,15 +662,18 @@ def _panel_tokens(ax, tr) -> None:
             ax.plot(np.cos(th_circ), np.sin(th_circ), color="#c0392b", ls="--", lw=1.2, alpha=0.65, label="equator (θ=90°)")
             ax.set_xlim(lo0 * 1.05, hi0 * 1.05)
             ax.set_ylim(lo1 * 1.05, hi1 * 1.05)
+        else:
+            ax.set_xlim(lo0, hi0)
+            ax.set_ylim(lo1, hi1)
 
-        # Build continuous path segments without wrap-around cuts in channel 1 (e.g. psi)
+        # Build continuous path segments without wrap-around cuts in either angular channel
         th = recon[:, 0]
         psi = recon[:, 1]
-        is_angle = ("psi" in name1.lower() or "th" in name1.lower()) and not is_cartesian
+        is_angle = ("psi" in name1.lower() or "th" in name1.lower() or "th" in name0.lower()) and not is_cartesian
         points = np.stack([th, psi], axis=-1)
         segments = np.stack([points[:-1], points[1:]], axis=1)
         if is_angle:
-            valid = np.abs(np.diff(psi)) <= np.pi
+            valid = (np.abs(np.diff(th)) <= np.pi) & (np.abs(np.diff(psi)) <= np.pi)
             segments = segments[valid]
             t_vals = np.linspace(0, 1, len(th) - 1)[valid]
         else:
@@ -686,7 +693,7 @@ def _panel_tokens(ax, tr) -> None:
             ax.set_xlabel(f"{name0} (rad)" if "th" in name0.lower() else name0)
             ax.set_ylabel(f"{name1} (rad)" if "psi" in name1.lower() or "th" in name1.lower() else name1)
         used = int((np.bincount(tr["tokens_driven"], minlength=proc.n_obs) > 0).sum())
-        ax.set_title(f"token grid ({b0}\u00d7{b1}): {used}/{proc.n_obs} cells (blue \u2192 yellow)")
+        ax.set_title(f"token grid ({name0}\u00d7{name1} = {b0}\u00d7{b1}): {used}/{proc.n_obs} cells (blue \u2192 yellow)")
         ax.legend(fontsize=7, loc="upper right")
 
 
@@ -704,13 +711,15 @@ def _panel_belief(ax, tr) -> None:
 
 
 def _panel_return_map(ax, tr) -> None:
+    proc = tr["proc"]
+    name0 = proc.channel_names[0] if hasattr(proc, "channel_names") and proc.channel_names else "obs"
     x = tr["obs_driven"][:, 0]
     ax.scatter(x[:-1], x[1:], s=4, alpha=0.5, color=C_DRIVEN, label="driven")
     f = tr["obs_free"][:, 0]
     ax.scatter(f[:-1], f[1:], s=4, alpha=0.5, color=C_FREE, label="free")
-    ax.set_xlabel("obs[n]")
-    ax.set_ylabel("obs[n+1]")
-    ax.set_title("return map (a thin curve = deterministic, a cloud = folded)")
+    ax.set_xlabel(f"{name0}[n]")
+    ax.set_ylabel(f"{name0}[n+1]")
+    ax.set_title(f"return map: {name0} (a thin curve = deterministic, a cloud = folded)")
     ax.legend(fontsize=7)
 
 
@@ -746,7 +755,7 @@ def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
         label = f"{cfg['name']}" + (" (drawn)" if is_drawn else "")
         ax.plot(t, out["observable"][l, :, 0], color=cfg["color"], label=label, **style)
 
-    for (lo, hi) in proc.obs_ranges[:1]:
+    for (lo, hi) in proc.obs_ranges:
         ax.axhline(lo, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
         ax.axhline(hi, color="#c0392b", lw=0.7, alpha=0.4, ls=":")
 
@@ -769,9 +778,14 @@ def _panel_causal_effect(ax, tr, tick: int = 4) -> None:
             cfg = ticker_for_letter(l)
             recon_l = proc.undiscretise(out["tokens"][l])
             ax.step(t, recon_l[:, 0], color=cfg["color"], ls=":", where="post", **style)
+            if recon_l.shape[-1] > 1 and is_drawn:
+                ax.step(t, recon_l[:, 1], color=cfg["color"], ls="-.", where="post", alpha=0.4, zorder=4)
 
     ax.axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
-    ax.set_ylabel(f"{proc.channel_names[0]} (rad)" if "theta" in proc.channel_names[0] else "observable")
+    if len(proc.obs_bins) > 1:
+        ax.set_ylabel(f"{', '.join(proc.channel_names)} (rad)" if any("th" in n.lower() or "psi" in n.lower() for n in proc.channel_names) else ", ".join(proc.channel_names))
+    else:
+        ax.set_ylabel(f"{proc.channel_names[0]} (rad)" if "theta" in proc.channel_names[0] else "observable")
     ax.set_title(f"causal effect at tick {tick} ({sep_label})")
     ax.legend(fontsize=7, loc="upper right", ncol=min(4, k))
 
@@ -796,6 +810,9 @@ def causal_effect(tr_or_proc, tick: int = 4, seed: int = 0):
         label = f"{cfg['name']}" + (" (drawn)" if is_drawn else "")
         axes[0].plot(t, out["observable"][l, :, 0], color=cfg["color"], label=label, **style)
         if len(proc.obs_bins) > 1:
+            if out["observable"].shape[-1] > 1 and is_drawn:
+                axes[0].plot(t, out["observable"][l, :, 1], color=cfg["color"], ls="--", alpha=0.5,
+                             label=f"{label} ({proc.channel_names[1]})")
             recon_l = proc.undiscretise(out["tokens"][l])
             axes[1].step(t, recon_l[:, 0], color=cfg["color"], where="post",
                          label=f"{label} ({proc.channel_names[0]})", **style)
@@ -807,7 +824,7 @@ def causal_effect(tr_or_proc, tick: int = 4, seed: int = 0):
 
     axes[0].axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
     axes[1].axvline(t_branch, color=INK, ls="--", lw=1.0, alpha=0.7)
-    axes[0].set_ylabel(f"continuous {proc.channel_names[0]}")
+    axes[0].set_ylabel(f"continuous ({', '.join(proc.channel_names)})" if len(proc.obs_bins) > 1 else f"continuous {proc.channel_names[0]}")
     axes[1].set_ylabel(f"token recon ({', '.join(proc.channel_names)})" if len(proc.obs_bins) > 1 else "token")
     axes[1].set_xlabel("time (s)")
 
