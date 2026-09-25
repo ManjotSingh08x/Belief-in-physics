@@ -98,19 +98,19 @@ Channels: `theta`, `psi`. Release: `theta0 = 0.6`, `psi_dot0 = 2.0`.
 At `0.12` neither clip fires and all four action pairs still separate.
 
 ### Double pendulum
-Channels: `theta2`, `theta1`. Release: `th1_0 = 0.9`, `th2_0 = -0.4`, `w1_0 = w2_0 = 0.0`.
+Channels: `theta1`, `theta2`. Release: `th1_0 = 0.9`, `th2_0 = -0.4`, `w1_0 = w2_0 = 0.0`.
 
-`delta_v = 1.2`, `dt = 0.01`.
+`delta_v = 1.2`, `dt = 0.01`, `obs_bins = (30, 30)` (mixed-radix tokens `theta1 * 30 + theta2`, vocabulary `900`).
 
 | Parameter | Value | What it does |
 |---|---|---|
 | `g` | `9.8` | Gravity |
 | `l1`, `l2` | `1.0`, `1.0` | Arm lengths |
 | `m1`, `m2` | `1.0`, `1.0` | Bob masses |
-| `gamma1`, `gamma2` | `0.5`, `0.5` | Viscous joint friction |
+| `gamma1`, `gamma2` | `2.5`, `2.5` | Viscous joint friction; screened optimal range [2.5, 3.0] with 3.0 yielding 100% pass rate, Bayes gap 1.96 nats, and lambda=-0.81/s |
 | `omega_max` | `10.0` | Rate clamp |
-| `joint1_action_gain` | `2.0` | Amplifies joint-1 kicks so all four actions give distinct theta2 token sequences |
-| `obs_range` | `(-pi, pi)` | Binned range of theta2 |
+| `joint1_action_gain` | `2.0` | Amplifies joint-1 kicks so all four actions give distinct observation sequences |
+| `obs_ranges` | `((-pi, pi), (-pi, pi))` | Binned range of (theta1, theta2) |
 | `initial_state` | `(0.9, -0.4, 0, 0)` | Asymmetric release, so kicks to either joint are observable |
 | `metric_names` | `("omega1", "omega2")` | Physical probe targets |
 

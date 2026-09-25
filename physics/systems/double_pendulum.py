@@ -93,21 +93,21 @@ class DoublePendulum:
         w2 = np.clip(z[..., 3] + action[..., 1], -self.omega_max, self.omega_max)
         return np.stack([z[..., 0], z[..., 1], w1, w2], axis=-1)
 
-    observable_names: tuple[str, ...] = ("theta2", "theta1")
+    observable_names: tuple[str, ...] = ("theta1", "theta2")
 
     @property
     def obs_ranges(self) -> tuple[tuple[float, float], ...]:
         return (self.obs_range, (-np.pi, np.pi))
 
     def observable(self, z: np.ndarray) -> np.ndarray:
-        """theta2, wrapped -- the far joint, which is the chaotic one."""
-        return (z[..., 1] + np.pi) % (2 * np.pi) - np.pi
+        """theta1, wrapped -- the base joint."""
+        return (z[..., 0] + np.pi) % (2 * np.pi) - np.pi
 
     def observables(self, z: np.ndarray) -> np.ndarray:
-        """Both joint angles. Watching only theta2 throws away the driven joint,
-        which is why this system is the one that most wants a second channel."""
+        """Both joint angles in order (theta1, theta2).
+        Mixed-radix binning (e.g. 30x30) yields theta1 * 30 + theta2 tokens."""
         wrap = lambda a: (a + np.pi) % (2 * np.pi) - np.pi  # noqa: E731
-        return np.stack([wrap(z[..., 1]), wrap(z[..., 0])], axis=-1)
+        return np.stack([wrap(z[..., 0]), wrap(z[..., 1])], axis=-1)
 
     def metric(self, z: np.ndarray) -> np.ndarray:
         return z[..., 2:4]
@@ -141,7 +141,9 @@ def _demo() -> None:
     assert abs(joint1[0, 2] - 1.2) < 1e-12 and joint1[0, 3] == 0.0
     assert joint2[0, 2] == 0.0 and abs(joint2[0, 3] + 1.2) < 1e-12
     lo, hi = dp.obs_range
-    assert lo <= dp.observable(np.array([[0.0, 7.0, 0.0, 0.0]]))[0] <= hi, "theta2 must wrap"
+    assert lo <= dp.observable(np.array([[7.0, 0.0, 0.0, 0.0]]))[0] <= hi, "theta1 must wrap"
+    obs2 = dp.observables(np.array([[7.0, -7.0, 0.0, 0.0]]))
+    assert lo <= obs2[0, 0] <= hi and lo <= obs2[0, 1] <= hi, "both angles must wrap"
     print("double_pendulum ok")
 
 
