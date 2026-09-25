@@ -30,7 +30,7 @@ CHAIN = {"n_states": 4, "alpha": 0.7, "stay": 0.7}
 SYSTEMS: dict[str, dict] = {
     "pendulum": {"factory": Pendulum, "delta_v": 0.5477225575051661, "dt": 0.02, "integration_dt": 0.01},
     "predator_prey": {"factory": PredatorPrey, "delta_v": 0.35, "dt": 0.05, "integration_dt": 0.01},
-    "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.04, "integration_dt": 0.01, "obs_bins": (30, 30)},
+    "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.2, "integration_dt": 0.01, "obs_bins": (30, 30)},
     "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01, "integration_dt": 0.01},
 }
 

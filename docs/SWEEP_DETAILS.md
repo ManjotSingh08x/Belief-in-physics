@@ -20,7 +20,7 @@ The experiment is split into two notebooks:
 |---|---:|---:|
 | pendulum | 0.02 | 2 |
 | predator-prey | 0.05 | 5 |
-| sphere | 0.04 | 4 |
+| sphere | 0.20 | 20 |
 | double pendulum | 0.01 | 1 |
 
 Mechanical angular velocities are unbounded during screening. Predator-prey keeps its finite log-population bound because exponentiating unbounded log states is numerically unsafe.
@@ -66,7 +66,7 @@ Each candidate records:
 
 A grid cell is `GO` when at least 80% of its 10 seeds pass and mean `bayes_gap >= 0.15` nats. Any candidate relying on a state safety bound for more than 0.1% of samples fails the sweep.
 
-The committed screen produced 15 finalists for each of the four systems. The exact 60 tuples are embedded in `SCREENED_CANDIDATES` in the training notebook and can be regenerated in the explorer.
+The committed screen produced 15 finalists for each of the four systems. The exact 60 tuples are embedded in `SCREENED_CANDIDATES` in the training notebook and can be regenerated in the explorer. The Sphere finalists were originally selected at `dt=0.04`; all 15 were rechecked with the same 10-seed stability screen at `dt=0.20` and remained GO (14 passed 10/10 seeds, one passed 9/10). Their ranking at the new sampling gap has not been recomputed.
 
 ## Training manifest
 

@@ -90,6 +90,13 @@ def test_sampling_gap_uses_internal_physics_steps():
     assert np.allclose(proc.flow(state), proc.system.flow(state, proc.dt, substeps=expected_steps))
 
 
+def test_sphere_sampling_gap_is_twenty_internal_steps():
+    proc = make_process("sphere_mess4")
+    assert proc.dt == 0.2
+    assert proc.integration_dt == 0.01
+    assert round(proc.dt / proc.integration_dt) == 20
+
+
 def test_all_four_systems_use_mess4_without_noop_or_repeated_actions():
     assert set(MESSK_CONFIGS) == {
         "pendulum_mess4",
