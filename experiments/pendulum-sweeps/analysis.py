@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 from dataclasses import dataclass
 
@@ -32,6 +33,7 @@ from physics.systems.pendulum import Pendulum
 
 OUTPUT_DIR = EXPERIMENT_DIR / "outputs"
 ANALYSIS_CSV = OUTPUT_DIR / "analysis.csv"
+RANGE_CSV = EXPERIMENT_DIR / "pendulum_range.csv"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 _CACHED_DF: pd.DataFrame | None = None
@@ -215,17 +217,82 @@ def cross_validated_ridge(
     }
 
 
-def load_analysis_csv() -> pd.DataFrame | None:
+def load_range_csv(path: Path | str | None = None) -> pd.DataFrame:
+    p = Path(path) if path else RANGE_CSV
+    if not p.exists():
+        p = ROOT_DIR / "experiments" / "pendulum-sweeps" / "pendulum_range.csv"
+    if not p.exists():
+        raise FileNotFoundError(f"Cannot find pendulum_range.csv at {p}")
+    return pd.read_csv(p)
+
+
+def make_experiment_name(dt: float, gamma: float, dv: float, n: int) -> str:
+    return f"dt{dt:g}_gamma{gamma:g}_dv{dv:g}_n{n}"
+
+
+def parse_experiment_name(name: str) -> dict[str, float | int]:
+    m = re.search(r"(?:.*_)?dt(?P<dt>[\d\.]+)_gamma(?P<gamma>[\d\.]+)_dv(?P<dv>[\d\.]+)_n(?P<n>\d+)", name)
+    if not m:
+        return {}
+    return {
+        "dt": float(m.group("dt")),
+        "gamma": float(m.group("gamma")),
+        "dv": float(m.group("dv")),
+        "n": int(m.group("n")),
+    }
+
+
+def fetch_probe_csvs(
+    experiment: str | None = None,
+    output_dir: Path | str = OUTPUT_DIR,
+) -> pd.DataFrame | None:
+    out = Path(output_dir)
+    pattern = f"{experiment}*_probes.csv" if experiment else "*_probes.csv"
+    files = sorted(out.glob(pattern))
+    if not files:
+        return None
+    dfs = []
+    for f in files:
+        try:
+            dfs.append(pd.read_csv(f))
+        except Exception:
+            pass
+    if not dfs:
+        return None
+    return pd.concat(dfs, ignore_index=True)
+
+
+def load_analysis_csv(
+    experiment: str | None = None,
+    candidate_file: Path | str | None = None,
+) -> pd.DataFrame | None:
     global _CACHED_DF
+    if candidate_file is not None:
+        p = Path(candidate_file)
+        if p.exists():
+            df = pd.read_csv(p)
+            if experiment is not None and "experiment" in df.columns:
+                df = df[df["experiment"] == experiment]
+            _CACHED_DF = df
+            return _CACHED_DF
+
     for candidate in [ANALYSIS_CSV, OUTPUT_DIR / "probe_results_all.csv"]:
         if candidate.exists():
             try:
                 df = pd.read_csv(candidate)
                 if len(df) > 0:
+                    if experiment is not None and "experiment" in df.columns:
+                        df = df[df["experiment"] == experiment]
                     _CACHED_DF = df
                     return _CACHED_DF
             except Exception:
                 pass
+
+    probes_df = fetch_probe_csvs(experiment=experiment)
+    if probes_df is not None and len(probes_df) > 0:
+        _CACHED_DF = probes_df
+        return _CACHED_DF
+
     return None
 
 
@@ -366,14 +433,20 @@ def plot_macro_overview(
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
     save_path: Path | str | None = None,
+    experiment: str | None = None,
 ) -> plt.Figure | None:
-    current_df = df if df is not None else load_analysis_csv()
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
         return None
 
     macro_modes = ["single_layer_single_token", "all_layers_single_token", "single_layer_cycle", "all_layers_cycle"]
     sub = current_df[(current_df["training"] == run_name) & (current_df["mode"].isin(macro_modes))]
+    if experiment is not None and "experiment" in sub.columns:
+        sub = sub[sub["experiment"] == experiment]
+    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
+        chosen_exp = sub["experiment"].iloc[0]
+        sub = sub[sub["experiment"] == chosen_exp]
     if len(sub) == 0:
         print(f"No macro mode data found for '{run_name}'.")
         return None
@@ -385,7 +458,8 @@ def plot_macro_overview(
         ax1, ax2 = axes[r_idx, 0], axes[r_idx, 1]
 
         piv.plot.bar(ax=ax1, color=["#e74c3c", "#2980b9"], alpha=0.85, edgecolor="k", width=0.6)
-        ax1.set_title(f"{run_name} | {tgt.capitalize()} Held-Out R²", fontweight="bold")
+        model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
+        ax1.set_title(f"Model: {model_name} | {tgt.capitalize()} Held-Out R²", fontweight="bold")
         ax1.set_ylabel("Test R²")
         ax1.set_ylim(-0.05, 1.05)
         ax1.axhline(0, color="k", lw=0.8, ls="--")
@@ -397,7 +471,7 @@ def plot_macro_overview(
             delta = piv["trained"] - piv["random_init"]
             colors = ["#27ae60" if d >= 0 else "#c0392b" for d in delta]
             delta.plot.bar(ax=ax2, color=colors, edgecolor="k", width=0.6)
-            ax2.set_title(f"{run_name} | Net Gain (Trained − Random)", fontweight="bold")
+            ax2.set_title(f"Model: {model_name} | Net Gain (Trained − Random)", fontweight="bold")
             ax2.set_ylabel("Δ Test R²")
             ax2.axhline(0, color="k", lw=0.8, ls="--")
             ax2.grid(axis="y", alpha=0.3)
@@ -415,13 +489,19 @@ def plot_layerwise_emergence(
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
     save_path: Path | str | None = None,
+    experiment: str | None = None,
 ) -> plt.Figure | None:
-    current_df = df if df is not None else load_analysis_csv()
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
         return None
 
     sub = current_df[(current_df["training"] == run_name) & (current_df["mode"].str.startswith("layer_")) & (current_df["mode"].str.endswith("_single_token"))].copy()
+    if experiment is not None and "experiment" in sub.columns:
+        sub = sub[sub["experiment"] == experiment]
+    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
+        chosen_exp = sub["experiment"].iloc[0]
+        sub = sub[sub["experiment"] == chosen_exp]
     if len(sub) == 0:
         print(f"No layerwise data for '{run_name}'. Run precomputation with layerwise mode enabled.")
         return None
@@ -431,6 +511,7 @@ def plot_layerwise_emergence(
     sub = sub.sort_values("depth")
 
     fig, axes = plt.subplots(1, len(targets), figsize=(6.8 * len(targets), 4.2), squeeze=False)
+    model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
     for c_idx, tgt in enumerate(targets):
         ax = axes[0, c_idx]
         t_sub = sub[sub["target"] == tgt]
@@ -438,7 +519,7 @@ def plot_layerwise_emergence(
             m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("depth")
             if len(m_sub) > 0:
                 ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2, ms=6, label=m_type)
-        ax.set_title(f"{tgt.capitalize()} Layerwise Trajectory ({run_name})", fontweight="bold")
+        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Layerwise Trajectory", fontweight="bold")
         ax.set_xlabel("Residual Stream Depth")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
@@ -457,11 +538,15 @@ def plot_sweep_comparison(
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
     save_path: Path | str | None = None,
+    experiment: str | None = None,
 ) -> plt.Figure | None:
-    current_df = df if df is not None else load_analysis_csv()
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
         return None
+
+    if experiment is not None and "experiment" in current_df.columns:
+        current_df = current_df[current_df["experiment"] == experiment]
 
     macro_sub = current_df[current_df["mode"].isin(["single_layer_single_token", "all_layers_cycle"])].copy()
     if len(macro_sub) == 0:
@@ -469,16 +554,17 @@ def plot_sweep_comparison(
         return None
 
     fig, axes = plt.subplots(len(targets), 1, figsize=(11, 4.2 * len(targets)), squeeze=False)
+    index_col = ["experiment", "training"] if ("experiment" in macro_sub.columns and macro_sub["experiment"].nunique() > 1) else "training"
     for r_idx, tgt in enumerate(targets):
         ax = axes[r_idx, 0]
-        piv = macro_sub[macro_sub["target"] == tgt].pivot_table(index="training", columns=["model_type", "mode"], values="test_r2")
+        piv = macro_sub[macro_sub["target"] == tgt].pivot_table(index=index_col, columns=["model_type", "mode"], values="test_r2")
         piv.plot.bar(ax=ax, width=0.7)
         ax.set_title(f"{tgt.capitalize()} Comparison Across Sweep Horizons", fontweight="bold")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
         ax.axhline(0, color="k", lw=0.8, ls="--")
         ax.grid(axis="y", alpha=0.3)
-        ax.tick_params(axis="x", rotation=0)
+        ax.tick_params(axis="x", rotation=15 if index_col != "training" else 0)
         ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
 
     plt.tight_layout()
@@ -488,13 +574,19 @@ def plot_sweep_comparison(
     return fig
 
 
-def get_metrics_table(run_name: str | None = None, df: pd.DataFrame | None = None) -> pd.DataFrame:
-    current_df = df if df is not None else load_analysis_csv()
+def get_metrics_table(
+    run_name: str | None = None,
+    df: pd.DataFrame | None = None,
+    experiment: str | None = None,
+) -> pd.DataFrame:
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         return pd.DataFrame()
 
-    cols = ["training", "model_type", "mode", "target", "test_r2", "cv_r2", "alpha", "feature_dim"]
+    cols = ["experiment", "training", "model_type", "mode", "target", "test_r2", "cv_r2", "alpha", "feature_dim"]
     sub = current_df[[c for c in cols if c in current_df.columns]]
+    if experiment is not None and "experiment" in sub.columns:
+        sub = sub[sub["experiment"] == experiment]
     if run_name is not None:
         sub = sub[sub["training"] == run_name]
     return sub.sort_values(["target", "mode", "model_type"])
@@ -634,8 +726,15 @@ def build_viewer_widget() -> widgets.VBox:
             widgets.HTML("<p>No precomputed results found. Use the controller above to compute or load <code>analysis.csv</code>.</p>"),
         ])
 
+    experiments = sorted(df["experiment"].unique().tolist()) if "experiment" in df.columns else []
+    exp_dropdown = (
+        widgets.Dropdown(options=experiments, value=experiments[0], description="Experiment:", layout=widgets.Layout(width="360px"))
+        if len(experiments) > 1
+        else None
+    )
+
     runs = sorted(df["training"].unique().tolist())
-    run_dropdown = widgets.Dropdown(options=runs, value=runs[0], description="Run:", layout=widgets.Layout(width="360px"))
+    run_dropdown = widgets.Dropdown(options=runs, value=runs[0], description="Run:", layout=widgets.Layout(width="320px"))
     target_toggle = widgets.ToggleButtons(options=["belief", "physics", "both"], value="belief", description="Target:", button_style="info")
     btn_refresh = widgets.Button(description="Refresh Data", icon="refresh", layout=widgets.Layout(width="140px"))
 
@@ -656,25 +755,27 @@ def build_viewer_widget() -> widgets.VBox:
         if current_df is None:
             return
         run_name = run_dropdown.value
+        exp_name = exp_dropdown.value if exp_dropdown is not None else None
         tgt_choice = target_toggle.value
         targets = ["belief", "physics"] if tgt_choice == "both" else [tgt_choice]
 
         with out_macro:
             clear_output(wait=True)
-            plot_macro_overview(run_name, df=current_df, targets=targets)
+            plot_macro_overview(run_name, df=current_df, targets=targets, experiment=exp_name)
 
         with out_layerwise:
             clear_output(wait=True)
-            plot_layerwise_emergence(run_name, df=current_df, targets=targets)
+            plot_layerwise_emergence(run_name, df=current_df, targets=targets, experiment=exp_name)
 
         with out_sweep:
             clear_output(wait=True)
-            plot_sweep_comparison(df=current_df, targets=targets)
+            plot_sweep_comparison(df=current_df, targets=targets, experiment=exp_name)
 
         with out_table:
             clear_output(wait=True)
-            tbl = get_metrics_table(run_name, df=current_df)
-            display(HTML(f"<b>{run_name}</b> ({len(tbl)} rows):"))
+            tbl = get_metrics_table(run_name, df=current_df, experiment=exp_name)
+            title = f"<b>{exp_name} | {run_name}</b>" if exp_name else f"<b>{run_name}</b>"
+            display(HTML(f"{title} ({len(tbl)} rows):"))
             display(tbl)
 
     def on_update(change=None):
@@ -682,19 +783,27 @@ def build_viewer_widget() -> widgets.VBox:
 
     def on_refresh_clicked(b):
         load_analysis_csv()
-        runs_updated = sorted(_CACHED_DF["training"].unique().tolist()) if _CACHED_DF is not None else []
-        if runs_updated:
-            run_dropdown.options = runs_updated
+        if _CACHED_DF is not None:
+            if exp_dropdown is not None and "experiment" in _CACHED_DF.columns:
+                exps_updated = sorted(_CACHED_DF["experiment"].unique().tolist())
+                if exps_updated:
+                    exp_dropdown.options = exps_updated
+            runs_updated = sorted(_CACHED_DF["training"].unique().tolist())
+            if runs_updated:
+                run_dropdown.options = runs_updated
         render()
 
+    if exp_dropdown is not None:
+        exp_dropdown.observe(on_update, names="value")
     run_dropdown.observe(on_update, names="value")
     target_toggle.observe(on_update, names="value")
     btn_refresh.on_click(on_refresh_clicked)
 
     render()
 
+    top_controls = [exp_dropdown, run_dropdown, target_toggle, btn_refresh] if exp_dropdown is not None else [run_dropdown, target_toggle, btn_refresh]
     return widgets.VBox([
         widgets.HTML("<h3>Interactive Results Dashboard</h3>"),
-        widgets.HBox([run_dropdown, target_toggle, btn_refresh]),
+        widgets.HBox(top_controls),
         tab,
     ])

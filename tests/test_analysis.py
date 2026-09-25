@@ -40,9 +40,13 @@ from analysis import (
     discover_checkpoints,
     extract_probe_features,
     extract_probe_targets,
+    fetch_probe_csvs,
     get_metrics_table,
     load_analysis_csv,
     load_models_for_run,
+    load_range_csv,
+    make_experiment_name,
+    parse_experiment_name,
     plot_layerwise_emergence,
     plot_macro_overview,
     plot_sweep_comparison,
@@ -198,3 +202,45 @@ def test_widget_builders():
 
     w_view = build_viewer_widget()
     assert w_view is not None
+
+
+def test_range_csv_and_naming():
+    df = load_range_csv()
+    assert df is not None
+    assert len(df) == 25
+    for col in ("dt", "damping_value", "delta_v", "n_steps"):
+        assert col in df.columns
+
+    name = make_experiment_name(0.2, 0.3, 0.7, 10)
+    assert name == "dt0.2_gamma0.3_dv0.7_n10"
+
+    parsed = parse_experiment_name(name)
+    assert parsed == {"dt": 0.2, "gamma": 0.3, "dv": 0.7, "n": 10}
+
+    parsed_prefix = parse_experiment_name("pendulum_dt0.2_gamma0.8_dv1.2_n20")
+    assert parsed_prefix == {"dt": 0.2, "gamma": 0.8, "dv": 1.2, "n": 20}
+
+
+def test_fetch_probe_csvs_and_filtering():
+    probes_all = fetch_probe_csvs()
+    assert probes_all is not None
+    assert len(probes_all) > 0
+    assert "test_r2" in probes_all.columns
+
+    probes_standard = fetch_probe_csvs("standard")
+    assert probes_standard is not None
+    assert len(probes_standard) > 0
+    assert (probes_standard["experiment"] == "standard").all()
+
+    df_filtered = load_analysis_csv(experiment="standard")
+    assert df_filtered is not None
+    assert (df_filtered["experiment"] == "standard").all()
+
+    fig = plot_macro_overview("next-token", experiment="standard")
+    assert fig is not None
+    plt.close("all")
+
+    tbl = get_metrics_table("next-token", experiment="standard")
+    assert len(tbl) > 0
+    assert (tbl["experiment"] == "standard").all()
+
