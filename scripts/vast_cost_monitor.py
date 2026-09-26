@@ -31,7 +31,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-VAST_API_BASE = "https://console.vast.ai/api/v0"
+VAST_API_BASE = "https://console.vast.ai/api/v1"
 dotenv.load_dotenv()
 # ==============================================================================
 # 1. Dual Tee Logger (Terminal + File Stream)
