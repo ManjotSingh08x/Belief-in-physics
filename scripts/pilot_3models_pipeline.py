@@ -341,6 +341,7 @@ def run_synchronous_probing(
             r2_random = float(grid_rnd.best_score_)
 
             results.append({
+                "model_id": f"{exp_name}_{training_name}_seed{seed}",
                 "exp_name": exp_name,
                 "training_name": training_name,
                 "seed": seed,
@@ -498,6 +499,14 @@ def train_and_probe_worker(
                 "tokens_seen": tokens_seen,
                 "loss": loss_accum,
             })
+            lr_now = scheduler.get_last_lr()[0]
+            pct = 100.0 * (step + 1) / total_steps
+            print(
+                f"[{spec.model_id}] Step {step+1:4d}/{total_steps} ({pct:5.1f}%) | "
+                f"Tokens: {tokens_seen/1e6:6.1f}M / {total_tokens/1e6:5.1f}M | "
+                f"Loss: {loss_accum:6.4f} | LR: {lr_now:.2e}",
+                flush=True,
+            )
 
     # Save final model weights and sidecar
     final_pt = model_dir / f"{spec.model_id}_final.pt"
@@ -530,6 +539,15 @@ def train_and_probe_worker(
     probe_json = model_dir / f"{spec.model_id}_probes.json"
     probe_df.to_csv(probe_csv, index=False)
     probe_df.to_json(probe_json, orient="records", indent=2)
+
+    belief_r2 = probe_df[probe_df["target"] == "belief"]["trained_r2"].max()
+    phys_r2 = probe_df[probe_df["target"] == "physics"]["trained_r2"].max()
+    gain = probe_df[probe_df["target"] == "belief"]["trained_minus_random"].max()
+    print(
+        f"[{spec.model_id}] Probe Results -> Max Belief R²: {belief_r2:+.3f} | "
+        f"Max Physics R²: {phys_r2:+.3f} | Gain over Random: {gain:+.3f}",
+        flush=True,
+    )
 
     # 5. Lookahead Probability Map
     prob_map_png = model_dir / f"{spec.model_id}_lookahead_prob_map.png"
@@ -771,7 +789,15 @@ def main():
         worker_devices = ["cuda:0"]
 
     all_probe_dfs = []
-    manifest_jobs = []
+    manifest_path = output_base / "pipeline_state.json"
+    master_csv_path = output_base / "master_probe_results.csv"
+    manifest_data = {
+        "platform_mode": platform_mode,
+        "completed_models": [],
+        "physics_tuple": asdict(phys_tuple),
+        "total_tokens_per_model": tokens_per_model,
+        "timestamp": time.time(),
+    }
 
     # Parallel or sequential training
     if num_workers > 1 and not args.smoke:
@@ -791,6 +817,14 @@ def main():
             for fut in concurrent.futures.as_completed(futs):
                 _, probe_df = fut.result()
                 all_probe_dfs.append(probe_df)
+                # Incremental progress save
+                cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
+                cur_master_df.to_csv(master_csv_path, index=False)
+                manifest_data["completed_models"] = list(cur_master_df["model_id"].unique())
+                manifest_data["timestamp"] = time.time()
+                with open(manifest_path, "w") as f:
+                    json.dump(manifest_data, f, indent=2)
+                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(pilot_specs)} models completed in {master_csv_path.name}", flush=True)
     else:
         dev = worker_devices[0]
         for spec in pilot_specs:
@@ -800,25 +834,21 @@ def main():
                 device=dev, results_dir=results_dir, smoke=args.smoke,
             )
             all_probe_dfs.append(probe_df)
+            # Incremental progress save
+            cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
+            cur_master_df.to_csv(master_csv_path, index=False)
+            manifest_data["completed_models"] = list(cur_master_df["model_id"].unique())
+            manifest_data["timestamp"] = time.time()
+            with open(manifest_path, "w") as f:
+                json.dump(manifest_data, f, indent=2)
+            print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(pilot_specs)} models completed in {master_csv_path.name}", flush=True)
 
-    # Save central state manifest
-    manifest_path = output_base / "pipeline_state.json"
-    manifest_data = {
-        "platform_mode": platform_mode,
-        "completed_models": [s.model_id for s in pilot_specs],
-        "physics_tuple": asdict(phys_tuple),
-        "total_tokens_per_model": tokens_per_model,
-        "timestamp": time.time(),
-    }
-    with open(manifest_path, "w") as f:
-        json.dump(manifest_data, f, indent=2)
-    print(f"\nState Manifest saved -> {manifest_path}")
+    print(f"\nState Manifest finalized -> {manifest_path}")
 
     # --------------------------------------------------------------------------
     # Phase 3: Emergence Synthesis & Dashboard
     # --------------------------------------------------------------------------
     master_probe_df = pd.concat(all_probe_dfs, ignore_index=True)
-    master_csv_path = output_base / "master_probe_results.csv"
     master_probe_df.to_csv(master_csv_path, index=False)
     print(f"Master probe evaluations saved -> {master_csv_path} ({len(master_probe_df)} rows)")
 
