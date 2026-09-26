@@ -175,12 +175,12 @@ def run_phase1_distillation(out_dir: Path, smoke: bool = False) -> DistilledPhys
     gamma_star = float(opt_res["gamma_opt"])
     print(f"Computed Optimal gamma* = {gamma_star:.4f}")
 
-    # Generate 9 candidate gammas: k*gamma* and k*gamma* +/- d_gamma (k in [0.7, 0.5, 0.3], d_gamma=0.2)
+    # Generate 9 candidate gammas: k*gamma* and k*gamma* +/- d_gamma (k in [0.03, 0.07, 0.10], d_gamma=0.05)
     candidate_gammas = []
-    for k_factor in [0.7, 0.5, 0.3]:
+    for k_factor in [0.03, 0.07, 0.10]:
         base_g = k_factor * gamma_star
-        for offset in [0.0, -0.2, 0.2]:
-            val = max(0.2, round(base_g + offset, 4))
+        for offset in [0.0, -0.05, 0.05]:
+            val = max(0.05, round(base_g + offset, 4))
             if val not in candidate_gammas:
                 candidate_gammas.append(val)
 

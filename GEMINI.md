@@ -12,7 +12,7 @@ This file provides persistent context and defines the operational interface betw
   - **State Vector**: $z = (\theta_1, \theta_2, \omega_1, \omega_2)$ where $\theta_1, \theta_2$ are joint angles and $\omega_1, \omega_2$ are angular velocities.
   - **Release**: Asymmetric initial state at rest: $\theta_{1,0} = 0.9$, $\theta_{2,0} = -0.4$, $\omega_{1,0} = \omega_{2,0} = 0.0$.
   - **Dynamics**: Standard Lagrangian equations of motion integrated via RK4 ($dt = 0.2$) with viscous joint friction $-\gamma_i \omega_i$ and rate clamping (`omega_max = 10.0`).
-  - **Damping**: Scales dynamically via $k \cdot \gamma^*$ ($k \in \{0.7, 0.5, 0.3\}$) with screened contractive operating point $\gamma \approx 0.65$ ($\lambda \le 0/\text{s}$ and 0% clipping across seeds).
+  - **Damping**: Scales dynamically via $k \cdot \gamma^*$ ($k \in \{0.03, 0.07, 0.10\}$) with screened contractive operating point $\gamma \approx 0.65$ ($\lambda \le 0/\text{s}$ and 0% clipping across seeds).
   - **Actions / Kicks**: 4 balanced, non-zero cardinal impulses ($\Delta v = 1.2$):
     - Letter 0: Joint 1 negative kick ($-\text{gain} \times \Delta v$)
     - Letter 1: Joint 1 positive kick ($+\text{gain} \times \Delta v$)

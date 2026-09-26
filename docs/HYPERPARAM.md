@@ -100,7 +100,7 @@ At `0.12` neither clip fires and all four action pairs still separate.
 ### Double pendulum
 Channels: `theta1`, `theta2`. Release: `th1_0 = 0.9`, `th2_0 = -0.4`, `w1_0 = w2_0 = 0.0`.
 
-`delta_v = 1.2`, `dt = 0.2`, `obs_bins = (50, 50)` (mixed-radix tokens `theta1 * 50 + theta2`, vocabulary `2500`). Damping scales dynamically via $k \cdot \gamma^*$ ($k \in \{0.3, 0.5, 0.7\}$); at the contractive operating point ($\gamma \approx 0.65$): $\lambda = -0.21/\text{s}$, clipping $0.0\%$, Bayes gap $= 0.231\text{ nats}$, Action Signal Gap $= 1.21$, $100\%$ stability pass rate across seeds.
+`delta_v = 1.2`, `dt = 0.2`, `obs_bins = (50, 50)` (mixed-radix tokens `theta1 * 50 + theta2`, vocabulary `2500`). Damping scales dynamically via $k \cdot \gamma^*$ ($k \in \{0.03, 0.07, 0.10\}$); at the contractive operating point ($\gamma \approx 0.61 - 0.65$): $\lambda = -0.21/\text{s}$, clipping $0.0\%$, Bayes gap $= 0.231\text{ nats}$, Action Signal Gap $= 1.21$, $100\%$ stability pass rate across seeds.
 
 | Parameter | Value | What it does |
 |---|---|---|
