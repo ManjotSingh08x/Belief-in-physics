@@ -24,6 +24,7 @@ import subprocess
 import sys
 import threading
 import time
+import dotenv
 import urllib.error
 import urllib.request
 import zipfile
@@ -31,8 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 VAST_API_BASE = "https://console.vast.ai/api/v0"
-
-
+dotenv.load_dotenv()
 # ==============================================================================
 # 1. Dual Tee Logger (Terminal + File Stream)
 # ==============================================================================
@@ -188,7 +188,9 @@ def vast_request(
     payload: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Executes authenticated REST request to Vast.ai API using urllib."""
-    url = f"{VAST_API_BASE}/{endpoint.lstrip('/')}"
+    api_key = api_key.strip()
+    sep = "&" if "?" in endpoint else "?"
+    url = f"{VAST_API_BASE}/{endpoint.lstrip('/')}{sep}api_key={api_key}"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
@@ -218,8 +220,12 @@ def get_instances(api_key: str) -> List[Dict[str, Any]]:
     res = vast_request("instances/", api_key, method="GET")
     if isinstance(res, list):
         return res
-    if isinstance(res, dict) and "instances" in res:
-        return res["instances"]
+    if isinstance(res, dict):
+        if "instances" in res:
+            return res["instances"]
+        if res.get("success") is False:
+            err_msg = res.get("msg") or res.get("error") or res
+            log(f"[Warning] Vast.ai API rejected listing instances: {err_msg}")
     return []
 
 
@@ -461,11 +467,19 @@ def terminate_instance(
             log(f"[DRY-RUN] Pre-deletion upload completed. Would now execute DELETE on instance {instance_id}.")
             return True
 
+        if not instance_id or instance_id == 0:
+            log(f"[Error] Cannot destroy instance: instance ID is unresolved ({instance_id}). Please specify --instance-id <ID> explicitly.")
+            return False
+
         endpoint = f"instances/{instance_id}/"
         log(f"\n!!! EXECUTING API DELETE ON INSTANCE {instance_id} !!!")
         try:
             res = vast_request(endpoint, api_key, method="DELETE")
             log(f"Vast.ai API Response: {res}")
+            if isinstance(res, dict) and res.get("success") is False:
+                err_msg = res.get("msg") or res.get("error") or res
+                log(f"[Error] Vast.ai API rejected instance destruction: {err_msg}")
+                return False
             log(f"[Success] Instance {instance_id} destroyed cleanly after all data was secured.")
             return True
         except Exception as e:
@@ -476,11 +490,20 @@ def terminate_instance(
         if dry_run:
             log(f"[DRY-RUN] Would execute STOP on instance {instance_id}.")
             return True
+
+        if not instance_id or instance_id == 0:
+            log(f"[Error] Cannot stop instance: instance ID is unresolved ({instance_id}). Please specify --instance-id <ID> explicitly.")
+            return False
+
         endpoint = f"instances/{instance_id}/"
         log(f"!!! SENDING PUT REQUEST TO STOP INSTANCE {instance_id} !!!")
         try:
             res = vast_request(endpoint, api_key, method="PUT", payload={"state": "stopped"})
             log(f"Stop request response: {res}")
+            if isinstance(res, dict) and res.get("success") is False:
+                err_msg = res.get("msg") or res.get("error") or res
+                log(f"[Error] Vast.ai API rejected instance stop: {err_msg}")
+                return False
             return True
         except Exception as e:
             log(f"Error stopping instance {instance_id}: {e}")

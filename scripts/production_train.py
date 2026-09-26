@@ -378,7 +378,7 @@ def run_synchronous_probing(
     def extract_streams(model: LookaheadTransformer) -> List[np.ndarray]:
         streams = []
         with torch.no_grad():
-            x = model.tok_emb(tokens) + model.pos_emb(tokens)
+            x = model._embed(tokens)
             for block in model.blocks:
                 x = block(x)
                 streams.append(x.cpu().numpy())
@@ -521,6 +521,7 @@ def train_and_probe_worker(
     device: str,
     results_dir: Path,
     smoke: bool = False,
+    micro_batch_size: Optional[int] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Trains single model, runs 4-way probing, saves probability map, and creates atomic zip."""
     model_dir = results_dir / job.job_id
@@ -546,8 +547,10 @@ def train_and_probe_worker(
         system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
     )
 
-    # Micro-batching with gradient accumulation
-    micro_batch = min(16 if (smoke or device == "cpu") else 256, batch_size)
+    # Micro-batching with gradient accumulation (default: 64 to prevent VRAM spikes/OOM)
+    default_mb = 16 if (smoke or device == "cpu") else int(os.environ.get("BELIEF_MICRO_BATCH", "64"))
+    chosen_mb = micro_batch_size or default_mb
+    micro_batch = min(chosen_mb, batch_size)
     grad_accum_steps = max(1, batch_size // micro_batch)
     tokens_per_step = micro_batch * grad_accum_steps * proc.seq_len
     total_steps = max(1, total_tokens // tokens_per_step)
@@ -564,110 +567,118 @@ def train_and_probe_worker(
         d_mlp=train_cfg.d_mlp,
         seed=job.seed,
     )
-    trained_model = LookaheadTransformer(cfg, k=job.k).to(device)
-    random_model = LookaheadTransformer(cfg, k=job.k).to(device)  # untrained matched control
+    trained_model = None
+    random_model = None
+    try:
+        trained_model = LookaheadTransformer(cfg, k=job.k).to(device)
+        random_model = LookaheadTransformer(cfg, k=job.k).to(device)  # untrained matched control
 
-    optimiser = torch.optim.Adam(trained_model.parameters(), lr=1e-3, weight_decay=0.0)
+        optimiser = torch.optim.Adam(trained_model.parameters(), lr=1e-3, weight_decay=0.0)
 
-    def lr_schedule(step: int) -> float:
-        if step < warmup_steps:
-            return float(step) / float(warmup_steps)
-        prog = float(step - warmup_steps) / float(max(1, total_steps - warmup_steps))
-        return 0.5 * (1.0 + math.cos(math.pi * prog))
+        def lr_schedule(step: int) -> float:
+            if step < warmup_steps:
+                return float(step) / float(warmup_steps)
+            prog = float(step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+            return 0.5 * (1.0 + math.cos(math.pi * prog))
 
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_schedule)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_schedule)
 
-    # 3. Streaming Training Loop
-    stream_rng = np.random.default_rng(job.seed + 101)
-    history = []
-    t_start = time.perf_counter()
+        # 3. Streaming Training Loop
+        stream_rng = np.random.default_rng(job.seed + 101)
+        history = []
+        t_start = time.perf_counter()
 
-    for step in range(total_steps):
-        trained_model.train()
-        optimiser.zero_grad(set_to_none=True)
-        loss_accum = 0.0
+        for step in range(total_steps):
+            trained_model.train()
+            optimiser.zero_grad(set_to_none=True)
+            loss_accum = 0.0
 
-        for _ in range(grad_accum_steps):
-            batch_tokens = proc.sample_batch(stream_rng, micro_batch)["tokens"]
-            batch_tensor = torch.as_tensor(batch_tokens, dtype=torch.long, device=device)
-            micro_loss = trained_model.loss(batch_tensor) / grad_accum_steps
-            micro_loss.backward()
-            loss_accum += float(micro_loss.item())
+            for _ in range(grad_accum_steps):
+                batch_tokens = proc.sample_batch(stream_rng, micro_batch)["tokens"]
+                batch_tensor = torch.as_tensor(batch_tokens, dtype=torch.long, device=device)
+                micro_loss = trained_model.loss(batch_tensor) / grad_accum_steps
+                micro_loss.backward()
+                loss_accum += float(micro_loss.item())
 
-        torch.nn.utils.clip_grad_norm_(trained_model.parameters(), 1.0)
-        optimiser.step()
-        scheduler.step()
+            torch.nn.utils.clip_grad_norm_(trained_model.parameters(), 1.0)
+            optimiser.step()
+            scheduler.step()
 
-        if step % (5 if smoke else 50) == 0 or step == total_steps - 1:
-            tokens_seen = (step + 1) * tokens_per_step
-            history.append({
-                "model_id": job.job_id,
-                "step": step,
-                "tokens_seen": tokens_seen,
-                "loss": loss_accum,
-            })
-            lr_now = scheduler.get_last_lr()[0]
-            pct = 100.0 * (step + 1) / total_steps
-            print(
-                f"[{job.job_id}] Step {step+1:4d}/{total_steps} ({pct:5.1f}%) | "
-                f"Tokens: {tokens_seen/1e6:6.1f}M / {total_tokens/1e6:5.1f}M | "
-                f"Loss: {loss_accum:6.4f} | LR: {lr_now:.2e}",
-                flush=True,
-            )
+            if step % (5 if smoke else 50) == 0 or step == total_steps - 1:
+                tokens_seen = (step + 1) * tokens_per_step
+                history.append({
+                    "model_id": job.job_id,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "loss": loss_accum,
+                })
+                lr_now = scheduler.get_last_lr()[0]
+                pct = 100.0 * (step + 1) / total_steps
+                print(
+                    f"[{job.job_id}] Step {step+1:4d}/{total_steps} ({pct:5.1f}%) | "
+                    f"Tokens: {tokens_seen/1e6:6.1f}M / {total_tokens/1e6:5.1f}M | "
+                    f"Loss: {loss_accum:6.4f} | LR: {lr_now:.2e}",
+                    flush=True,
+                )
 
-    # Save final model weights and JSON sidecar
-    torch.save(trained_model.state_dict(), job.checkpoint_path)
-    with open(job.sidecar_path, "w") as f:
-        json.dump({
-            "job_id": job.job_id,
-            "exp_config": asdict(job.exp_config),
-            "train_config": asdict(job.train_config),
-            "d_model": train_cfg.d_model,
-            "d_mlp": train_cfg.d_mlp,
-            "k": job.k,
-            "k_suffix": job.k_suffix,
-            "seed": job.seed,
-            "final_loss": history[-1]["loss"] if history else loss_accum,
-            "tokens_trained": total_tokens,
-            "runtime_seconds": time.perf_counter() - t_start,
-        }, f, indent=2)
+        # Save final model weights and JSON sidecar
+        torch.save(trained_model.state_dict(), job.checkpoint_path)
+        with open(job.sidecar_path, "w") as f:
+            json.dump({
+                "job_id": job.job_id,
+                "exp_config": asdict(job.exp_config),
+                "train_config": asdict(job.train_config),
+                "d_model": train_cfg.d_model,
+                "d_mlp": train_cfg.d_mlp,
+                "k": job.k,
+                "k_suffix": job.k_suffix,
+                "seed": job.seed,
+                "final_loss": history[-1]["loss"] if history else loss_accum,
+                "tokens_trained": total_tokens,
+                "runtime_seconds": time.perf_counter() - t_start,
+            }, f, indent=2)
 
-    # 4. In-Worker Synchronous Probing
-    print(f"[{job.job_id}] Running synchronous 4-way linear Ridge probing against random_init control...", flush=True)
-    probe_df = run_synchronous_probing(
-        trained_model=trained_model,
-        random_model=random_model,
-        proc=proc,
-        exp_name=exp_cfg.name,
-        training_name=train_cfg.name,
-        seed=job.seed,
-        device=device,
-        n_eval_trajs=64 if smoke else 512,
-    )
-    probe_df.to_csv(job.probe_csv_path, index=False)
-    probe_json_path = model_dir / f"{job.job_id}_probes.json"
-    probe_df.to_json(probe_json_path, orient="records", indent=2)
+        # 4. In-Worker Synchronous Probing
+        print(f"[{job.job_id}] Running synchronous 4-way linear Ridge probing against random_init control...", flush=True)
+        probe_df = run_synchronous_probing(
+            trained_model=trained_model,
+            random_model=random_model,
+            proc=proc,
+            exp_name=exp_cfg.name,
+            training_name=train_cfg.name,
+            seed=job.seed,
+            device=device,
+            n_eval_trajs=64 if smoke else 512,
+        )
+        probe_df.to_csv(job.probe_csv_path, index=False)
+        probe_json_path = model_dir / f"{job.job_id}_probes.json"
+        probe_df.to_json(probe_json_path, orient="records", indent=2)
 
-    belief_r2 = probe_df[probe_df["target"] == "belief"]["trained_r2"].max()
-    phys_r2 = probe_df[probe_df["target"] == "physics"]["trained_r2"].max()
-    gain = probe_df[probe_df["target"] == "belief"]["trained_minus_random"].max()
-    print(
-        f"[{job.job_id}] Probe Results -> Max Belief R²: {belief_r2:+.3f} | "
-        f"Max Physics R²: {phys_r2:+.3f} | Gain over Random: {gain:+.3f}",
-        flush=True,
-    )
+        belief_r2 = probe_df[probe_df["target"] == "belief"]["trained_r2"].max()
+        phys_r2 = probe_df[probe_df["target"] == "physics"]["trained_r2"].max()
+        gain = probe_df[probe_df["target"] == "belief"]["trained_minus_random"].max()
+        print(
+            f"[{job.job_id}] Probe Results -> Max Belief R²: {belief_r2:+.3f} | "
+            f"Max Physics R²: {phys_r2:+.3f} | Gain over Random: {gain:+.3f}",
+            flush=True,
+        )
 
-    # 5. Lookahead Probability Map
-    plot_lookahead_probability_map(trained_model, proc, job.prob_map_path, device=device)
+        # 5. Lookahead Probability Map
+        plot_lookahead_probability_map(trained_model, proc, job.prob_map_path, device=device)
 
-    # 6. Instant Zip Packaging
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in model_dir.rglob("*"):
-            if f.is_file():
-                zf.write(f, arcname=f.relative_to(model_dir))
+        # 6. Instant Zip Packaging
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in model_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, arcname=f.relative_to(model_dir))
 
-    print(f"[{job.job_id}] Finished in {time.perf_counter()-t_start:.1f}s. Packaged -> {zip_path.name}", flush=True)
-    return pd.DataFrame(history), probe_df
+        print(f"[{job.job_id}] Finished in {time.perf_counter()-t_start:.1f}s. Packaged -> {zip_path.name}", flush=True)
+        return pd.DataFrame(history), probe_df
+    finally:
+        del trained_model
+        del random_model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 # ==============================================================================
@@ -800,6 +811,8 @@ def main():
     parser.add_argument("--out-dir", type=str, default=None, help="Root directory for outputs")
     parser.add_argument("--tokens", type=int, default=None, help="Token budget per model (default: 400M, smoke: 5M)")
     parser.add_argument("--batch-size", type=int, default=1024, help="Locked batch size invariant (default: 1024)")
+    parser.add_argument("--workers", type=int, default=None, help="Number of concurrent worker processes (default: 2 for rtx5090/GPU)")
+    parser.add_argument("--micro-batch", type=int, default=None, help="Micro-batch size for gradient accumulation (default: 64)")
     args = parser.parse_args()
 
     platform_mode = args.platform or detect_platform_mode()
@@ -820,8 +833,13 @@ def main():
     batch_size = 1024  # strictly locked invariant
 
     # Worker pool and hardware mapping
-    if platform_mode == "rtx5090":
-        num_workers = int(os.environ.get("BELIEF_NUM_WORKERS", "5"))
+    if args.workers is not None:
+        num_workers = args.workers
+        worker_devices = ["cuda:0" if torch.cuda.is_available() else "cpu"] * num_workers
+    elif platform_mode == "rtx5090":
+        # Default to 2 workers to avoid CUDA memory pressure/fragmentation across separate processes
+        default_workers = 2
+        num_workers = int(os.environ.get("BELIEF_NUM_WORKERS", str(default_workers)))
         worker_devices = ["cuda:0"] * num_workers
     elif platform_mode == "kaggle":
         dev_count = torch.cuda.device_count()
@@ -944,6 +962,7 @@ def main():
                     device=dev,
                     results_dir=results_dir,
                     smoke=smoke,
+                    micro_batch_size=args.micro_batch,
                 )
                 futs.append(fut)
 
@@ -968,6 +987,7 @@ def main():
                 device=dev,
                 results_dir=results_dir,
                 smoke=smoke,
+                micro_batch_size=args.micro_batch,
             )
             if not probe_df.empty:
                 all_probe_dfs.append(probe_df)
