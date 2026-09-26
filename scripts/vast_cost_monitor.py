@@ -115,6 +115,72 @@ def resolve_api_key(arg_key: Optional[str] = None) -> str:
     )
 
 
+def resolve_instance_id(cli_id: Optional[int] = None) -> Optional[int]:
+    """Resolves target Vast.ai instance ID from CLI, environment, or container metadata.
+
+    Particularly critical in Organization / Team environments where multiple instances
+    may be active concurrently under the same account.
+    """
+    if cli_id is not None:
+        return cli_id
+
+    # 1. Direct environment variables (set by user or Vast startup)
+    for env_var in ("VAST_INSTANCE_ID", "CONTAINER_ID", "VAST_CONTAINER_ID", "INSTANCE_ID"):
+        val = os.environ.get(env_var, "").strip()
+        if val and val.isdigit():
+            return int(val)
+
+    # 2. VAST_CONTAINERLABEL (often 'C.1482910')
+    label = os.environ.get("VAST_CONTAINERLABEL", "").strip()
+    if label:
+        digits = "".join(ch for ch in label if ch.isdigit())
+        if digits:
+            return int(digits)
+
+    # 3. /etc/environment (injected in container sessions)
+    etc_env = Path("/etc/environment")
+    if etc_env.exists():
+        try:
+            for line in etc_env.read_text().splitlines():
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k in ("VAST_INSTANCE_ID", "CONTAINER_ID", "VAST_CONTAINER_ID", "INSTANCE_ID") and v.isdigit():
+                        return int(v)
+                    if k == "VAST_CONTAINERLABEL":
+                        digits = "".join(ch for ch in v if ch.isdigit())
+                        if digits:
+                            return int(digits)
+        except Exception:
+            pass
+
+    # 4. /proc/1/environ (container PID 1 environment)
+    proc_env = Path("/proc/1/environ")
+    if proc_env.exists():
+        try:
+            raw = proc_env.read_bytes().split(b"\x00")
+            for entry in raw:
+                try:
+                    line = entry.decode("utf-8", errors="ignore")
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k in ("VAST_INSTANCE_ID", "CONTAINER_ID", "VAST_CONTAINER_ID", "INSTANCE_ID") and v.isdigit():
+                            return int(v)
+                        if k == "VAST_CONTAINERLABEL":
+                            digits = "".join(ch for ch in v if ch.isdigit())
+                            if digits:
+                                return int(digits)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return None
+
+
 def vast_request(
     endpoint: str,
     api_key: str,
@@ -473,6 +539,7 @@ def run_monitor(
     dry_run: bool = False,
 ) -> None:
     """Main monitoring loop with auto-termination and pre-termination artifact sync."""
+    target_instance_id = resolve_instance_id(target_instance_id)
     monitor_start_time = time.time()
     log("=" * 76)
     log(" VAST.AI BUDGET SAFETY & AUTOMATED GDRIVE RESULTS EXPORTER")
@@ -480,6 +547,7 @@ def run_monitor(
     log(f"Spending Limit:       ${max_spend:.2f} USD")
     log(f"Action on Limit:      {action.upper()} instance")
     log(f"Budget Metric:        {budget_type.upper()} ({'From instance launch' if budget_type == 'lifetime' else 'From monitor start'})")
+    log(f"Target Instance:      {target_instance_id if target_instance_id else 'Auto-detect from Vast API'}")
     log(f"Check Interval:       Every {check_interval} seconds")
     log(f"Google Drive Remote:  {rclone_dest}")
     log(f"Service Log File:     {log_path}")
@@ -522,12 +590,17 @@ def run_monitor(
 
                     # Fetch instance details for termination and sync
                     instances = get_instances(api_key)
-                    matching_inst = instances[0] if instances else {"id": target_instance_id or 0}
+                    matching_inst = None
                     if target_instance_id is not None:
                         for inst in instances:
                             if inst.get("id") == target_instance_id:
                                 matching_inst = inst
                                 break
+                    if matching_inst is None:
+                        if instances and len(instances) == 1:
+                            matching_inst = instances[0]
+                        else:
+                            matching_inst = {"id": target_instance_id or 0}
 
                     if destroy_on_cmd_finish:
                         log(f"[Supervisor] --destroy-on-cmd-finish is active. Initiating pre-deletion upload and {action.upper()}...")
@@ -551,6 +624,10 @@ def run_monitor(
                             rclone_dest=rclone_dest,
                             log_path=log_path,
                             results_base=results_base,
+                            sync_local_dir=sync_local_dir,
+                            remote_path=remote_path,
+                            ssh_key_path=ssh_key_path,
+                            skip_upload=skip_upload,
                         )
                         if sync_local_dir:
                             sync_to_local_machine(
@@ -581,8 +658,15 @@ def run_monitor(
                     log(f"[VastMonitor] Target instance ID {target_instance_id} is no longer running or not found.")
                     break
             else:
-                active_targets = [i for i in instances if i.get("actual_status") in ("running", "loading", None)]
-                if not active_targets:
+                if len(instances) == 1:
+                    target_instance_id = instances[0].get("id")
+                    active_targets = instances
+                    log(f"[VastMonitor] Auto-locked onto sole active instance ID: {target_instance_id}")
+                else:
+                    log(f"[VastMonitor] NOTICE: Organization account has {len(instances)} active instances.")
+                    active_targets = [i for i in instances if i.get("actual_status") in ("running", "loading", None)]
+                    if not active_targets:
+                        active_targets = instances
                     active_targets = instances
 
             # Check spend on each target instance
