@@ -29,15 +29,15 @@ CHAIN = {"n_states": 4, "alpha": 0.7, "stay": 0.7}
 #: `delta_v` is the weak pendulum kick and the cardinal-action magnitude for the
 #: other systems. The pendulum value sqrt(0.3) gives the variance-matched ladder
 #: {-1.64,-0.55,+0.55,+1.64}, whose mean squared impulse is 1.5.
-#: Bin resolution for double pendulum: set to an int (e.g. 30 -> 30x30 = 900) or tuple (e.g. (30, 30)).
+#: Bin resolution for double pendulum: set to an int (e.g. 50 -> 50x50 = 2500) or tuple (e.g. (50, 50)).
 #: Changing this one variable changes the double pendulum binning across the entire project.
-DOUBLE_PENDULUM_BINS: int | tuple[int, int] = (30, 30)
+DOUBLE_PENDULUM_BINS: int | tuple[int, int] = (50, 50)
 
 SYSTEMS: dict[str, dict] = {
     "pendulum": {"factory": Pendulum, "delta_v": 0.5477225575051661, "dt": 0.02},
     "predator_prey": {"factory": PredatorPrey, "delta_v": 0.35, "dt": 0.05},
     "sphere": {"factory": SphereBall, "delta_v": 0.15, "dt": 0.04, "obs_bins": (30, 30)},
-    "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.01, "obs_bins": DOUBLE_PENDULUM_BINS},
+    "double_pendulum": {"factory": DoublePendulum, "delta_v": 1.2, "dt": 0.2, "obs_bins": DOUBLE_PENDULUM_BINS},
 }
 
 DRIVER = {"m": 16, "n_steps": 10, "obs_bins": 181}

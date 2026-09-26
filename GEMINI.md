@@ -11,8 +11,8 @@ This file provides persistent context and defines the operational interface betw
 - **Physical Setup**:
   - **State Vector**: $z = (\theta_1, \theta_2, \omega_1, \omega_2)$ where $\theta_1, \theta_2$ are joint angles and $\omega_1, \omega_2$ are angular velocities.
   - **Release**: Asymmetric initial state at rest: $\theta_{1,0} = 0.9$, $\theta_{2,0} = -0.4$, $\omega_{1,0} = \omega_{2,0} = 0.0$.
-  - **Dynamics**: Standard Lagrangian equations of motion integrated via RK4 with viscous joint friction $-\gamma_i \omega_i$ and rate clamping (`omega_max = 10.0`).
-  - **Damping**: $\gamma_1 = 2.5, \gamma_2 = 2.5$ (screened contractive operating point with $\lambda < -0.30/\text{s}$ and 0% clipping across seeds).
+  - **Dynamics**: Standard Lagrangian equations of motion integrated via RK4 ($dt = 0.2$) with viscous joint friction $-\gamma_i \omega_i$ and rate clamping (`omega_max = 10.0`).
+  - **Damping**: Scales dynamically via $k \cdot \gamma^*$ ($k \in \{0.7, 0.5, 0.3\}$) with screened contractive operating point $\gamma \approx 0.65$ ($\lambda \le 0/\text{s}$ and 0% clipping across seeds).
   - **Actions / Kicks**: 4 balanced, non-zero cardinal impulses ($\Delta v = 1.2$):
     - Letter 0: Joint 1 negative kick ($-\text{gain} \times \Delta v$)
     - Letter 1: Joint 1 positive kick ($+\text{gain} \times \Delta v$)
@@ -21,8 +21,8 @@ This file provides persistent context and defines the operational interface betw
     - `joint1_action_gain = 2.0` (amplifies base joint kick so both joints produce distinct trajectories).
 - **Observation Space & 2D Discretization**:
   - Observables are wrapped angles $(\theta_1, \theta_2) \in [-\pi, \pi]^2$.
-  - Discretized into a 2D mixed-radix token grid: `DOUBLE_PENDULUM_BINS = (30, 30)` ($30 \times 30 = 900$ tokens total vocabulary).
-  - Token formula: $\text{token} = \text{index}(\theta_1) \times 30 + \text{index}(\theta_2)$.
+  - Discretized into a 2D mixed-radix token grid: `DOUBLE_PENDULUM_BINS = (50, 50)` ($50 \times 50 = 2500$ tokens total vocabulary).
+  - Token formula: $\text{token} = \text{index}(\theta_1) \times 50 + \text{index}(\theta_2)$.
   - Physical probe targets (`metric_names`): `("omega1", "omega2")`.
 
 ---
@@ -64,7 +64,7 @@ Always run commands from the repository root:
 ## 3. Directory Layout & Architectural Boundaries
 
 - `physics/systems/double_pendulum.py`: Canonical `DoublePendulum` class (ODEs, RK4 integration, angle wrapping, energy calculations).
-- `physics/messk_configs.py`: System registration (`SYSTEMS["double_pendulum"]`), default grid bins (`DOUBLE_PENDULUM_BINS = (30, 30)`), and configuration helpers (`set_double_pendulum_bins`).
+- `physics/messk_configs.py`: System registration (`SYSTEMS["double_pendulum"]`), default grid bins (`DOUBLE_PENDULUM_BINS = (50, 50)`), and configuration helpers (`set_double_pendulum_bins`).
 - `physics/controls.py`: Interactive explorer widgets, grid screening (`grid_screen`), and step recalibration (`n_recalibrate`) for `double_pendulum_mess4`.
 - `physics/visualise.py`: Trajectory visualization, 2D token grid density plots, continuous trajectory unwrap, and Lyapunov computation.
 - `notebooks/explorer.ipynb`: Interactive physics UI focused on double pendulum stability, parameter sweeps, and token distributions.
