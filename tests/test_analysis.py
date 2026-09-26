@@ -47,6 +47,8 @@ from analysis import (
     load_range_csv,
     make_experiment_name,
     parse_experiment_name,
+    plot_last_token_comparison,
+    plot_last_token_layerwise,
     plot_layerwise_emergence,
     plot_macro_overview,
     plot_sweep_comparison,
@@ -243,4 +245,160 @@ def test_fetch_probe_csvs_and_filtering():
     tbl = get_metrics_table("next-token", experiment="standard")
     assert len(tbl) > 0
     assert (tbl["experiment"] == "standard").all()
+
+
+@pytest.mark.parametrize("n", [5, 10, 15, 20])
+@pytest.mark.parametrize("m", [6, 10, 16])
+def test_last_token_preperturbation_indices(n: int, m: int):
+    cycle_indices = np.arange(1, m - 1)
+    token_indices = (cycle_indices + 1) * n - 1
+
+    assert len(token_indices) == m - 2
+
+    for t, idx in zip(cycle_indices, token_indices):
+        assert (idx + 1) % n == 0
+        assert (idx + 1) // n == t + 1
+
+        perturbation_token = (t + 1) * n
+        assert idx == perturbation_token - 1
+
+        assert idx >= 2 * n - 1
+        assert idx < (m - 1) * n
+
+
+@pytest.mark.parametrize("n", [5, 10, 15, 20])
+def test_last_token_feature_extraction_accuracy_and_shapes(n: int):
+    m = 16
+    n_traj = 4
+    d_model = 32
+    n_layers = 4
+    seq_len = m * n
+
+    streams = [
+        np.zeros((n_traj, seq_len, d_model), dtype=np.float32)
+        for _ in range(n_layers + 1)
+    ]
+    for l_idx in range(n_layers + 1):
+        for t_idx in range(seq_len):
+            streams[l_idx][:, t_idx, :] = l_idx * 10000 + t_idx
+
+    expected_indices = (np.arange(1, m - 1) + 1) * n - 1
+
+    all_feats = extract_probe_features(streams, "last_token_all_layers", n_steps=n, m=m)
+    assert all_feats.shape == (n_traj * (m - 2), (n_layers + 1) * d_model)
+
+    unflattened_all = all_feats.reshape(n_traj, m - 2, (n_layers + 1) * d_model)
+    for c_i, t_idx in enumerate(expected_indices):
+        for l in range(n_layers + 1):
+            expected_val = l * 10000 + t_idx
+            assert np.allclose(
+                unflattened_all[:, c_i, l * d_model : (l + 1) * d_model],
+                expected_val,
+            )
+
+    for l in range(n_layers + 1):
+        layer_feats = extract_probe_features(streams, f"layer_{l}_last_token", n_steps=n, m=m)
+        assert layer_feats.shape == (n_traj * (m - 2), d_model)
+        unflattened_layer = layer_feats.reshape(n_traj, m - 2, d_model)
+        for c_i, t_idx in enumerate(expected_indices):
+            assert np.allclose(unflattened_layer[:, c_i, :], l * 10000 + t_idx)
+
+
+@pytest.mark.parametrize("n", [5, 10, 15, 20])
+def test_last_token_target_extraction(n: int):
+    m = 16
+    n_traj = 4
+    seq_len = m * n
+
+    class MockChain:
+        n_states = 4
+
+    class MockProc:
+        def __init__(self, m_val, seq_len_val):
+            self.m = m_val
+            self.seq_len = seq_len_val
+            self.chain = MockChain()
+
+    proc = MockProc(m_val=m, seq_len_val=seq_len)
+
+    metric = np.arange(n_traj * seq_len, dtype=np.float32).reshape(n_traj, seq_len, 1)
+    beliefs = np.ones((n_traj, seq_len, 4), dtype=np.float32) / 4.0
+    batch = {"metric": metric, "beliefs": beliefs}
+
+    targets = extract_probe_targets(batch, proc, n_steps=n, pre_perturbation_only=True)
+    assert targets["physics"].shape == (n_traj * (m - 2), 1)
+    assert targets["belief"].shape == (n_traj * (m - 2), 3)
+
+    expected_indices = (np.arange(1, m - 1) + 1) * n - 1
+    expected_physics = metric[:, expected_indices, :].reshape(-1, 1)
+    assert np.allclose(targets["physics"], expected_physics)
+
+
+def test_last_token_group_disjointness_and_cv():
+    n_traj = 12
+    m = 16
+    n_test = 3
+
+    order = np.random.default_rng(42).permutation(n_traj)
+    test_seqs = set(order[:n_test].tolist())
+
+    groups_lt = np.repeat(np.arange(n_traj), m - 2)
+    test_mask_lt = np.array([g in test_seqs for g in groups_lt])
+    dev_mask_lt = ~test_mask_lt
+
+    dev_trajs = set(groups_lt[dev_mask_lt])
+    test_trajs = set(groups_lt[test_mask_lt])
+    assert dev_trajs.isdisjoint(test_trajs)
+    assert len(test_trajs) == n_test
+    assert len(dev_trajs) == n_traj - n_test
+
+    rng = np.random.default_rng(42)
+    X = rng.standard_normal((len(groups_lt), 64))
+    y = rng.standard_normal((len(groups_lt), 1))
+    res = cross_validated_ridge(
+        X, y, groups_lt, dev_mask_lt, test_mask_lt, ridge_alphas=(1.0, 10.0), cv_folds=3
+    )
+    assert "test_r2" in res
+    assert "cv_r2" in res
+    assert res["feature_dim"] == 64
+
+
+def test_precomputation_job_last_token(tmp_path: Path):
+    original_csv = analysis.ANALYSIS_CSV
+    test_csv = tmp_path / "test_last_token_analysis.csv"
+    analysis.ANALYSIS_CSV = test_csv
+
+    try:
+        df = run_precomputation_job(
+            target_models=["standard_next-token_seed0"],
+            macro_modes=False,
+            layerwise_token=False,
+            layerwise_cycle=False,
+            last_token_modes=True,
+            layerwise_last_token=True,
+            targets=["physics", "belief"],
+            n_traj=6,
+            cv_folds=2,
+            alphas=(1.0,),
+        )
+        assert df is not None
+        assert len(df) > 0
+        modes = set(df["mode"].unique())
+        assert "last_token_all_layers" in modes
+        for l in range(5):
+            assert f"layer_{l}_last_token" in modes
+
+        assert "all_layers_cycle" not in modes
+        assert "single_layer_cycle" not in modes
+
+        fig_layer = plot_last_token_layerwise("next-token", df=df, save_path=tmp_path / "lt_layer.png")
+        assert fig_layer is not None
+        plt.close("all")
+
+        fig_comp = plot_last_token_comparison(df=df, save_path=tmp_path / "lt_comp.png")
+        assert fig_comp is not None
+        plt.close("all")
+    finally:
+        analysis.ANALYSIS_CSV = original_csv
+
 

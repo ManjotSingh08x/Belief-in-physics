@@ -162,17 +162,31 @@ def load_models_for_run(ckpt_info: dict, device: str = DEVICE):
     return trained_model, random_model, model_cfg, meta
 
 
-def extract_probe_targets(batch: dict, proc: MessDriven, n_steps: int = 10) -> dict[str, np.ndarray]:
-    last = np.arange(n_steps - 1, proc.seq_len, n_steps)
-    belief = batch["beliefs"][:, last] @ simplex_embedding(proc.chain.n_states)
-    metric = batch["metric"][:, last]
+def extract_probe_targets(
+    batch: dict,
+    proc: MessDriven,
+    n_steps: int = 10,
+    pre_perturbation_only: bool = False,
+) -> dict[str, np.ndarray]:
+    if pre_perturbation_only:
+        cycle_indices = np.arange(1, proc.m - 1)
+        token_indices = (cycle_indices + 1) * n_steps - 1
+    else:
+        token_indices = np.arange(n_steps - 1, proc.seq_len, n_steps)
+    belief = batch["beliefs"][:, token_indices] @ simplex_embedding(proc.chain.n_states)
+    metric = batch["metric"][:, token_indices]
     return {
         "physics": metric.reshape(-1, metric.shape[-1]),
         "belief": belief.reshape(-1, belief.shape[-1]),
     }
 
 
-def extract_probe_features(streams: list[np.ndarray], mode: str, n_steps: int = 10) -> np.ndarray:
+def extract_probe_features(
+    streams: list[np.ndarray],
+    mode: str,
+    n_steps: int = 10,
+    m: int | None = None,
+) -> np.ndarray:
     if mode == "single_layer_single_token":
         return tick_features([streams[-1]], n_steps, whole_tick=False).astype(np.float32)
     elif mode == "all_layers_single_token":
@@ -181,6 +195,17 @@ def extract_probe_features(streams: list[np.ndarray], mode: str, n_steps: int = 
         return tick_features([streams[-1]], n_steps, whole_tick=True).astype(np.float32)
     elif mode == "all_layers_cycle":
         return tick_features(streams, n_steps, whole_tick=True).astype(np.float32)
+    elif mode == "last_token_all_layers":
+        m_cycles = m or (streams[0].shape[1] // n_steps)
+        token_indices = (np.arange(1, m_cycles - 1) + 1) * n_steps - 1
+        stacked = np.concatenate(streams, axis=-1)
+        return stacked[:, token_indices, :].reshape(-1, stacked.shape[-1]).astype(np.float32)
+    elif mode.startswith("layer_") and mode.endswith("_last_token"):
+        parts = mode.split("_")
+        depth = int(parts[1])
+        m_cycles = m or (streams[0].shape[1] // n_steps)
+        token_indices = (np.arange(1, m_cycles - 1) + 1) * n_steps - 1
+        return streams[depth][:, token_indices, :].reshape(-1, streams[depth].shape[-1]).astype(np.float32)
     elif mode.startswith("layer_"):
         parts = mode.split("_")
         depth = int(parts[1])
@@ -275,6 +300,7 @@ def load_analysis_csv(
                 df = df[df["experiment"] == experiment]
             _CACHED_DF = df
             return _CACHED_DF
+        return None
 
     for candidate in [ANALYSIS_CSV, OUTPUT_DIR / "probe_results_all.csv"]:
         if candidate.exists():
@@ -297,16 +323,18 @@ def load_analysis_csv(
 
 
 def save_analysis_csv(df: pd.DataFrame) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    ANALYSIS_CSV.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(ANALYSIS_CSV, index=False)
 
 
 def run_precomputation_job(
     target_models: list[str],
-    macro_modes: bool,
-    layerwise_token: bool,
-    layerwise_cycle: bool,
-    targets: list[str],
+    macro_modes: bool = True,
+    layerwise_token: bool = True,
+    layerwise_cycle: bool = False,
+    last_token_modes: bool = True,
+    layerwise_last_token: bool = True,
+    targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
     alphas: tuple = (0.1, 1.0, 10.0, 50.0),
@@ -333,13 +361,20 @@ def run_precomputation_job(
         init_cfg = exp_meta.get("initial_state")
         batch = sample_analysis_batch(proc, eval_rng, n_traj, init_cfg=init_cfg)
         target_dict = extract_probe_targets(batch, proc, n_steps=n_steps)
+        target_dict_lt = extract_probe_targets(batch, proc, n_steps=n_steps, pre_perturbation_only=True)
 
         groups = np.repeat(np.arange(n_traj), proc.m)
+        groups_lt = np.repeat(np.arange(n_traj), proc.m - 2)
+
         order = np.random.default_rng(exp_meta.get("seed", 20260917) + 4).permutation(n_traj)
         n_test = max(1, int(n_traj * 0.2))
         test_seqs = set(order[:n_test].tolist())
+
         test_mask = np.array([g in test_seqs for g in groups])
         dev_mask = ~test_mask
+
+        test_mask_lt = np.array([g in test_seqs for g in groups_lt])
+        dev_mask_lt = ~test_mask_lt
 
         modes = []
         if macro_modes:
@@ -348,18 +383,28 @@ def run_precomputation_job(
             modes.extend([f"layer_{l}_single_token" for l in range(m_cfg.n_layers + 1)])
         if layerwise_cycle:
             modes.extend([f"layer_{l}_cycle" for l in range(m_cfg.n_layers + 1)])
+        if last_token_modes:
+            modes.append("last_token_all_layers")
+        if layerwise_last_token:
+            modes.extend([f"layer_{l}_last_token" for l in range(m_cfg.n_layers + 1)])
 
         for model_tag, model_obj in (("trained", trained_m), ("random_init", random_m)):
             streams = residual_streams_batched(model_obj.to(DEVICE).eval(), batch["tokens"], DEVICE)
             for mode in modes:
-                X = extract_probe_features(streams, mode, n_steps=n_steps)
+                is_lt = "last_token" in mode
+                X = extract_probe_features(streams, mode, n_steps=n_steps, m=proc.m)
+                curr_targets = target_dict_lt if is_lt else target_dict
+                curr_groups = groups_lt if is_lt else groups
+                curr_dev = dev_mask_lt if is_lt else dev_mask
+                curr_test = test_mask_lt if is_lt else test_mask
+
                 for t_name in targets:
                     score = cross_validated_ridge(
                         X,
-                        target_dict[t_name],
-                        groups,
-                        dev_mask,
-                        test_mask,
+                        curr_targets[t_name],
+                        curr_groups,
+                        curr_dev,
+                        curr_test,
                         ridge_alphas=alphas,
                         cv_folds=cv_folds,
                     )
@@ -383,7 +428,7 @@ def run_precomputation_job(
                         log_callback(f"  [{model_tag:11s}] {mode:25s} | {t_name:7s} -> Test R²={score['test_r2']:.4f} (CV={score['cv_r2']:.4f})")
 
     new_df = pd.DataFrame(new_rows)
-    existing_df = load_analysis_csv()
+    existing_df = load_analysis_csv(candidate_file=ANALYSIS_CSV)
     if existing_df is not None and len(existing_df) > 0:
         combined = pd.concat([existing_df, new_df]).drop_duplicates(
             subset=["experiment", "training", "model_type", "mode", "target"], keep="last"
@@ -401,6 +446,8 @@ def run_precomputation(
     macro_modes: bool = True,
     layerwise_token: bool = True,
     layerwise_cycle: bool = False,
+    last_token_modes: bool = True,
+    layerwise_last_token: bool = True,
     targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
@@ -420,6 +467,8 @@ def run_precomputation(
         macro_modes=macro_modes,
         layerwise_token=layerwise_token,
         layerwise_cycle=layerwise_cycle,
+        last_token_modes=last_token_modes,
+        layerwise_last_token=layerwise_last_token,
         targets=list(targets),
         n_traj=n_traj,
         cv_folds=cv_folds,
@@ -534,6 +583,100 @@ def plot_layerwise_emergence(
     return fig
 
 
+def plot_last_token_layerwise(
+    run_name: str = "next-token",
+    df: pd.DataFrame | None = None,
+    targets: list[str] | tuple = ("belief", "physics"),
+    save_path: Path | str | None = None,
+    experiment: str | None = None,
+) -> plt.Figure | None:
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
+    if current_df is None or len(current_df) == 0:
+        print("No analysis data available.")
+        return None
+
+    sub = current_df[
+        (current_df["training"] == run_name)
+        & (current_df["mode"].str.startswith("layer_"))
+        & (current_df["mode"].str.endswith("_last_token"))
+    ].copy()
+    if experiment is not None and "experiment" in sub.columns:
+        sub = sub[sub["experiment"] == experiment]
+    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
+        chosen_exp = sub["experiment"].iloc[0]
+        sub = sub[sub["experiment"] == chosen_exp]
+    if len(sub) == 0:
+        print(f"No last-token layerwise data for '{run_name}'. Run precomputation with layerwise last-token enabled.")
+        return None
+
+    sub["depth"] = sub["mode"].apply(lambda m: int(m.split("_")[1]))
+    sub["depth_name"] = sub["depth"].apply(lambda d: "emb" if d == 0 else f"L{d}")
+    sub = sub.sort_values("depth")
+
+    fig, axes = plt.subplots(1, len(targets), figsize=(6.8 * len(targets), 4.2), squeeze=False)
+    model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
+    for c_idx, tgt in enumerate(targets):
+        ax = axes[0, c_idx]
+        t_sub = sub[sub["target"] == tgt]
+        for m_type, style, col in [("trained", "-o", "#2980b9"), ("random_init", "--s", "#e74c3c")]:
+            m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("depth")
+            if len(m_sub) > 0:
+                ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2, ms=6, label=m_type)
+        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Pre-Perturbation Last Token", fontweight="bold")
+        ax.set_xlabel("Residual Stream Depth")
+        ax.set_ylabel("Test R²")
+        ax.set_ylim(-0.05, 1.05)
+        ax.axhline(0, color="k", lw=0.8, ls="--")
+        ax.grid(axis="y", alpha=0.3)
+        ax.legend(loc="lower right" if tgt == "belief" else "upper left")
+
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=100)
+    plt.show()
+    return fig
+
+
+def plot_last_token_comparison(
+    df: pd.DataFrame | None = None,
+    targets: list[str] | tuple = ("belief", "physics"),
+    save_path: Path | str | None = None,
+    experiment: str | None = None,
+) -> plt.Figure | None:
+    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
+    if current_df is None or len(current_df) == 0:
+        print("No analysis data available.")
+        return None
+
+    if experiment is not None and "experiment" in current_df.columns:
+        current_df = current_df[current_df["experiment"] == experiment]
+
+    lt_sub = current_df[current_df["mode"] == "last_token_all_layers"].copy()
+    if len(lt_sub) == 0:
+        print("No last_token_all_layers data available.")
+        return None
+
+    fig, axes = plt.subplots(len(targets), 1, figsize=(11, 4.2 * len(targets)), squeeze=False)
+    index_col = ["experiment", "training"] if ("experiment" in lt_sub.columns and lt_sub["experiment"].nunique() > 1) else "training"
+    for r_idx, tgt in enumerate(targets):
+        ax = axes[r_idx, 0]
+        piv = lt_sub[lt_sub["target"] == tgt].pivot_table(index=index_col, columns="model_type", values="test_r2")
+        piv.plot.bar(ax=ax, color=["#e74c3c", "#2980b9"], width=0.6)
+        ax.set_title(f"{tgt.capitalize()} Last-Token Pre-Perturbation Comparison", fontweight="bold")
+        ax.set_ylabel("Test R²")
+        ax.set_ylim(-0.05, 1.05)
+        ax.axhline(0, color="k", lw=0.8, ls="--")
+        ax.grid(axis="y", alpha=0.3)
+        ax.tick_params(axis="x", rotation=15 if index_col != "training" else 0)
+        ax.legend(["Random Init", "Trained"], bbox_to_anchor=(1.02, 1), loc="upper left")
+
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=100)
+    plt.show()
+    return fig
+
+
 def plot_sweep_comparison(
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
@@ -608,6 +751,8 @@ def build_precomputation_widget() -> widgets.VBox:
     chk_macro = widgets.Checkbox(value=True, description="Phase 3 Modes (Macro)", indent=False)
     chk_layerwise_token = widgets.Checkbox(value=True, description="Layerwise Single-Token (emb, L1..L4)", indent=False)
     chk_layerwise_cycle = widgets.Checkbox(value=False, description="Layerwise Cycle", indent=False)
+    chk_last_token = widgets.Checkbox(value=True, description="Last Token (All Layers)", indent=False)
+    chk_layerwise_last_token = widgets.Checkbox(value=True, description="Layerwise Last Token", indent=False)
 
     chk_belief = widgets.Checkbox(value=True, description="Belief State (Simplex)", indent=False)
     chk_physics = widgets.Checkbox(value=True, description="Physical Observables", indent=False)
@@ -671,7 +816,13 @@ def build_precomputation_widget() -> widgets.VBox:
             for m in models:
                 meta = discovered[m]["meta"]
                 n_layers = meta["model"]["n_layers"]
-                m_count = (4 if chk_macro.value else 0) + ((n_layers + 1) if chk_layerwise_token.value else 0) + ((n_layers + 1) if chk_layerwise_cycle.value else 0)
+                m_count = (
+                    (4 if chk_macro.value else 0)
+                    + ((n_layers + 1) if chk_layerwise_token.value else 0)
+                    + ((n_layers + 1) if chk_layerwise_cycle.value else 0)
+                    + (1 if chk_last_token.value else 0)
+                    + ((n_layers + 1) if chk_layerwise_last_token.value else 0)
+                )
                 total_jobs += m_count * len(targets) * 2
 
             prog.max = max(1, total_jobs)
@@ -682,6 +833,8 @@ def build_precomputation_widget() -> widgets.VBox:
                 macro_modes=chk_macro.value,
                 layerwise_token=chk_layerwise_token.value,
                 layerwise_cycle=chk_layerwise_cycle.value,
+                last_token_modes=chk_last_token.value,
+                layerwise_last_token=chk_layerwise_last_token.value,
                 targets=targets,
                 n_traj=slider_n_traj.value,
                 cv_folds=slider_cv_folds.value,
@@ -704,6 +857,7 @@ def build_precomputation_widget() -> widgets.VBox:
             widgets.VBox([
                 widgets.HTML("<b>Feature Modes:</b>"),
                 chk_macro, chk_layerwise_token, chk_layerwise_cycle,
+                chk_last_token, chk_layerwise_last_token,
                 widgets.HTML("<b>Targets:</b>"),
                 chk_belief, chk_physics,
             ]),
@@ -741,14 +895,16 @@ def build_viewer_widget() -> widgets.VBox:
     tab = widgets.Tab()
     out_macro = widgets.Output()
     out_layerwise = widgets.Output()
+    out_last_token = widgets.Output()
     out_sweep = widgets.Output()
     out_table = widgets.Output()
 
-    tab.children = [out_macro, out_layerwise, out_sweep, out_table]
+    tab.children = [out_macro, out_layerwise, out_last_token, out_sweep, out_table]
     tab.set_title(0, "Macro Overview")
     tab.set_title(1, "Layerwise Emergence")
-    tab.set_title(2, "Sweep Comparison")
-    tab.set_title(3, "Metrics Table")
+    tab.set_title(2, "Last Token Test")
+    tab.set_title(3, "Sweep Comparison")
+    tab.set_title(4, "Metrics Table")
 
     def render():
         current_df = _CACHED_DF if _CACHED_DF is not None else load_analysis_csv()
@@ -766,6 +922,11 @@ def build_viewer_widget() -> widgets.VBox:
         with out_layerwise:
             clear_output(wait=True)
             plot_layerwise_emergence(run_name, df=current_df, targets=targets, experiment=exp_name)
+
+        with out_last_token:
+            clear_output(wait=True)
+            plot_last_token_layerwise(run_name, df=current_df, targets=targets, experiment=exp_name)
+            plot_last_token_comparison(df=current_df, targets=targets, experiment=exp_name)
 
         with out_sweep:
             clear_output(wait=True)
