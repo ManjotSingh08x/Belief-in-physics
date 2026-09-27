@@ -190,7 +190,9 @@ def vast_request(
     """Executes authenticated REST request to Vast.ai API using urllib."""
     api_key = api_key.strip()
     sep = "&" if "?" in endpoint else "?"
-    url = f"{VAST_API_BASE}/{endpoint.lstrip('/')}{sep}api_key={api_key}"
+    # Single-instance operations (DELETE, PUT, GET instances/{id}) exist strictly on /api/v0
+    base = "https://console.vast.ai/api/v0" if method in ("DELETE", "PUT") or (endpoint.startswith("instances/") and endpoint.strip("/").count("/") >= 1) else VAST_API_BASE
+    url = f"{base}/{endpoint.lstrip('/')}{sep}api_key={api_key}"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
