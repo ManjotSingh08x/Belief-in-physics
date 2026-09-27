@@ -169,7 +169,6 @@ class ModelJob:
     probe_csv_path: Path
     prob_map_path: Path
     status: str
-    probe_history: List[Dict[str, Any]] = field(default_factory=list)
 
 
 # ==============================================================================
@@ -213,8 +212,22 @@ def run_phase1_distillation(
             tr = trace(proc, seed=42)
             stab = stability(tr)
             
-            # Composite quality score: high bayes gap + negative/contractive lyapunov - clipping penalty
-            score = float(stab["bayes_gap"]) - 0.5 * max(0.0, float(stab["lyapunov"])) - 10.0 * float(stab["clipped"])
+            used_bins_frac = float(stab["used_bins"]) / float(stab["n_obs"])
+            gap_free = float(stab.get("gap_free_mean", 0.0))
+            # Composite quality score: high bayes gap + negative/contractive lyapunov - clipping penalty - bin under-coverage penalty
+            score = (
+                float(stab["bayes_gap"])
+                - 0.5 * min(0.0, float(stab["lyapunov"]))
+                - 10.0 * float(stab["clipped"])
+                - 5.0 * max(0.0, 0.10 - used_bins_frac)
+            )
+            is_go = bool(
+                float(stab["lyapunov"]) < -0.30
+                and float(stab["clipped"]) < 0.01
+                and used_bins_frac >= 0.10
+                and float(stab["bayes_gap"]) >= 0.15
+                and gap_free > 1e-3
+            )
             records_1a.append({
                 "pair_id": pair_id,
                 "delta_v": dv,
@@ -223,8 +236,11 @@ def run_phase1_distillation(
                 "lyapunov": stab["lyapunov"],
                 "clipped": stab["clipped"],
                 "used_bins": stab["used_bins"],
+                "used_bins_frac": used_bins_frac,
+                "gap_free_mean": gap_free,
                 "bayes_gap": stab["bayes_gap"],
                 "score": score,
+                "is_go": is_go,
             })
             pair_id += 1
 
@@ -232,15 +248,23 @@ def run_phase1_distillation(
     print(f"Sweep 1A complete. Ranked {len(df_1a)} candidate pairs.")
 
     # --- Distillation Checkpoint 1A: Select Pairs for Gamma Sweeps ---
+    n_top = min(len(df_1a), 2 if smoke else 10)
     if chosen_pair_ids is not None and len(chosen_pair_ids) > 0:
         selected_pairs_df = df_1a[df_1a["pair_id"].isin(chosen_pair_ids)].copy()
         if len(selected_pairs_df) == 0:
             print("Warning: chosen_pair_ids matched 0 pairs; falling back to top ranked pairs.")
-            selected_pairs_df = df_1a.head(2 if smoke else 10).copy()
+            selected_pairs_df = df_1a.head(n_top).copy()
     else:
-        # Headless fallback: select top 10 (or top 2 for smoke)
-        n_top = min(len(df_1a), 2 if smoke else 10)
-        selected_pairs_df = df_1a.head(n_top).copy()
+        # Gate on is_go == True before taking head(n_top)
+        passing_1a = df_1a[df_1a["is_go"] == True]
+        if len(passing_1a) >= n_top:
+            selected_pairs_df = passing_1a.head(n_top).copy()
+        elif len(passing_1a) > 0:
+            print(f"Warning: Only {len(passing_1a)} pairs passed is_go in Sweep 1A (target: {n_top}). Taking what is available.")
+            selected_pairs_df = passing_1a.copy()
+        else:
+            print(f"Warning: 0 pairs passed is_go in Sweep 1A; falling back to top {n_top} ranked pairs by composite score.")
+            selected_pairs_df = df_1a.head(n_top).copy()
 
     print(f"Distillation Checkpoint 1A: Selected {len(selected_pairs_df)} candidate pairs for optimal damping calculation.")
 
@@ -281,7 +305,21 @@ def run_phase1_distillation(
             )
             tr = trace(proc, seed=42)
             stab = stability(tr)
-            score_1b = float(stab["bayes_gap"]) - 0.5 * max(0.0, float(stab["lyapunov"])) - 10.0 * float(stab["clipped"])
+            used_bins_frac = float(stab["used_bins"]) / float(stab["n_obs"])
+            gap_free = float(stab.get("gap_free_mean", 0.0))
+            score_1b = (
+                float(stab["bayes_gap"])
+                - 0.5 * min(0.0, float(stab["lyapunov"]))
+                - 10.0 * float(stab["clipped"])
+                - 5.0 * max(0.0, 0.10 - used_bins_frac)
+            )
+            is_go_1b = bool(
+                float(stab["lyapunov"]) < -0.30
+                and float(stab["clipped"]) < 0.01
+                and used_bins_frac >= 0.10
+                and float(stab["bayes_gap"]) >= 0.15
+                and gap_free > 1e-3
+            )
             sweep_1b_records.append({
                 "pair_id": p_id,
                 "delta_v": dv_val,
@@ -291,9 +329,11 @@ def run_phase1_distillation(
                 "lyapunov": stab["lyapunov"],
                 "clipped": stab["clipped"],
                 "used_bins": stab["used_bins"],
+                "used_bins_frac": used_bins_frac,
+                "gap_free_mean": gap_free,
                 "bayes_gap": stab["bayes_gap"],
                 "score": score_1b,
-                "is_go": bool(stab["lyapunov"] < -0.30 and stab["clipped"] < 0.01 and stab["bayes_gap"] >= 0.15),
+                "is_go": is_go_1b,
             })
 
     df_1b = pd.DataFrame(sweep_1b_records).sort_values("score", ascending=False).reset_index(drop=True)
@@ -301,7 +341,38 @@ def run_phase1_distillation(
 
     # --- Distillation Checkpoint 2: Select Top 10 Physics Tuples ---
     n_tuples_target = min(len(df_1b), 2 if smoke else 10)
-    top_tuples_df = df_1b.head(n_tuples_target).copy()
+    passing_1b = df_1b[df_1b["is_go"] == True]
+
+    if len(passing_1b) == 0:
+        print("Warning: 0 tuples passed is_go in Sweep 1B; falling back to top ranked tuples by composite score.")
+        candidate_pool = df_1b
+    elif len(passing_1b) < n_tuples_target:
+        print(f"Warning: Only {len(passing_1b)} tuples passed is_go in Sweep 1B (target: {n_tuples_target}). Taking available passing tuples.")
+        candidate_pool = passing_1b
+    else:
+        candidate_pool = passing_1b
+
+    # Add per-pair_id cap (2 gammas max per pair) when selecting top-10 tuples for diversity
+    max_per_pair = 2
+    selected_indices = []
+    pair_counts: Dict[int, int] = {}
+    remaining_indices = []
+
+    for idx, row in candidate_pool.iterrows():
+        p_id = int(row["pair_id"])
+        if pair_counts.get(p_id, 0) < max_per_pair and len(selected_indices) < n_tuples_target:
+            selected_indices.append(idx)
+            pair_counts[p_id] = pair_counts.get(p_id, 0) + 1
+        else:
+            remaining_indices.append(idx)
+
+    # Backfill remaining slots globally after cap applied
+    for idx in remaining_indices:
+        if len(selected_indices) >= n_tuples_target:
+            break
+        selected_indices.append(idx)
+
+    top_tuples_df = candidate_pool.loc[selected_indices].copy().reset_index(drop=True)
 
     chosen_configs: List[ExperimentConfig] = []
     for idx, row in top_tuples_df.iterrows():
@@ -514,7 +585,7 @@ def plot_lookahead_probability_map(
 # 6. Worker Execution Engine (Phase 2 Training & In-Worker Probing)
 # ==============================================================================
 
-def train_and_probe_worker(
+def train_only_worker(
     job: ModelJob,
     total_tokens: int,
     batch_size: int,
@@ -522,20 +593,19 @@ def train_and_probe_worker(
     results_dir: Path,
     smoke: bool = False,
     micro_batch_size: Optional[int] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Trains single model, runs 4-way probing, saves probability map, and creates atomic zip."""
+) -> Tuple[str, Path, Path, pd.DataFrame]:
+    """Trains single model to total_tokens, saves checkpoint and sidecar JSON, returns history."""
     model_dir = results_dir / job.job_id
     model_dir.mkdir(parents=True, exist_ok=True)
     zip_path = results_dir / f"{job.job_id}.zip"
     probe_csv_path = model_dir / f"{job.job_id}_probes.csv"
 
-    # Auto-resume check: skip if already completed and packaged
-    if zip_path.exists() and probe_csv_path.exists():
-        print(f"[{job.job_id}] Existing completed package found -> skipping.", flush=True)
-        probe_df = pd.read_csv(probe_csv_path)
-        return pd.DataFrame(), probe_df
+    # Auto-resume check: skip training if checkpoint or completed package already exists
+    if (zip_path.exists() and probe_csv_path.exists()) or (job.checkpoint_path.exists() and job.sidecar_path.exists()):
+        print(f"[{job.job_id}] Existing checkpoint found -> skipping training.", flush=True)
+        return job.job_id, job.checkpoint_path, job.sidecar_path, pd.DataFrame()
 
-    print(f"[{job.job_id}] Starting job on {device} (Target: {total_tokens:,} tokens)...", flush=True)
+    print(f"[{job.job_id}] Starting training on {device} (Target: {total_tokens:,} tokens)...", flush=True)
 
     # 1. Instantiate Process
     exp_cfg = job.exp_config
@@ -568,11 +638,8 @@ def train_and_probe_worker(
         seed=job.seed,
     )
     trained_model = None
-    random_model = None
     try:
         trained_model = LookaheadTransformer(cfg, k=job.k).to(device)
-        random_model = LookaheadTransformer(cfg, k=job.k).to(device)  # untrained matched control
-
         optimiser = torch.optim.Adam(trained_model.parameters(), lr=1e-3, weight_decay=0.0)
 
         def lr_schedule(step: int) -> float:
@@ -638,8 +705,68 @@ def train_and_probe_worker(
                 "runtime_seconds": time.perf_counter() - t_start,
             }, f, indent=2)
 
-        # 4. In-Worker Synchronous Probing
-        print(f"[{job.job_id}] Running synchronous 4-way linear Ridge probing against random_init control...", flush=True)
+        print(f"[{job.job_id}] Training completed in {time.perf_counter()-t_start:.1f}s. Saved -> {job.checkpoint_path.name}", flush=True)
+        return job.job_id, job.checkpoint_path, job.sidecar_path, pd.DataFrame(history)
+    finally:
+        del trained_model
+        if device != "cpu" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+
+def probe_only_worker(
+    job: ModelJob,
+    checkpoint_path: Path,
+    results_dir: Path,
+    device: str = "cpu",
+    smoke: bool = False,
+) -> Tuple[str, pd.DataFrame]:
+    """Loads checkpoint, runs 4-way Ridge probing, saves probability map, and creates atomic zip."""
+    model_dir = results_dir / job.job_id
+    model_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = results_dir / f"{job.job_id}.zip"
+    probe_csv_path = job.probe_csv_path
+    probe_json_path = model_dir / f"{job.job_id}_probes.json"
+
+    # Auto-resume check: skip if already completed and packaged
+    if zip_path.exists() and probe_csv_path.exists():
+        print(f"[{job.job_id}] Existing completed package found -> skipping probing.", flush=True)
+        try:
+            probe_df = pd.read_csv(probe_csv_path)
+            return job.job_id, probe_df
+        except Exception as e:
+            print(f"[{job.job_id}] Notice: Could not read existing probe CSV ({e}); re-probing.", flush=True)
+
+    print(f"[{job.job_id}] Starting probing on {device}...", flush=True)
+    t_start = time.perf_counter()
+
+    exp_cfg = job.exp_config
+    proc = make_process(
+        "double_pendulum_mess4",
+        m=exp_cfg.m,
+        n_steps=exp_cfg.n,
+        delta_v=exp_cfg.physics.delta_v,
+        system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
+    )
+
+    train_cfg = job.train_config
+    cfg = ModelConfig(
+        vocab_size=proc.n_obs,
+        n_ctx=proc.seq_len,
+        n_layers=train_cfg.n_layers,
+        n_heads=train_cfg.n_heads,
+        d_model=train_cfg.d_model,
+        d_mlp=train_cfg.d_mlp,
+        seed=job.seed,
+    )
+
+    trained_model = None
+    random_model = None
+    try:
+        trained_model = LookaheadTransformer(cfg, k=job.k).to(device)
+        trained_model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+        random_model = LookaheadTransformer(cfg, k=job.k).to(device)  # untrained matched control
+
+        # 4-way Synchronous Ridge Probing
         probe_df = run_synchronous_probing(
             trained_model=trained_model,
             random_model=random_model,
@@ -650,8 +777,7 @@ def train_and_probe_worker(
             device=device,
             n_eval_trajs=64 if smoke else 512,
         )
-        probe_df.to_csv(job.probe_csv_path, index=False)
-        probe_json_path = model_dir / f"{job.job_id}_probes.json"
+        probe_df.to_csv(probe_csv_path, index=False)
         probe_df.to_json(probe_json_path, orient="records", indent=2)
 
         belief_r2 = probe_df[probe_df["target"] == "belief"]["trained_r2"].max()
@@ -663,22 +789,51 @@ def train_and_probe_worker(
             flush=True,
         )
 
-        # 5. Lookahead Probability Map
+        # Standardized lookahead probability map
         plot_lookahead_probability_map(trained_model, proc, job.prob_map_path, device=device)
 
-        # 6. Instant Zip Packaging
+        # Instant atomic per-model zip packaging
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in model_dir.rglob("*"):
                 if f.is_file():
                     zf.write(f, arcname=f.relative_to(model_dir))
 
-        print(f"[{job.job_id}] Finished in {time.perf_counter()-t_start:.1f}s. Packaged -> {zip_path.name}", flush=True)
-        return pd.DataFrame(history), probe_df
+        print(f"[{job.job_id}] Probing finished in {time.perf_counter()-t_start:.1f}s. Packaged -> {zip_path.name}", flush=True)
+        return job.job_id, probe_df
     finally:
         del trained_model
         del random_model
-        if torch.cuda.is_available():
+        if device != "cpu" and torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+
+def train_and_probe_worker(
+    job: ModelJob,
+    total_tokens: int,
+    batch_size: int,
+    device: str,
+    results_dir: Path,
+    smoke: bool = False,
+    micro_batch_size: Optional[int] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Sequential wrapper for single worker or local_cpu execution."""
+    _, ckpt_path, _, hist_df = train_only_worker(
+        job=job,
+        total_tokens=total_tokens,
+        batch_size=batch_size,
+        device=device,
+        results_dir=results_dir,
+        smoke=smoke,
+        micro_batch_size=micro_batch_size,
+    )
+    _, probe_df = probe_only_worker(
+        job=job,
+        checkpoint_path=ckpt_path,
+        results_dir=results_dir,
+        device="cpu",
+        smoke=smoke,
+    )
+    return hist_df, probe_df
 
 
 # ==============================================================================
@@ -801,8 +956,57 @@ def requeue_top_models(
 
 
 # ==============================================================================
-# 9. Main Orchestrator Execution
+# 9. Kaggle Auto-Resume Sync & Main Orchestrator Execution
 # ==============================================================================
+
+def sync_from_kaggle_input(results_dir: Path) -> None:
+    """Scans /kaggle/input for prior run artifacts and copies them into results_dir."""
+    input_root = Path("/kaggle/input")
+    if not input_root.exists():
+        return
+    print(f"Scanning {input_root} for prior run artifacts to auto-resume...", flush=True)
+    parent_dir = results_dir.parent
+    master_csv_target = parent_dir / "master_probe_results.csv"
+    if not master_csv_target.exists():
+        for prior_csv in input_root.rglob("master_probe_results.csv"):
+            if prior_csv.is_file():
+                print(f"Found prior master CSV: {prior_csv} -> copying to {master_csv_target}", flush=True)
+                shutil.copy2(prior_csv, master_csv_target)
+                break
+
+    manifest_target = parent_dir / "pipeline_state.json"
+    if not manifest_target.exists():
+        for prior_manifest in input_root.rglob("pipeline_state.json"):
+            if prior_manifest.is_file():
+                print(f"Found prior pipeline manifest: {prior_manifest} -> copying to {manifest_target}", flush=True)
+                shutil.copy2(prior_manifest, manifest_target)
+                break
+
+    for prior_zip in input_root.rglob("*.zip"):
+        target = results_dir / prior_zip.name
+        if not target.exists():
+            print(f"Syncing prior archive: {prior_zip.name} -> {target}", flush=True)
+            shutil.copy2(prior_zip, target)
+        if prior_zip.name != "double_pendulum_results.zip":
+            m_dir = results_dir / prior_zip.stem
+            if not m_dir.exists():
+                try:
+                    with zipfile.ZipFile(target, "r") as zf:
+                        zf.extractall(m_dir)
+                except Exception as e:
+                    print(f"Notice: Could not extract {target.name}: {e}", flush=True)
+
+    for prior_dir in input_root.rglob("results"):
+        if prior_dir.is_dir() and prior_dir != results_dir:
+            for item in prior_dir.iterdir():
+                dest = results_dir / item.name
+                if not dest.exists():
+                    print(f"Syncing prior result item: {item.name} -> {dest}", flush=True)
+                    if item.is_dir():
+                        shutil.copytree(item, dest)
+                    else:
+                        shutil.copy2(item, dest)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Double Pendulum Production Training (270 Models)")
@@ -811,7 +1015,8 @@ def main():
     parser.add_argument("--out-dir", type=str, default=None, help="Root directory for outputs")
     parser.add_argument("--tokens", type=int, default=None, help="Token budget per model (default: 400M, smoke: 5M)")
     parser.add_argument("--batch-size", type=int, default=1024, help="Locked batch size invariant (default: 1024)")
-    parser.add_argument("--workers", type=int, default=None, help="Number of concurrent worker processes (default: 2 for rtx5090/GPU)")
+    parser.add_argument("--workers", type=int, default=None, help="Number of concurrent train worker processes (default: 5 for rtx5090, min(2, dev_count) for kaggle, 1 for local_cpu)")
+    parser.add_argument("--probe-workers", type=int, default=None, help="Number of concurrent probe worker processes (default: 2 for rtx5090, 1 for kaggle, 0 for local_cpu)")
     parser.add_argument("--micro-batch", type=int, default=None, help="Micro-batch size for gradient accumulation (default: 64)")
     args = parser.parse_args()
 
@@ -834,27 +1039,35 @@ def main():
 
     # Worker pool and hardware mapping
     if args.workers is not None:
-        num_workers = args.workers
-        worker_devices = ["cuda:0" if torch.cuda.is_available() else "cpu"] * num_workers
+        num_train_workers = args.workers
+        worker_devices = ["cuda:0" if torch.cuda.is_available() else "cpu"] * num_train_workers
+        default_probe = 2 if platform_mode == "rtx5090" else (1 if platform_mode == "kaggle" else 0)
+        num_probe_workers = args.probe_workers if args.probe_workers is not None else int(os.environ.get("BELIEF_NUM_PROBE_WORKERS", str(default_probe)))
     elif platform_mode == "rtx5090":
-        # Default to 2 workers to avoid CUDA memory pressure/fragmentation across separate processes
-        default_workers = 2
-        num_workers = int(os.environ.get("BELIEF_NUM_WORKERS", str(default_workers)))
-        worker_devices = ["cuda:0"] * num_workers
+        default_train_workers = 5
+        num_train_workers = int(os.environ.get("BELIEF_NUM_WORKERS", str(default_train_workers)))
+        worker_devices = ["cuda:0"] * num_train_workers
+        default_probe_workers = 2
+        num_probe_workers = args.probe_workers if args.probe_workers is not None else int(os.environ.get("BELIEF_NUM_PROBE_WORKERS", str(default_probe_workers)))
     elif platform_mode == "kaggle":
         dev_count = torch.cuda.device_count()
-        num_workers = max(1, min(2, dev_count))
-        worker_devices = [f"cuda:{i}" for i in range(num_workers)] if dev_count > 0 else ["cpu"]
-    else:
-        num_workers = 1
+        default_train_workers = max(1, min(2, dev_count))
+        num_train_workers = int(os.environ.get("BELIEF_NUM_WORKERS", str(default_train_workers)))
+        worker_devices = [f"cuda:{i}" for i in range(num_train_workers)] if dev_count > 0 else ["cpu"] * num_train_workers
+        default_probe_workers = 1
+        num_probe_workers = args.probe_workers if args.probe_workers is not None else int(os.environ.get("BELIEF_NUM_PROBE_WORKERS", str(default_probe_workers)))
+    else:  # local_cpu
+        num_train_workers = 1
         worker_devices = ["cuda:0"] if torch.cuda.is_available() else ["cpu"]
+        num_probe_workers = args.probe_workers if args.probe_workers is not None else 0
 
     print("=" * 78)
     print(" DOUBLE PENDULUM PRODUCTION TRAINING ORCHESTRATOR")
     print("=" * 78)
     print(f"Platform Mode:    {platform_mode.upper()}")
     print(f"Smoke Mode:       {smoke}")
-    print(f"Workers Pool:     {num_workers} concurrent process(es) on {worker_devices}")
+    print(f"Train Workers:    {num_train_workers} worker(s) on {worker_devices}")
+    print(f"Probe Workers:    {num_probe_workers} worker(s) (cpu)")
     print(f"Batch Size:       {batch_size} (strictly locked invariant)")
     print(f"Token Budget:     {tokens_per_model:,} tokens/model")
     print(f"Output Base:      {output_base}")
@@ -928,6 +1141,7 @@ def main():
     manifest_data = {
         "platform_mode": platform_mode,
         "completed_models": [],
+        "job_statuses": {},
         "total_models": len(jobs),
         "physics_tuples": [cfg.name for cfg in chosen_configs],
         "total_tokens_per_model": tokens_per_model,
@@ -936,26 +1150,58 @@ def main():
 
     all_probe_dfs: List[pd.DataFrame] = []
 
+    # Auto-resume from Kaggle dataset input if running on Kaggle
+    if platform_mode == "kaggle":
+        sync_from_kaggle_input(results_dir)
+
     # Check already completed models from disk (Auto-Resume)
     if master_csv_path.exists():
         try:
             existing_master_df = pd.read_csv(master_csv_path)
             all_probe_dfs.append(existing_master_df)
-            manifest_data["completed_models"] = list(existing_master_df["model_id"].unique())
-            print(f"Auto-Resume: Loaded {len(manifest_data['completed_models'])} previously completed models from {master_csv_path.name}.")
+            completed_set = set(existing_master_df["model_id"].unique())
+            print(f"Auto-Resume: Loaded {len(completed_set)} previously completed models from {master_csv_path.name}.")
         except Exception as e:
             print(f"Notice: Could not parse existing master CSV ({e}); starting fresh.")
+            completed_set = set()
+    else:
+        completed_set = set()
+
+    for job in jobs:
+        zip_path = results_dir / f"{job.job_id}.zip"
+        if job.job_id in completed_set or (zip_path.exists() and job.probe_csv_path.exists()):
+            job.status = "COMPLETED"
+            if job.job_id not in manifest_data["completed_models"]:
+                manifest_data["completed_models"].append(job.job_id)
+            if job.probe_csv_path.exists() and (not completed_set or job.job_id not in completed_set):
+                try:
+                    all_probe_dfs.append(pd.read_csv(job.probe_csv_path))
+                except Exception:
+                    pass
+        manifest_data["job_statuses"][job.job_id] = job.status
+
+    with open(manifest_path, "w") as f:
+        json.dump(manifest_data, f, indent=2)
 
     # Concurrency Execution Dispatch
-    if num_workers > 1 and not smoke:
-        print(f"\nDispatching {len(jobs)} jobs across {num_workers} concurrent worker processes ({worker_devices})...")
+    if num_probe_workers > 0:
+        print(f"\nDispatching {len(jobs)} jobs across {num_train_workers} train workers ({worker_devices}) and {num_probe_workers} probe workers (cpu)...")
         ctx = torch.multiprocessing.get_context("spawn")
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
-            futs = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_train_workers, mp_context=ctx) as train_executor, \
+             concurrent.futures.ProcessPoolExecutor(max_workers=num_probe_workers, mp_context=ctx) as probe_executor:
+
+            active_train: Dict[concurrent.futures.Future, Tuple[ModelJob, str]] = {}
+            active_probe: Dict[concurrent.futures.Future, ModelJob] = {}
+
+            # Submit training jobs that are not completed
             for i, job in enumerate(jobs):
+                if job.status == "COMPLETED":
+                    continue
                 dev = worker_devices[i % len(worker_devices)]
-                fut = executor.submit(
-                    train_and_probe_worker,
+                job.status = "TRAINING"
+                manifest_data["job_statuses"][job.job_id] = job.status
+                fut = train_executor.submit(
+                    train_only_worker,
                     job=job,
                     total_tokens=tokens_per_model,
                     batch_size=batch_size,
@@ -964,23 +1210,65 @@ def main():
                     smoke=smoke,
                     micro_batch_size=args.micro_batch,
                 )
-                futs.append(fut)
+                active_train[fut] = (job, dev)
 
-            for fut in concurrent.futures.as_completed(futs):
-                _, probe_df = fut.result()
-                if not probe_df.empty:
-                    all_probe_dfs.append(probe_df)
-                    cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
-                    cur_master_df.to_csv(master_csv_path, index=False)
-                    manifest_data["completed_models"] = list(cur_master_df["model_id"].unique())
-                    manifest_data["timestamp"] = time.time()
-                    with open(manifest_path, "w") as f:
-                        json.dump(manifest_data, f, indent=2)
-                    print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
+            manifest_data["timestamp"] = time.time()
+            with open(manifest_path, "w") as f:
+                json.dump(manifest_data, f, indent=2)
+
+            while active_train or active_probe:
+                all_active = list(active_train.keys()) + list(active_probe.keys())
+                done, _ = concurrent.futures.wait(all_active, return_when=concurrent.futures.FIRST_COMPLETED)
+                for fut in done:
+                    if fut in active_train:
+                        job, dev = active_train.pop(fut)
+                        job_id, ckpt_path, sidecar_path, hist_df = fut.result()
+                        # Bridge immediately to probe executor
+                        job.status = "PROBING"
+                        manifest_data["job_statuses"][job.job_id] = job.status
+                        manifest_data["timestamp"] = time.time()
+                        with open(manifest_path, "w") as f:
+                            json.dump(manifest_data, f, indent=2)
+
+                        p_fut = probe_executor.submit(
+                            probe_only_worker,
+                            job=job,
+                            checkpoint_path=ckpt_path,
+                            results_dir=results_dir,
+                            device="cpu",
+                            smoke=smoke,
+                        )
+                        active_probe[p_fut] = job
+
+                    elif fut in active_probe:
+                        job = active_probe.pop(fut)
+                        job_id, probe_df = fut.result()
+                        job.status = "COMPLETED"
+                        if not probe_df.empty:
+                            all_probe_dfs.append(probe_df)
+                            cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
+                            cur_master_df.to_csv(master_csv_path, index=False)
+                        if job.job_id not in manifest_data["completed_models"]:
+                            manifest_data["completed_models"].append(job.job_id)
+                        manifest_data["job_statuses"][job.job_id] = job.status
+                        manifest_data["timestamp"] = time.time()
+                        with open(manifest_path, "w") as f:
+                            json.dump(manifest_data, f, indent=2)
+                        print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
+
     else:
+        # Sequential execution path (e.g. local_cpu mode)
         dev = worker_devices[0]
         for job in jobs:
-            _, probe_df = train_and_probe_worker(
+            if job.status == "COMPLETED":
+                continue
+            job.status = "TRAINING"
+            manifest_data["job_statuses"][job.job_id] = job.status
+            manifest_data["timestamp"] = time.time()
+            with open(manifest_path, "w") as f:
+                json.dump(manifest_data, f, indent=2)
+
+            _, ckpt_path, _, hist_df = train_only_worker(
                 job=job,
                 total_tokens=tokens_per_model,
                 batch_size=batch_size,
@@ -989,34 +1277,55 @@ def main():
                 smoke=smoke,
                 micro_batch_size=args.micro_batch,
             )
+
+            job.status = "PROBING"
+            manifest_data["job_statuses"][job.job_id] = job.status
+            manifest_data["timestamp"] = time.time()
+            with open(manifest_path, "w") as f:
+                json.dump(manifest_data, f, indent=2)
+
+            _, probe_df = probe_only_worker(
+                job=job,
+                checkpoint_path=ckpt_path,
+                results_dir=results_dir,
+                device="cpu",
+                smoke=smoke,
+            )
+
+            job.status = "COMPLETED"
             if not probe_df.empty:
                 all_probe_dfs.append(probe_df)
                 cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
                 cur_master_df.to_csv(master_csv_path, index=False)
-                manifest_data["completed_models"] = list(cur_master_df["model_id"].unique())
-                manifest_data["timestamp"] = time.time()
-                with open(manifest_path, "w") as f:
-                    json.dump(manifest_data, f, indent=2)
-                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
+            if job.job_id not in manifest_data["completed_models"]:
+                manifest_data["completed_models"].append(job.job_id)
+            manifest_data["job_statuses"][job.job_id] = job.status
+            manifest_data["timestamp"] = time.time()
+            with open(manifest_path, "w") as f:
+                json.dump(manifest_data, f, indent=2)
+            print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
 
     print(f"\nState Manifest finalized -> {manifest_path}")
 
     # --------------------------------------------------------------------------
     # Phase 3: Emergence Synthesis Dashboard & Distribution Archive
     # --------------------------------------------------------------------------
-    master_probe_df = pd.concat(all_probe_dfs, ignore_index=True).drop_duplicates()
-    master_probe_df.to_csv(master_csv_path, index=False)
-    print(f"Master probe evaluations consolidated -> {master_csv_path} ({len(master_probe_df)} rows)")
-
-    generate_synthesis_dashboard(master_probe_df, results_dir)
+    if all_probe_dfs:
+        master_probe_df = pd.concat(all_probe_dfs, ignore_index=True).drop_duplicates()
+        master_probe_df.to_csv(master_csv_path, index=False)
+        print(f"Master probe evaluations consolidated -> {master_csv_path} ({len(master_probe_df)} rows)")
+        generate_synthesis_dashboard(master_probe_df, results_dir)
+    else:
+        print(f"Notice: No probe evaluations generated.")
 
     master_zip_path = output_base / "double_pendulum_results.zip"
     print(f"\nPackaging master distribution archive -> {master_zip_path}...")
     with zipfile.ZipFile(master_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(manifest_path, arcname=manifest_path.name)
-        zf.write(master_csv_path, arcname=master_csv_path.name)
+        if master_csv_path.exists():
+            zf.write(master_csv_path, arcname=master_csv_path.name)
         for f in results_dir.rglob("*"):
-            if f.is_file():
+            if f.is_file() and f.suffix != ".zip":
                 zf.write(f, arcname=f"results/{f.relative_to(results_dir)}")
 
     print(f"Master distribution package complete: {master_zip_path} ({master_zip_path.stat().st_size / 1024:.1f} KB)")
