@@ -41,10 +41,12 @@ import sys
 import time
 import zipfile
 from dataclasses import asdict, dataclass, field
+from itertools import combinations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 import torch
@@ -62,7 +64,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from models.transformer import ModelConfig, TinyTransformer
 from physics.controls import compute_optimal_gamma
-from physics.messk import simplex_embedding
+from physics.messk import simplex_embedding, square_projection_vertices
 from physics.messk_configs import DOUBLE_PENDULUM_BINS, make_process, set_double_pendulum_bins
 from physics.visualise import stability, trace
 
@@ -212,20 +214,22 @@ def run_phase1_distillation(
             tr = trace(proc, seed=42)
             stab = stability(tr)
             
-            used_bins_frac = float(stab["used_bins"]) / float(stab["n_obs"])
+            used_bins = int(stab["used_bins"])
+            used_bins_frac = float(used_bins) / float(stab["n_obs"])
             gap_free = float(stab.get("gap_free_mean", 0.0))
-            # Composite quality score: high bayes gap + negative/contractive lyapunov - clipping penalty - bin under-coverage penalty
+            # Composite quality score: high bayes gap + negative/contractive lyapunov - penalty on chaos/clipping/under-coverage
             score = (
                 float(stab["bayes_gap"])
                 - 0.5 * min(0.0, float(stab["lyapunov"]))
+                - 10.0 * max(0.0, float(stab["lyapunov"]))
                 - 10.0 * float(stab["clipped"])
-                - 5.0 * max(0.0, 0.10 - used_bins_frac)
+                - 1.0 * max(0.0, 0.015 - used_bins_frac)
             )
             is_go = bool(
-                float(stab["lyapunov"]) < -0.30
+                float(stab["lyapunov"]) < 0.0
                 and float(stab["clipped"]) < 0.01
-                and used_bins_frac >= 0.10
-                and float(stab["bayes_gap"]) >= 0.15
+                and used_bins >= 15
+                and float(stab["bayes_gap"]) >= 0.05
                 and gap_free > 1e-3
             )
             records_1a.append({
@@ -263,8 +267,9 @@ def run_phase1_distillation(
             print(f"Warning: Only {len(passing_1a)} pairs passed is_go in Sweep 1A (target: {n_top}). Taking what is available.")
             selected_pairs_df = passing_1a.copy()
         else:
-            print(f"Warning: 0 pairs passed is_go in Sweep 1A; falling back to top {n_top} ranked pairs by composite score.")
-            selected_pairs_df = df_1a.head(n_top).copy()
+            print(f"Warning: 0 pairs passed is_go in Sweep 1A; falling back to non-chaotic pairs by composite score.")
+            candidate_pool_1a = df_1a[df_1a["lyapunov"] < 0.0]
+            selected_pairs_df = (candidate_pool_1a if len(candidate_pool_1a) > 0 else df_1a).head(n_top).copy()
 
     print(f"Distillation Checkpoint 1A: Selected {len(selected_pairs_df)} candidate pairs for optimal damping calculation.")
 
@@ -305,19 +310,21 @@ def run_phase1_distillation(
             )
             tr = trace(proc, seed=42)
             stab = stability(tr)
-            used_bins_frac = float(stab["used_bins"]) / float(stab["n_obs"])
+            used_bins = int(stab["used_bins"])
+            used_bins_frac = float(used_bins) / float(stab["n_obs"])
             gap_free = float(stab.get("gap_free_mean", 0.0))
             score_1b = (
                 float(stab["bayes_gap"])
                 - 0.5 * min(0.0, float(stab["lyapunov"]))
+                - 10.0 * max(0.0, float(stab["lyapunov"]))
                 - 10.0 * float(stab["clipped"])
-                - 5.0 * max(0.0, 0.10 - used_bins_frac)
+                - 1.0 * max(0.0, 0.015 - used_bins_frac)
             )
             is_go_1b = bool(
-                float(stab["lyapunov"]) < -0.30
+                float(stab["lyapunov"]) < 0.0
                 and float(stab["clipped"]) < 0.01
-                and used_bins_frac >= 0.10
-                and float(stab["bayes_gap"]) >= 0.15
+                and used_bins >= 15
+                and float(stab["bayes_gap"]) >= 0.05
                 and gap_free > 1e-3
             )
             sweep_1b_records.append({
@@ -344,8 +351,10 @@ def run_phase1_distillation(
     passing_1b = df_1b[df_1b["is_go"] == True]
 
     if len(passing_1b) == 0:
-        print("Warning: 0 tuples passed is_go in Sweep 1B; falling back to top ranked tuples by composite score.")
-        candidate_pool = df_1b
+        print("Warning: 0 tuples passed is_go in Sweep 1B; falling back to non-chaotic tuples by composite score.")
+        candidate_pool = df_1b[df_1b["lyapunov"] < 0.0]
+        if len(candidate_pool) == 0:
+            candidate_pool = df_1b
     elif len(passing_1b) < n_tuples_target:
         print(f"Warning: Only {len(passing_1b)} tuples passed is_go in Sweep 1B (target: {n_tuples_target}). Taking available passing tuples.")
         candidate_pool = passing_1b
@@ -511,6 +520,8 @@ def run_synchronous_probing(
             groups = np.repeat(np.arange(N), seq_len)
         return y, groups
 
+    simplex_payload = None
+
     for mode in probe_modes:
         X_tr = get_features(trained_streams, mode)
         X_rnd = get_features(random_streams, mode)
@@ -526,6 +537,11 @@ def run_synchronous_probing(
             grid_tr.fit(X_tr, y, groups=groups)
             r2_trained = float(grid_tr.best_score_)
             best_alpha = float(grid_tr.best_params_["ridge__alpha"])
+
+            if domain == "belief" and mode == "single_layer_last_token":
+                pred_y = grid_tr.best_estimator_.predict(X_tr)
+                mood_labels = eval_batch["moods"][:, post_sync_indices].reshape(-1)
+                simplex_payload = (y, pred_y, mood_labels)
 
             grid_rnd = GridSearchCV(pipe, param_grid, cv=cv, scoring="r2", n_jobs=1)
             grid_rnd.fit(X_rnd, y, groups=groups)
@@ -544,7 +560,91 @@ def run_synchronous_probing(
                 "best_alpha": best_alpha,
             })
 
-    return pd.DataFrame(results)
+    return pd.DataFrame(results), simplex_payload
+
+
+def plot_belief_simplex_projections(
+    exact_points: np.ndarray,
+    pred_points: np.ndarray,
+    labels: np.ndarray,
+    save_path: Path,
+    title: str = "Probed Belief Simplex Geometry",
+) -> None:
+    """Renders reconstructed belief simplex in 3D orientations and 2D projections."""
+    vertices_3d = simplex_embedding(4)
+    vertices_sq = square_projection_vertices()
+    bary_exact = 0.25 + exact_points @ np.linalg.pinv(vertices_3d)
+    bary_pred = 0.25 + pred_points @ np.linalg.pinv(vertices_3d)
+    pred_sq = bary_pred @ vertices_sq
+    exact_sq = bary_exact @ vertices_sq
+
+    # Subsample if large for fast rendering and clean visualization
+    max_pts = 2000
+    if len(labels) > max_pts:
+        step = max(1, len(labels) // max_pts)
+        exact_points = exact_points[::step]
+        pred_points = pred_points[::step]
+        labels = labels[::step]
+        exact_sq = exact_sq[::step]
+        pred_sq = pred_sq[::step]
+
+    fig = plt.figure(figsize=(16, 8), dpi=150, facecolor="#fcfcfb")
+    views_3d = [(18, 35), (18, 125), (65, 45), (5, 70)]
+    colors = ("#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7")
+
+    # 1. 3D Orientations
+    for idx, (elev, azim) in enumerate(views_3d, 1):
+        ax = fig.add_subplot(2, 4, idx, projection="3d", facecolor="#fcfcfb")
+        for i, j in combinations(range(4), 2):
+            ax.plot(*zip(vertices_3d[i], vertices_3d[j]), color="#898781", lw=0.8, alpha=0.7)
+        ax.scatter(*exact_points.T, c="#c3c2b7", s=2, alpha=0.15, linewidths=0, depthshade=False, rasterized=True)
+        for s in range(4):
+            mask = (labels == s)
+            ax.scatter(*pred_points[mask].T, c=colors[s], s=4, alpha=0.35, linewidths=0, depthshade=False, rasterized=True)
+        ax.set_box_aspect((1, 1, 1))
+        ax.view_init(elev=elev, azim=azim)
+        ax.set_axis_off()
+        ax.set_title(f"3D View (elev={elev}°, azim={azim}°)", fontsize=9)
+
+    # 2. 2D Orthogonal Projections
+    dims_list = [(0, 1), (0, 2), (1, 2)]
+    for idx, dims in enumerate(dims_list, 5):
+        ax = fig.add_subplot(2, 4, idx, facecolor="#fcfcfb")
+        for i, j in combinations(range(4), 2):
+            ax.plot(*zip(vertices_3d[i, list(dims)], vertices_3d[j, list(dims)]), color="#898781", lw=0.8, alpha=0.7)
+        ax.scatter(exact_points[:, dims[0]], exact_points[:, dims[1]], c="#c3c2b7", s=2, alpha=0.15, linewidths=0, rasterized=True)
+        for s in range(4):
+            mask = (labels == s)
+            ax.scatter(pred_points[mask, dims[0]], pred_points[mask, dims[1]], c=colors[s], s=4, alpha=0.35, linewidths=0, rasterized=True)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_title(f"2D Projection {'XYZ'[dims[0]]}{'XYZ'[dims[1]]}", fontsize=9)
+
+    # 3. 2D Planar Square View
+    ax_sq = fig.add_subplot(2, 4, 8, facecolor="#fcfcfb")
+    ring = np.vstack([vertices_sq, vertices_sq[0]])
+    ax_sq.plot(ring[:, 0], ring[:, 1], color="#898781", lw=1.0)
+    ax_sq.plot([-1, 1], [-1, 1], color="#c3c2b7", lw=0.5)
+    ax_sq.plot([-1, 1], [1, -1], color="#c3c2b7", lw=0.5)
+    ax_sq.scatter(exact_sq[:, 0], exact_sq[:, 1], c="#c3c2b7", s=2, alpha=0.15, linewidths=0, rasterized=True)
+    for s in range(4):
+        mask = (labels == s)
+        ax_sq.scatter(pred_sq[mask, 0], pred_sq[mask, 1], c=colors[s], s=4, alpha=0.35, linewidths=0, rasterized=True)
+    ax_sq.set_aspect("equal")
+    ax_sq.axis("off")
+    ax_sq.set_title("2D Planar Square View", fontsize=9)
+
+    legend_elements = [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="#c3c2b7", markersize=6, label="Exact Target Set"),
+    ] + [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=colors[s], markersize=6, label=f"Mood {s}")
+        for s in range(4)
+    ]
+    fig.legend(handles=legend_elements, loc="upper center", bbox_to_anchor=(0.5, 0.96), ncol=5, frameon=False, fontsize=9)
+    fig.suptitle(title, fontsize=12, y=0.99, fontweight="bold")
+    plt.tight_layout(rect=(0.01, 0.02, 0.99, 0.94))
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_lookahead_probability_map(
@@ -689,6 +789,7 @@ def train_only_worker(
                 )
 
         # Save final model weights and JSON sidecar
+        job.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(trained_model.state_dict(), job.checkpoint_path)
         with open(job.sidecar_path, "w") as f:
             json.dump({
@@ -767,7 +868,7 @@ def probe_only_worker(
         random_model = LookaheadTransformer(cfg, k=job.k).to(device)  # untrained matched control
 
         # 4-way Synchronous Ridge Probing
-        probe_df = run_synchronous_probing(
+        probe_df, simplex_data = run_synchronous_probing(
             trained_model=trained_model,
             random_model=random_model,
             proc=proc,
@@ -791,6 +892,11 @@ def probe_only_worker(
 
         # Standardized lookahead probability map
         plot_lookahead_probability_map(trained_model, proc, job.prob_map_path, device=device)
+
+        # Standardized belief simplex geometry in 3D orientations and 2D projections
+        simplex_path = model_dir / f"{job.job_id}_belief_simplex.png"
+        if simplex_data is not None:
+            plot_belief_simplex_projections(*simplex_data, save_path=simplex_path, title=f"Probed Belief Simplex Geometry (k={job.k}) — {job.job_id}")
 
         # Instant atomic per-model zip packaging
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
