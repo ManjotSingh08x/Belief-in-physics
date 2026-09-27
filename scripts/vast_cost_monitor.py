@@ -692,6 +692,17 @@ def run_monitor(
                         active_targets = instances
                     active_targets = instances
 
+            # Dynamic budget override from vast_budget.txt (allows live budget changes without restarting)
+            budget_file = Path("vast_budget.txt")
+            if budget_file.exists():
+                try:
+                    val = float(budget_file.read_text().strip())
+                    if val > 0 and val != max_spend:
+                        log(f"[VastMonitor] Dynamic budget updated from {budget_file.name}: ${max_spend:.2f} -> ${val:.2f}")
+                        max_spend = val
+                except Exception:
+                    pass
+
             # Check spend on each target instance
             for inst in active_targets:
                 inst_id = inst.get("id")
