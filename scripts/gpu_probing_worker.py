@@ -29,6 +29,27 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# 1. Ensure repository root and scripts directory are at the top of sys.path
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+# 2. Auto-detect and re-exec into .venv if run with a Python missing project dependencies
+try:
+    import torch
+    import matplotlib
+    import pandas
+    import numpy
+except ImportError:
+    venv_python = REPO_ROOT / ".venv" / "bin" / "python3"
+    if venv_python.exists() and sys.executable != str(venv_python):
+        import subprocess
+        sys.exit(subprocess.call([str(venv_python)] + sys.argv))
+    raise
+
 import matplotlib
 matplotlib.use("Agg")  # Headless server safe
 import matplotlib.pyplot as plt
@@ -37,14 +58,25 @@ import pandas as pd
 import torch
 
 from physics.messk_configs import make_process, set_double_pendulum_bins
-from scripts.production_train import (
-    LookaheadTransformer,
-    ModelConfig,
-    plot_belief_simplex_projections,
-    plot_lookahead_probability_map,
-    simplex_embedding,
-    square_projection_vertices,
-)
+
+try:
+    from scripts.production_train import (
+        LookaheadTransformer,
+        ModelConfig,
+        plot_belief_simplex_projections,
+        plot_lookahead_probability_map,
+        simplex_embedding,
+        square_projection_vertices,
+    )
+except ImportError:
+    from production_train import (
+        LookaheadTransformer,
+        ModelConfig,
+        plot_belief_simplex_projections,
+        plot_lookahead_probability_map,
+        simplex_embedding,
+        square_projection_vertices,
+    )
 
 # Ensure canonical 50x50 bin grid invariant
 set_double_pendulum_bins((50, 50))
@@ -443,12 +475,14 @@ def main():
     # Determine paths
     if args.dir:
         output_base = Path(args.dir).expanduser().resolve()
+    elif (REPO_ROOT / "experiments").exists():
+        output_base = (REPO_ROOT / "experiments").resolve()
     elif Path("/workspace/Belief-in-physics/experiments").exists():
         output_base = Path("/workspace/Belief-in-physics/experiments").resolve()
     elif Path("/kaggle/working").exists():
         output_base = Path("/kaggle/working").resolve()
     else:
-        output_base = Path("./experiments").resolve()
+        output_base = (REPO_ROOT / "experiments").resolve()
 
     results_dir = output_base / "results" if (output_base / "results").exists() else output_base
     device = args.device
