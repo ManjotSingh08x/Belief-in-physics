@@ -9,9 +9,13 @@ saves sidecars, CSV results, and generates 8-panel summary plots.
 from __future__ import annotations
 
 import argparse
+import atexit
 import fcntl
+import gc
 import json
+import os
 from pathlib import Path
+import signal
 import sys
 import time
 
@@ -38,9 +42,7 @@ from models.train import TrainConfig, train
 from models.transformer import ModelConfig, TinyTransformer
 from physics.messk import MessDriven, MessKProcess, simplex_embedding
 from physics.systems.pendulum import Pendulum
-
-
-# --- 1. Physics & Model Primitives ---
+from lookahead_viz import plot_enhanced_summary
 
 class SampledPhysicsSystem:
     """Wraps pendulum flow to execute fixed-step substeps for numerical accuracy."""
@@ -95,39 +97,112 @@ def make_sampler(proc: MessDriven):
     return sampler
 
 
-# --- 2. Job Queue & Atomic Locking ---
+def is_pid_alive(pid: int) -> bool:
+    """Checks if a process with given PID is alive."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
 
-def claim_next_job(queue_path: Path, state_path: Path) -> dict | None:
-    lock_path = queue_path.with_suffix(".lock")
+
+def claim_next_job(queue_path: Path, state_path: Path, worker_id: int | str = 0) -> dict | None:
+    """Atomically claims the next pending job from the queue, recording in_progress."""
+    lock_path = state_path.with_suffix(".lock")
     with open(lock_path, "w") as lf:
         fcntl.flock(lf, fcntl.LOCK_EX)
         try:
-            completed = set()
+            state = {"completed": [], "in_progress": {}}
             if state_path.exists():
-                completed = set(json.loads(state_path.read_text()).get("completed", []))
+                try:
+                    loaded = json.loads(state_path.read_text())
+                    if isinstance(loaded, dict):
+                        state["completed"] = loaded.get("completed", [])
+                        state["in_progress"] = loaded.get("in_progress", {})
+                except Exception:
+                    pass
+
+            completed = set(state["completed"])
+            in_prog = state["in_progress"]
+
+            # Clean up claims held by dead PIDs
+            cleaned_in_prog = {}
+            for j_id, claim_info in in_prog.items():
+                pid = claim_info.get("pid") if isinstance(claim_info, dict) else None
+                if pid is not None and not is_pid_alive(pid):
+                    print(f"  [Queue] Reclaiming abandoned job {j_id} from dead PID {pid}")
+                    continue
+                cleaned_in_prog[j_id] = claim_info
+            state["in_progress"] = cleaned_in_prog
+
+            if not queue_path.exists():
+                return None
+
             jobs = json.loads(queue_path.read_text())
             for job in jobs:
-                if job["job_id"] not in completed:
+                j_id = job["job_id"]
+                if j_id not in completed and j_id not in state["in_progress"]:
+                    state["in_progress"][j_id] = {
+                        "worker_id": str(worker_id),
+                        "pid": os.getpid(),
+                        "claimed_at": time.time(),
+                    }
+                    state_path.write_text(json.dumps(state, indent=2))
                     return job
+
+            state_path.write_text(json.dumps(state, indent=2))
             return None
         finally:
             fcntl.flock(lf, fcntl.LOCK_UN)
 
 
-def mark_completed(state_path: Path, job_id: str) -> None:
+def release_job(state_path: Path, job_id: str) -> None:
+    """Atomically releases a claimed job from in_progress back to the queue."""
     lock_path = state_path.with_suffix(".lock")
     with open(lock_path, "w") as lf:
         fcntl.flock(lf, fcntl.LOCK_EX)
         try:
-            state = json.loads(state_path.read_text()) if state_path.exists() else {"completed": []}
-            if job_id not in state["completed"]:
-                state["completed"].append(job_id)
-            state_path.write_text(json.dumps(state, indent=2))
+            if not state_path.exists():
+                return
+            try:
+                state = json.loads(state_path.read_text())
+            except Exception:
+                return
+            in_prog = state.get("in_progress", {})
+            if job_id in in_prog:
+                del in_prog[job_id]
+                state["in_progress"] = in_prog
+                state_path.write_text(json.dumps(state, indent=2))
         finally:
             fcntl.flock(lf, fcntl.LOCK_UN)
 
 
-# --- 3. Probe Feature & Target Extraction ---
+def mark_completed(state_path: Path, job_id: str) -> None:
+    """Atomically moves a job from in_progress to completed."""
+    lock_path = state_path.with_suffix(".lock")
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            state = {"completed": [], "in_progress": {}}
+            if state_path.exists():
+                try:
+                    loaded = json.loads(state_path.read_text())
+                    if isinstance(loaded, dict):
+                        state["completed"] = loaded.get("completed", [])
+                        state["in_progress"] = loaded.get("in_progress", {})
+                except Exception:
+                    pass
+
+            if job_id not in state["completed"]:
+                state["completed"].append(job_id)
+            if job_id in state["in_progress"]:
+                del state["in_progress"][job_id]
+
+            state_path.write_text(json.dumps(state, indent=2))
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 PROBE_MODES = [
     "single_layer_single_token",
@@ -230,9 +305,6 @@ def cross_validated_ridge(
         "feature_dim": int(X.shape[1]),
     }
 
-
-# --- 4. Summary Plot Generation ---
-
 def generate_summary_plot(
     config_dir: Path,
     job: dict,
@@ -246,131 +318,19 @@ def generate_summary_plot(
     n_layers: int = 4,
     n_heads: int = 1,
 ):
-    fig = plt.figure(figsize=(18, 14), constrained_layout=True)
-    gs = fig.add_gridspec(3, 3)
-
-    eval_batch = proc.sample_batch(np.random.default_rng(seed + 9999), 1)
-    tokens_single = eval_batch["tokens"][0]
-
-    # Row 0: 3 Heatmaps (k=1, k=n//2, k=n)
-    for col_idx, (k, k_suffix) in enumerate(horizons):
-        ax = fig.add_subplot(gs[0, col_idx])
-        model_id = f"d{width}_{k_suffix}_seed{seed}"
-        pt_path = config_dir / f"{model_id}_final.pt"
-        json_path = config_dir / f"{model_id}_final.json"
-        if pt_path.exists():
-            layer_count = n_layers
-            if json_path.exists():
-                try:
-                    meta = json.loads(json_path.read_text())
-                    layer_count = meta.get("n_layers", n_layers)
-                except Exception:
-                    pass
-            cfg = ModelConfig(
-                vocab_size=181,
-                n_ctx=proc.seq_len,
-                n_layers=layer_count,
-                n_heads=n_heads,
-                d_model=width,
-                d_mlp=4 * width,
-                seed=seed,
-            )
-            model = LookaheadTransformer(cfg, k=k)
-            model.load_state_dict(torch.load(pt_path, map_location=device))
-            model.to(device).eval()
-            probs = next_token_probs(model, tokens_single, device=device)
-
-            if k < len(tokens_single):
-                pred_probs = probs[:-k]
-                actual = tokens_single[k:]
-                ax.imshow(pred_probs.T, origin="lower", aspect="auto", cmap="magma")
-                ax.plot(np.arange(len(actual)), actual, color="cyan", lw=1.2, label="Actual")
-                nll = -np.log(np.maximum(pred_probs[np.arange(len(actual)), actual], 1e-12)).mean()
-                ax.set_title(f"Horizon {k_suffix} (k={k}) | Mean NLL: {nll:.3f}")
-            else:
-                ax.text(0.5, 0.5, f"k={k} >= seq_len", ha="center", va="center")
-        ax.set_xlabel("Time step t")
-        ax.set_ylabel("Token bin (0..180)")
-
-    # Row 1: Loss curves across horizons (colspan=3)
-    ax_loss = fig.add_subplot(gs[1, :])
-    colors = {"k1": "#2ecc71", "kn2": "#3498db", "kn": "#9b59b6"}
-    for k, k_suffix in horizons:
-        hist = loss_histories.get(k_suffix, [])
-        if hist:
-            steps = [h["step"] for h in hist]
-            eval_losses = [h["eval_loss"] for h in hist]
-            ax_loss.plot(
-                steps,
-                eval_losses,
-                label=f"Eval Loss {k_suffix} (k={k})",
-                color=colors.get(k_suffix, "black"),
-                lw=1.8,
-            )
-    ax_loss.axhline(np.log(181), ls=":", color="gray", lw=1.5, label="Random ln(181)")
-    ax_loss.set_title(f"Loss Curves — {job['config_name']} (d={width}, seed={seed})")
-    ax_loss.set_xlabel("Training Steps")
-    ax_loss.set_ylabel("Cross Entropy Loss")
-    ax_loss.legend(loc="upper right")
-    ax_loss.grid(True, alpha=0.3)
-
-    # Row 2: Probe R² bars (Belief on col 0, Physics on col 1, Info on col 2)
-    for col_idx, target_name in enumerate(["belief", "physics"]):
-        ax_probe = fig.add_subplot(gs[2, col_idx])
-        sub_df = probe_df[probe_df["target"] == target_name]
-        modes = PROBE_MODES
-        x = np.arange(len(modes))
-        bar_w = 0.35
-
-        trained_r2 = []
-        random_r2 = []
-        for m_name in modes:
-            m_trained = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
-            m_random = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
-            trained_r2.append(float(m_trained.max()) if len(m_trained) > 0 else 0.0)
-            random_r2.append(float(m_random.max()) if len(m_random) > 0 else 0.0)
-
-        ax_probe.bar(x - bar_w / 2, trained_r2, bar_w, label="Trained (best k)", color="#2980b9")
-        ax_probe.bar(x + bar_w / 2, random_r2, bar_w, label="Random init", color="#e74c3c")
-        ax_probe.set_xticks(x)
-        ax_probe.set_xticklabels([m.replace("_", "\n") for m in modes], rotation=45, ha="right", fontsize=8)
-        ax_probe.set_ylabel("Test R²")
-        ax_probe.set_ylim(-0.1, 1.05)
-        ax_probe.set_title(f"{target_name.capitalize()} Probe R² by Mode")
-        ax_probe.legend(loc="upper left")
-        ax_probe.grid(True, axis="y", alpha=0.3)
-
-    # Col 2 in row 2: Info panel
-    ax_info = fig.add_subplot(gs[2, 2])
-    ax_info.axis("off")
-    info_text = (
-        f"Config: {job['config_name']}\n"
-        f"delta_v: {job['delta_v']}\n"
-        f"gamma: {job['gamma']}\n"
-        f"dt: {job['dt']}\n"
-        f"n_steps (n): {job['n_steps']}\n"
-        f"m (cycles): {job['m']}\n"
-        f"seq_len: {job['m'] * job['n_steps']}\n"
-        f"d_model: {width}\n"
-        f"seed: {seed}\n"
-        f"Total probe rows: {len(probe_df)}"
+    plot_enhanced_summary(
+        config_dir=config_dir,
+        job=job,
+        width=width,
+        seed=seed,
+        horizons=horizons,
+        loss_histories=loss_histories,
+        probe_df=probe_df,
+        proc=proc,
+        device=device,
+        n_layers=n_layers,
+        n_heads=n_heads,
     )
-    ax_info.text(
-        0.1,
-        0.5,
-        info_text,
-        fontsize=11,
-        family="monospace",
-        va="center",
-        bbox=dict(boxstyle="round,pad=0.8", facecolor="#f8f9fa", edgecolor="#ced4da"),
-    )
-
-    plot_path = config_dir / f"d{width}_seed{seed}_summary.png"
-    plt.savefig(plot_path, dpi=120)
-    plt.close(fig)
-
-
-# --- 5. Main Worker Loop ---
 
 def worker_main():
     parser = argparse.ArgumentParser(description="BeliefPhysics single-pendulum sweep worker")
@@ -395,191 +355,263 @@ def worker_main():
     ridge_alphas = tuple(float(a.strip()) for a in args.ridge_alphas.split(",") if a.strip())
     device = args.device
 
-    print(f"[Worker {args.worker_id}] Started on device: {device}")
+    current_job_id = [None]
+
+    def cleanup_handler(*_):
+        if current_job_id[0] is not None:
+            print(f"\n[Worker {args.worker_id}] Terminating: releasing job {current_job_id[0]}...")
+            release_job(state_path, current_job_id[0])
+            current_job_id[0] = None
+        sys.exit(0)
+
+    try:
+        signal.signal(signal.SIGINT, cleanup_handler)
+        signal.signal(signal.SIGTERM, cleanup_handler)
+    except (ValueError, AttributeError):
+        pass
+
+    atexit.register(lambda: release_job(state_path, current_job_id[0]) if current_job_id[0] else None)
+
+    print(f"[Worker {args.worker_id}] Started on device: {device} (PID {os.getpid()})")
+    oom_consecutive = 0
 
     while True:
-        job = claim_next_job(queue_path, state_path)
+        job = claim_next_job(queue_path, state_path, worker_id=args.worker_id)
         if job is None:
-            print(f"[Worker {args.worker_id}] Queue empty. Exiting.")
+            has_in_progress = False
+            if state_path.exists():
+                try:
+                    s_data = json.loads(state_path.read_text())
+                    has_in_progress = bool(s_data.get("in_progress"))
+                except Exception:
+                    pass
+            if has_in_progress:
+                time.sleep(5)
+                continue
+            print(f"[Worker {args.worker_id}] Queue empty and no active jobs. Exiting.")
             break
 
         job_id = job["job_id"]
+        current_job_id[0] = job_id
         print(f"\n[Worker {args.worker_id}] Claimed job: {job_id}")
         t0 = time.time()
 
-        config_dir = output_dir / job["config_name"]
-        config_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            config_dir = output_dir / job["config_name"]
+            config_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Build MessDriven process
-        proc = build_process(
-            delta_v=job["delta_v"],
-            gamma=job["gamma"],
-            dt=job["dt"],
-            n_steps=job["n_steps"],
-            m=job["m"],
-        )
-        seq_len = proc.seq_len
-        sampler = make_sampler(proc)
-
-        width = job["width"]
-        seed = job["seed"]
-        n_steps = job["n_steps"]
-        m = job["m"]
-        horizons = [(1, "k1"), (max(1, n_steps // 2), "kn2"), (n_steps, "kn")]
-        loss_histories: dict[str, list[dict]] = {}
-
-        # 2. Train 3 horizons
-        for k, k_suffix in horizons:
-            model_id = f"d{width}_{k_suffix}_seed{seed}"
-            final_pt = config_dir / f"{model_id}_final.pt"
-            final_json = config_dir / f"{model_id}_final.json"
-
-            if final_pt.exists() and final_json.exists():
-                print(f"  [{model_id}] Checkpoint exists. Skipping training.")
-                loss_histories[k_suffix] = []
-                continue
-
-            model_config = ModelConfig(
-                vocab_size=181,
-                n_ctx=seq_len,
-                n_layers=args.n_layers,
-                n_heads=args.n_heads,
-                d_model=width,
-                d_mlp=4 * width,
-                seed=seed,
+            # 1. Build MessDriven process
+            proc = build_process(
+                delta_v=job["delta_v"],
+                gamma=job["gamma"],
+                dt=job["dt"],
+                n_steps=job["n_steps"],
+                m=job["m"],
             )
-            model = LookaheadTransformer(model_config, k=k)
+            seq_len = proc.seq_len
+            sampler = make_sampler(proc)
 
-            train_cfg = TrainConfig(
-                total_tokens=args.total_tokens,
-                batch_size=args.batch_size,
-                learning_rate=1e-3,
-                weight_decay=0.0,
-                warmup_frac=0.02,
-                grad_clip=1.0,
-                seed=seed,
-                log_every=args.log_every,
-                checkpoint_at=(),
-            )
+            width = job["width"]
+            seed = job["seed"]
+            n_steps = job["n_steps"]
+            m = job["m"]
+            horizons = [(1, "k1"), (max(1, n_steps // 2), "kn2"), (n_steps, "kn")]
+            loss_histories: dict[str, list[dict]] = {}
 
-            t_train = time.time()
-            report = train(model, sampler, seq_len, train_cfg, device=device)
-            elapsed = time.time() - t_train
+            # 2. Train 3 horizons
+            for k, k_suffix in horizons:
+                model_id = f"d{width}_{k_suffix}_seed{seed}"
+                final_pt = config_dir / f"{model_id}_final.pt"
+                final_json = config_dir / f"{model_id}_final.json"
 
-            # Save weights
-            torch.save({k_w: v_w.detach().cpu() for k_w, v_w in model.state_dict().items()}, final_pt)
+                if final_pt.exists() and final_json.exists():
+                    print(f"  [{model_id}] Checkpoint exists. Skipping training.")
+                    loss_histories[k_suffix] = []
+                    continue
 
-            # Save metadata sidecar
-            meta = {
-                "config_name": job["config_name"],
-                "delta_v": job["delta_v"],
-                "gamma": job["gamma"],
-                "dt": job["dt"],
-                "n_steps": n_steps,
-                "m": m,
-                "seq_len": seq_len,
-                "d_model": width,
-                "d_mlp": 4 * width,
-                "n_layers": args.n_layers,
-                "n_heads": args.n_heads,
-                "vocab_size": 181,
-                "k": k,
-                "k_suffix": k_suffix,
-                "seed": seed,
-                "total_tokens": args.total_tokens,
-                "tokens_seen": report["tokens_seen"],
-                "batch_size": args.batch_size,
-                "gradient_steps": report["steps"],
-                "final_train_loss": report["final"]["train_loss"] if report["final"] else None,
-                "final_eval_loss": report["final"]["eval_loss"] if report["final"] else None,
-                "device": device,
-                "training_time_seconds": round(elapsed, 1),
-            }
-            final_json.write_text(json.dumps(meta, indent=2))
-            loss_histories[k_suffix] = report["history"]
-            print(f"  [{model_id}] Finished in {elapsed:.1f}s | Eval loss: {meta['final_eval_loss']}")
+                model_config = ModelConfig(
+                    vocab_size=181,
+                    n_ctx=seq_len,
+                    n_layers=args.n_layers,
+                    n_heads=args.n_heads,
+                    d_model=width,
+                    d_mlp=4 * width,
+                    seed=seed,
+                )
+                model = LookaheadTransformer(model_config, k=k)
 
-        # 3. Probing: 3 horizons × 2 models (trained, random) × 6 modes × 2 targets
-        print(f"  [Probing] Generating {args.n_probe_traj} evaluation trajectories...")
-        probe_rng = np.random.default_rng(seed + 1000)
-        analysis_batch = proc.sample_batch(probe_rng, args.n_probe_traj)
-        raw_targets = extract_raw_targets(analysis_batch, proc)
+                train_cfg = TrainConfig(
+                    total_tokens=args.total_tokens,
+                    batch_size=args.batch_size,
+                    learning_rate=1e-3,
+                    weight_decay=0.0,
+                    warmup_frac=0.02,
+                    grad_clip=1.0,
+                    seed=seed,
+                    log_every=args.log_every,
+                    checkpoint_at=(),
+                )
 
-        N = args.n_probe_traj
-        order = np.random.default_rng(seed + 4).permutation(N)
-        n_test = max(1, int(N * args.test_frac))
-        test_seqs = set(order[:n_test].tolist())
+                t_train = time.time()
+                report = train(model, sampler, seq_len, train_cfg, device=device)
+                elapsed = time.time() - t_train
 
-        probe_rows = []
-        for k, k_suffix in horizons:
-            model_id = f"d{width}_{k_suffix}_seed{seed}"
-            final_pt = config_dir / f"{model_id}_final.pt"
+                # Save weights
+                torch.save({k_w: v_w.detach().cpu() for k_w, v_w in model.state_dict().items()}, final_pt)
 
-            model_config = ModelConfig(
-                vocab_size=181,
-                n_ctx=seq_len,
-                n_layers=args.n_layers,
-                n_heads=args.n_heads,
-                d_model=width,
-                d_mlp=4 * width,
-                seed=seed,
-            )
+                # Save metadata sidecar
+                meta = {
+                    "config_name": job["config_name"],
+                    "delta_v": job["delta_v"],
+                    "gamma": job["gamma"],
+                    "dt": job["dt"],
+                    "n_steps": n_steps,
+                    "m": m,
+                    "seq_len": seq_len,
+                    "d_model": width,
+                    "d_mlp": 4 * width,
+                    "n_layers": args.n_layers,
+                    "n_heads": args.n_heads,
+                    "vocab_size": 181,
+                    "k": k,
+                    "k_suffix": k_suffix,
+                    "seed": seed,
+                    "total_tokens": args.total_tokens,
+                    "tokens_seen": report["tokens_seen"],
+                    "batch_size": args.batch_size,
+                    "gradient_steps": report["steps"],
+                    "final_train_loss": report["final"]["train_loss"] if report["final"] else None,
+                    "final_eval_loss": report["final"]["eval_loss"] if report["final"] else None,
+                    "device": device,
+                    "training_time_seconds": round(elapsed, 1),
+                }
+                final_json.write_text(json.dumps(meta, indent=2))
+                loss_histories[k_suffix] = report["history"]
+                print(f"  [{model_id}] Finished in {elapsed:.1f}s | Eval loss: {meta['final_eval_loss']}")
 
-            # Load trained model
-            trained_model = LookaheadTransformer(model_config, k=k)
-            trained_model.load_state_dict(torch.load(final_pt, map_location=device))
-            trained_model.to(device).eval()
+                del model
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
-            # Randomly initialized baseline model
-            random_model = LookaheadTransformer(model_config, k=k).to(device).eval()
+            # 3. Probing: 3 horizons × 2 models (trained, random) × 6 modes × 2 targets
+            print(f"  [Probing] Generating {args.n_probe_traj} evaluation trajectories...")
+            probe_rng = np.random.default_rng(seed + 1000)
+            analysis_batch = proc.sample_batch(probe_rng, args.n_probe_traj)
+            raw_targets = extract_raw_targets(analysis_batch, proc)
 
-            for model_tag, model_obj in [("trained", trained_model), ("random_init", random_model)]:
-                streams = residual_streams_batched(model_obj, analysis_batch["tokens"], device)
-                for mode in PROBE_MODES:
-                    X, y_phys, y_bel, groups = extract_probe_features_and_targets(
-                        streams, raw_targets, mode, n_steps, m
-                    )
-                    t_mask = np.isin(groups, list(test_seqs))
-                    d_mask = ~t_mask
+            N = args.n_probe_traj
+            order = np.random.default_rng(seed + 4).permutation(N)
+            n_test = max(1, int(N * args.test_frac))
+            test_seqs = set(order[:n_test].tolist())
 
-                    for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
-                        score = cross_validated_ridge(
-                            X, y, groups, d_mask, t_mask, ridge_alphas=ridge_alphas, cv_folds=args.cv_folds
+            probe_rows = []
+            for k, k_suffix in horizons:
+                model_id = f"d{width}_{k_suffix}_seed{seed}"
+                final_pt = config_dir / f"{model_id}_final.pt"
+
+                model_config = ModelConfig(
+                    vocab_size=181,
+                    n_ctx=seq_len,
+                    n_layers=args.n_layers,
+                    n_heads=args.n_heads,
+                    d_model=width,
+                    d_mlp=4 * width,
+                    seed=seed,
+                )
+
+                # Load trained model
+                trained_model = LookaheadTransformer(model_config, k=k)
+                trained_model.load_state_dict(torch.load(final_pt, map_location=device))
+                trained_model.to(device).eval()
+
+                # Randomly initialized baseline model
+                random_model = LookaheadTransformer(model_config, k=k).to(device).eval()
+
+                for model_tag, model_obj in [("trained", trained_model), ("random_init", random_model)]:
+                    streams = residual_streams_batched(model_obj, analysis_batch["tokens"], device)
+                    for mode in PROBE_MODES:
+                        X, y_phys, y_bel, groups = extract_probe_features_and_targets(
+                            streams, raw_targets, mode, n_steps, m
                         )
-                        probe_rows.append({
-                            "config_name": job["config_name"],
-                            "delta_v": job["delta_v"],
-                            "gamma": job["gamma"],
-                            "dt": job["dt"],
-                            "n_steps": n_steps,
-                            "m": m,
-                            "d_model": width,
-                            "seed": seed,
-                            "horizon": k_suffix,
-                            "k_value": k,
-                            "model_type": model_tag,
-                            "mode": mode,
-                            "target": target_name,
-                            **score,
-                        })
+                        t_mask = np.isin(groups, list(test_seqs))
+                        d_mask = ~t_mask
 
-        # 4. Save per-job probes CSV
-        probe_df = pd.DataFrame(probe_rows)
-        probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
-        probe_df.to_csv(probe_csv, index=False)
-        print(f"  [Probing] Saved {len(probe_df)} rows to {probe_csv.name}")
+                        for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
+                            score = cross_validated_ridge(
+                                X, y, groups, d_mask, t_mask, ridge_alphas=ridge_alphas, cv_folds=args.cv_folds
+                            )
+                            probe_rows.append({
+                                "config_name": job["config_name"],
+                                "delta_v": job["delta_v"],
+                                "gamma": job["gamma"],
+                                "dt": job["dt"],
+                                "n_steps": n_steps,
+                                "m": m,
+                                "d_model": width,
+                                "seed": seed,
+                                "horizon": k_suffix,
+                                "k_value": k,
+                                "model_type": model_tag,
+                                "mode": mode,
+                                "target": target_name,
+                                **score,
+                            })
 
-        # 5. Generate summary plot
-        print(f"  [Summary] Generating summary plot...")
-        generate_summary_plot(
-            config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
-            n_layers=args.n_layers, n_heads=args.n_heads
-        )
+                del trained_model, random_model, streams
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
-        # 6. Mark job complete atomically
-        mark_completed(state_path, job_id)
-        elapsed_total = time.time() - t0
-        print(f"[Worker {args.worker_id}] Job {job_id} complete in {elapsed_total:.1f}s")
+            # 4. Save per-job probes CSV
+            probe_df = pd.DataFrame(probe_rows)
+            probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
+            probe_df.to_csv(probe_csv, index=False)
+            print(f"  [Probing] Saved {len(probe_df)} rows to {probe_csv.name}")
+
+            # 5. Generate summary plot
+            print(f"  [Summary] Generating summary plot...")
+            generate_summary_plot(
+                config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
+                n_layers=args.n_layers, n_heads=args.n_heads
+            )
+
+            # 6. Mark job complete atomically
+            mark_completed(state_path, job_id)
+            current_job_id[0] = None
+            oom_consecutive = 0
+            elapsed_total = time.time() - t0
+            print(f"[Worker {args.worker_id}] Job {job_id} complete in {elapsed_total:.1f}s")
+
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+            is_oom = isinstance(exc, torch.cuda.OutOfMemoryError) or "out of memory" in str(exc).lower()
+            if not is_oom:
+                release_job(state_path, job_id)
+                current_job_id[0] = None
+                raise
+
+            oom_consecutive += 1
+            print(f"\n[Worker {args.worker_id}] CAUGHT CUDA OOM on job {job_id} (count={oom_consecutive}): {exc}")
+
+            # Clean up all GPU memory
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            # Atomically release job back to queue
+            release_job(state_path, job_id)
+            current_job_id[0] = None
+            print(f"[Worker {args.worker_id}] Released job {job_id} back to queue.")
+
+            # Back off to allow concurrent GPU processes to release memory (batch size is preserved!)
+            backoff_secs = min(120.0, 15.0 * oom_consecutive + float(np.random.uniform(3.0, 10.0)))
+            print(f"[Worker {args.worker_id}] Backing off for {backoff_secs:.1f}s before attempting next job...")
+            time.sleep(backoff_secs)
+            continue
+        except Exception:
+            release_job(state_path, job_id)
+            current_job_id[0] = None
+            raise
 
 
 if __name__ == "__main__":

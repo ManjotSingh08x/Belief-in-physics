@@ -38,5 +38,5 @@ def run_notebook(nb_path: Path):
     print("\nExecution complete.")
 
 if __name__ == "__main__":
-    notebook_file = Path(__file__).resolve().parent / "three_phase_pipeline.ipynb"
+    notebook_file = Path(__file__).resolve().parent / "parallel_train.ipynb"
     run_notebook(notebook_file)

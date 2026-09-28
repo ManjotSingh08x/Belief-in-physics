@@ -22,8 +22,10 @@ from _worker import (
     cross_validated_ridge,
     extract_probe_features_and_targets,
     extract_raw_targets,
+    is_pid_alive,
     make_sampler,
     mark_completed,
+    release_job,
     PROBE_MODES,
 )
 from models.transformer import ModelConfig
@@ -107,6 +109,99 @@ def test_job_claiming_and_completion():
         mark_completed(state_path, "job_3")
         j4 = claim_next_job(queue_path, state_path)
         assert j4 is None
+
+
+def _claim_helper(args):
+    q_path, s_path, w_id = args
+    return claim_next_job(q_path, s_path, worker_id=w_id)
+
+
+def test_concurrent_claims_no_race_condition():
+    from concurrent.futures import ProcessPoolExecutor
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        queue_path = tmp_path / "_job_queue.json"
+        state_path = tmp_path / "pipeline_state.json"
+
+        jobs = [
+            {"job_id": f"job_{i}", "config_name": f"cfg{i}"}
+            for i in range(8)
+        ]
+        queue_path.write_text(json.dumps(jobs))
+
+        worker_args = [(queue_path, state_path, i) for i in range(8)]
+        with ProcessPoolExecutor(max_workers=8) as executor:
+            claimed_jobs = list(executor.map(_claim_helper, worker_args))
+
+        claimed_ids = [j["job_id"] for j in claimed_jobs if j is not None]
+        assert len(claimed_ids) == 8
+        assert len(set(claimed_ids)) == 8, "Multiple workers claimed the same job ID"
+
+        # Verify state file recorded in_progress correctly
+        state = json.loads(state_path.read_text())
+        assert len(state["in_progress"]) == 8
+        for i in range(8):
+            assert f"job_{i}" in state["in_progress"]
+
+
+def test_release_job_and_recovery():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        queue_path = tmp_path / "_job_queue.json"
+        state_path = tmp_path / "pipeline_state.json"
+
+        jobs = [{"job_id": "job_oom_test", "config_name": "cfg_oom"}]
+        queue_path.write_text(json.dumps(jobs))
+
+        j1 = claim_next_job(queue_path, state_path, worker_id="worker_1")
+        assert j1["job_id"] == "job_oom_test"
+
+        state = json.loads(state_path.read_text())
+        assert "job_oom_test" in state["in_progress"]
+
+        # Worker catches OOM and releases job
+        release_job(state_path, "job_oom_test")
+        state_after = json.loads(state_path.read_text())
+        assert "job_oom_test" not in state_after["in_progress"]
+        assert "job_oom_test" not in state_after["completed"]
+
+        # Next worker claims the released job
+        j2 = claim_next_job(queue_path, state_path, worker_id="worker_2")
+        assert j2 is not None
+        assert j2["job_id"] == "job_oom_test"
+
+
+def test_dead_pid_reclaiming():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        queue_path = tmp_path / "_job_queue.json"
+        state_path = tmp_path / "pipeline_state.json"
+
+        jobs = [{"job_id": "job_dead_worker", "config_name": "cfg_dead"}]
+        queue_path.write_text(json.dumps(jobs))
+
+        # Simulate dead worker with a non-existent PID
+        dead_pid = 999999999
+        assert not is_pid_alive(dead_pid)
+        state_path.write_text(json.dumps({
+            "completed": [],
+            "in_progress": {
+                "job_dead_worker": {
+                    "worker_id": "dead_worker",
+                    "pid": dead_pid,
+                    "claimed_at": 1000.0,
+                }
+            }
+        }))
+
+        # Live worker claims next job
+        j = claim_next_job(queue_path, state_path, worker_id="alive_worker")
+        assert j is not None
+        assert j["job_id"] == "job_dead_worker"
+
+        state = json.loads(state_path.read_text())
+        assert state["in_progress"]["job_dead_worker"]["worker_id"] == "alive_worker"
 
 
 def test_target_extraction():
@@ -337,6 +432,6 @@ def test_worker_cli_full_cycle():
         # Run worker second time: queue empty, exits cleanly
         res2 = subprocess.run(cmd, capture_output=True, text=True)
         assert res2.returncode == 0
-        assert "Queue empty. Exiting." in res2.stdout
+        assert "Queue empty and no active jobs. Exiting." in res2.stdout
 
 
