@@ -271,7 +271,7 @@ The notebook operates seamlessly in two modalities:
   - Sequence length invariant: `m = 500 // n`, yielding exactly 500 tokens per trajectory.
   - All other physics parameters remain fixed at defaults (`th1_0 = 0.9, th2_0 = -0.4, dt = 0.2, omega_max = 10.0`, 2D mixed-radix `(50, 50)` bins with vocabulary 2500, `joint1_action_gain = 2.0`).
 - **Screening Checks (Single Seed, `seed=42`)**:
-  - Lyapunov exponent $\lambda$ (contractive margin $\lambda < -0.30/\text{s}$), observation clipping ($< 1\%$), used bins ($> 10\%$), driven-vs-free gap, and Bayes-optimal gap ($\ge 0.15$ nats). (Single seed evaluation avoids redundant overhead prior to final Phase 3 production).
+  - Lyapunov exponent $\lambda$ (contractive margin $\lambda < 0.0/\text{s}$, with heavy penalty on $\lambda \ge 0$), observation clipping ($< 1\%$), used bins ($\ge 15$ bins / $> 1.5\%$ for 2D grid, matching `physics/visualise.py::stability`), driven-vs-free gap ($> 10^{-3}$), and Bayes-optimal gap ($\ge 0.05$ nats). (Single seed evaluation avoids redundant overhead prior to final Phase 3 production).
 - **Interactive Output**:
   - HTML heatmap matrix colored by GO / NO-GO status across $(\Delta v, n)$.
   - Numbered summary DataFrame (`pair_id`: `0` to `19`).
@@ -319,7 +319,7 @@ The notebook operates seamlessly in two modalities:
 
 ### Sweep 1B: Damping Sweep on Chosen Tuples $(\text{Chosen } (\Delta v, n) \times 9\text{ Candidate } \gamma)$
 - Evaluates the Cartesian product of chosen $(\Delta v, n)$ pairs and their respective 9 candidate $\gamma$ values (e.g. 10 pairs $\times$ 9 gammas = 90 physics candidate runs, evaluated on single seed `seed=42`).
-- Evaluates contractive stability ($\lambda < -0.30/\text{s}$, 0% clipping, used bins $> 10\%$, Bayes gap $\ge 0.15$ nats, driven-vs-free trajectory separation).
+- Evaluates contractive stability ($\lambda < 0.0/\text{s}$, 0% clipping, used bins $\ge 15$ bins [$> 1.5\%$], Bayes gap $\ge 0.05$ nats, driven-vs-free trajectory separation).
 - Produces ranked evaluation matrix and diagnostic breakdown.
 
 ### Distillation Checkpoint 2: Select Top 10 Physics Tuples (`ExperimentConfig`)
@@ -441,36 +441,39 @@ $$\text{Total Models} = 10\text{ physics tuples} \times 3\text{ widths } (32, 64
 
 ### 4.2 Parallelism Architecture & Platform Modes ('rtx5090', 'kaggle', 'local_cpu')
 
-The queue execution engine dynamically adapts its concurrency, device mapping, and process model according to the active `PLATFORM_MODE`:
+The queue execution engine dynamically adapts its concurrency, device mapping, and process model according to the active `PLATFORM_MODE`, deploying an **overlapped dual-pool train/probe pipelining architecture**:
 
-1. **Mode 1: `rtx5090` (Vast.ai / Workstation — 5 Concurrent Worker Processes)**:
+1. **Mode 1: `rtx5090` (Vast.ai / Workstation — 5 to 12 Train Workers + GPU Prober)**:
    - **Hardware Profile**: 1x NVIDIA GeForce RTX 5090 (32 GB GDDR7, 108.1 TFLOPS) paired with an 8-core / 16-thread AMD Ryzen 7 host CPU.
-   - **Worker Pool**: Spawns **`NUM_WORKERS = 5` concurrent worker processes** via `torch.multiprocessing` / `ProcessPoolExecutor`.
-   - **Device Mapping**: All 5 workers share `cuda:0`. Total VRAM consumption: $5 \times 2.5\text{ GB} = \mathbf{12.5\text{ GB}}$ (leaving 19.5 GB free VRAM out of 32 GB).
-   - **Zero GIL Contention**: Each worker runs in an independent Python process mapped to a dedicated physical CPU core, executing RK4 physics simulations at full Zen 4 single-core IPC.
+   - **Worker Concurrency**:
+     - **Train Pool**: `NUM_TRAIN_WORKERS = 5` (or up to 12) concurrent worker processes mapped to `cuda:0` via `ProcessPoolExecutor(mp_context="spawn")`.
+     - **GPU Probing Engine**: Probing is executed strictly on **GPU (`device="cuda:0"`)** via native PyTorch closed-form linear algebra (`torch.linalg.solve`).
+   - **Strict Prohibition on CPU Probing**: CPU-bound `sklearn` Ridge cross-validation across 256,000 tokens per model takes 15–25 minutes per model on CPU, causing severe queue backlogs. On GPU, closed-form Ridge regression takes **< 0.1 ms**, completing all 4 probe modes in **~2–3 seconds per model** (a 500x speedup).
    - **Expected Performance**: Combined throughput of **~3.2M to 3.8M tokens/second**, completing the entire 270-model production run in **~2.2 to 2.5 hours total** (under $1.50 rental cost on Vast.ai).
 
-2. **Mode 2: `kaggle` (Dual Tesla T4 — 2 Thread/Process Workers)**:
+2. **Mode 2: `kaggle` (Dual Tesla T4 — $\min(2, \text{dev\_count})$ Train + GPU Prober)**:
    - **Hardware Profile**: 2x NVIDIA Tesla T4 (16 GB GDDR6 each) on Kaggle with 2–4 shared vCPUs.
-   - **Worker Pool**: Spawns `NUM_WORKERS = 2` workers: Worker 0 assigned to `cuda:0`, Worker 1 assigned to `cuda:1`.
+   - **Worker Pools**:
+     - **Train Pool**: `NUM_TRAIN_WORKERS = 2` workers distributed across `cuda:0` and `cuda:1`.
+     - **GPU Probing Engine**: Probing runs on GPU (`cuda:0` or `cuda:1`) using PyTorch closed-form linear algebra, completely bypassing CPU vCPU throttling.
    - **Expected Performance**: Combined throughput of ~490k tokens/second, taking **~61 hours total**. Automatically chunks across ~5 sequential 12-hour Kaggle sessions using `pipeline_state.json`.
 
 3. **Mode 3: `local_cpu` (Single Worker Sequential / Smoke)**:
-   - **Hardware Profile**: Local CPU execution without CUDA.
-   - **Worker Pool**: `NUM_WORKERS = 1` worker on `cpu` with micro-batch size 16 for rapid dry-runs and pipeline testing.
+   - **Hardware Profile**: Local CPU execution without CUDA (for unit testing and smoke validation only).
+   - **Worker Pool**: `NUM_TRAIN_WORKERS = 1` on `cpu` (micro-batch size 16), executing train and probe sequentially using PyTorch vectorized closed-form solver.
 
-4. **Dual-Path Auto-Resume & Session Recovery**:
+4. **Dual-Path Auto-Resume & Kaggle Input Sync**:
    - Maintains a centralized manifest file at `{OUTPUT_BASE}/pipeline_state.json`.
-   - **Startup Check**:
-     1. Inspects `pipeline_state.json` to find already completed jobs.
-     2. If starting on Kaggle where `/kaggle/working` is fresh, automatically searches `/kaggle/input` for any attached previous run output dataset, copies existing model directories to `{RESULTS_DIR}/`, and reconstructs `pipeline_state.json`.
-     3. Completed models are bypassed; execution picks up seamlessly from the first pending job.
+   - **Startup Check (`sync_from_kaggle_input`)**:
+     1. When `PLATFORM_MODE == "kaggle"`, scans `/kaggle/input` for attached datasets containing prior run artifacts (`master_probe_results.csv`, `pipeline_state.json`, `*.zip`, and `results/` folders).
+     2. Automatically copies prior master CSV and manifest to `/kaggle/working/`, unpacks existing per-model `{model_id}.zip` archives into `{RESULTS_DIR}/{model_id}/`, and syncs prior directories.
+     3. Checks `pipeline_state.json` and disk files for already completed models; completed models are bypassed (`status = "COMPLETED"`), resuming execution seamlessly from the first pending job.
 
-5. **Synchronous In-Worker Probing & Instant Model Packaging**:
-   - Probing and probability map generation run **synchronously within the worker process** immediately upon reaching 400M tokens (~10-15s per model).
-   - The worker saves `{model_id}_final.pt`, `{model_id}_final.json`, `{model_id}_probes.csv`, `{model_id}_probes.json`, and `{model_id}_lookahead_prob_map.png` into `{RESULTS_DIR}/{model_id}/`.
-   - The worker immediately compresses this folder into `{RESULTS_DIR}/{model_id}.zip`.
-   - Guaranteed atomic completeness: every completed model is 100% packaged and downloadable even if a session terminates prematurely.
+5. **Pipelined GPU Probing & Asynchronous Model Packaging**:
+   - `train_only_worker`: Trains model to 400M tokens, saves `{model_id}_final.pt` and `{model_id}_final.json`, returns checkpoint path and history.
+   - `gpu_probing_worker` / `probe_only_worker`: Loads weights directly onto GPU, builds matched random-init control, executes 4-way GPU Ridge CV in closed-form, generates standardized lookahead probability map, generates 8-panel belief simplex projection figure, writes `{model_id}_probes.csv/json`, and compresses `{model_dir}` into `{model_id}.zip`.
+   - **Dedicated Standalone / Watch Prober (`scripts/gpu_probing_worker.py`)**: Can be launched concurrently alongside training (`python scripts/gpu_probing_worker.py --watch 15`), polling the results directory and probing newly completed checkpoints in seconds as GPU training workers finish them.
+   - **Incremental Persistence**: Both `master_probe_results.csv` and `pipeline_state.json` are incrementally updated and flushed strictly upon probe completion. Guaranteed atomic completeness: every completed model is 100% packaged and downloadable even if a session terminates prematurely.
 
 ### 4.3 Real-Time Observability & Live Health Verification Protocol
 
@@ -524,12 +527,15 @@ Directly adopting the evaluation architecture of [three_phase_pipeline.ipynb](fi
    - `physics`: True continuous angular velocities $(v_1, v_2) = (\omega_1, \omega_2)$ at cycle ends.
    - `belief`: Exact hidden Markov posterior belief vector $P(\text{mood} \mid \text{tokens}_{1:t}) \in \Delta^3$ embedded in 3D simplex coordinates via `simplex_embedding(4)`.
 
-3. **Evaluation Protocol & On-The-Fly Test Data**:
-   - Evaluation trajectories ($N_{\text{eval}} = 512$) are generated **fresh on the fly** for each probe evaluation from `proc`.
-   - Trajectories split into train/dev ($80\%$) and held-out test ($20\%$) using `GroupKFold(n_splits=5)`.
-   - Feature matrices standardized via `StandardScaler()`.
-   - Regularization tuned via `GridSearchCV` over `ridge_alphas = (0.1, 1.0, 10.0, 50.0, 100.0)`.
-   - Evaluated on untouched test trajectories reporting `test_r2`.
+3. **Evaluation Protocol & GPU Closed-Form Linear Algebra (`torch.linalg.solve`)**:
+   - Evaluation trajectories ($N_{\text{eval}} = 512$, $512 \times 500 = 256,000$ tokens) are generated **fresh on the fly** for each probe evaluation from `proc`.
+   - **Strictly GPU-Accelerated Execution**: Feature representations and targets remain directly on device (`device="cuda"`). CPU probing via Scikit-learn is banned.
+   - **Feature Standardization on GPU**: Features are standardized directly on CUDA: $\mathbf{X}_{\text{scaled}} = (\mathbf{X} - \mu) / \sigma$.
+   - **5-Fold Grouped Cross-Validation on GPU**: Trajectories are partitioned across 5 folds (`n_splits=5`) preserving trajectory groupings to prevent temporal/trajectory leakage.
+   - **Closed-Form Normal Equations**: For each regularization parameter in `ridge_alphas = (0.1, 1.0, 10.0, 50.0, 100.0)`, Ridge regression is solved analytically via native PyTorch linear algebra in $< 0.1\text{ ms}$:
+     $$\mathbf{W}^* = (\mathbf{X}_{\text{train}}^T \mathbf{X}_{\text{train}} + \alpha \mathbf{I})^{-1} \mathbf{X}_{\text{train}}^T \mathbf{Y}_{\text{train}}$$
+     $$\hat{\mathbf{Y}}_{\text{val}} = \mathbf{X}_{\text{val}} \mathbf{W}^* + \bar{\mathbf{Y}}_{\text{train}}$$
+   - **Metric**: Evaluates $R^2 = 1 - \frac{\sum (Y - \hat{Y})^2}{\sum (Y - \bar{Y})^2}$ across held-out folds, selecting the optimal $\alpha$ and reporting `test_r2` in ~2 seconds total per model.
 
 4. **Matched Randomly Initialized Control (`random_init`)**:
    - For **every single trained model**, an identical architecture initialized with random weights (`random_model`, matching model seed) is probed under the exact same 4 modes and targets.
@@ -559,7 +565,8 @@ OUTPUT_BASE/ (e.g. /kaggle/working/ or ./experiments/)
     │   ├── {model_id}_final.json               # Configs, tokens seen, and final loss sidecar
     │   ├── {model_id}_probes.csv               # 4-mode probe scores (trained vs random_init)
     │   ├── {model_id}_probes.json              # Structured probe hyperparameters & CV scores
-    │   └── {model_id}_lookahead_prob_map.png   # Standardized lookahead probability heatmap
+    │   ├── {model_id}_lookahead_prob_map.png   # Standardized lookahead probability heatmap
+    │   └── {model_id}_belief_simplex.png       # Belief simplex in 3D orientations & 2D projections
     ├── {model_id}.zip                          # Per-model zip archive (ready for instant download)
     ...
 ```
@@ -571,6 +578,7 @@ OUTPUT_BASE/ (e.g. /kaggle/working/ or ./experiments/)
 | **Final Model Weights** | `results/{model_id}/{model_id}_final.pt` | PyTorch `state_dict` of the trained model at 400M tokens |
 | **Model Metadata Sidecar** | `results/{model_id}/{model_id}_final.json` | Complete `ExperimentConfig`, `TrainingConfig`, model shape, tokens seen, final train/eval loss |
 | **Lookahead Probability Map** | `results/{model_id}/{model_id}_lookahead_prob_map.png` | Standardized lookahead probability heatmap evaluated on fixed held-out sequence |
+| **Belief Simplex Geometry** | `results/{model_id}/{model_id}_belief_simplex.png` | 3D tetrahedron orientations and 2D projections (XY, XZ, YZ, Planar Square) comparing exact vs probed belief geometry |
 | **Per-Model Probe Table** | `results/{model_id}/{model_id}_probes.csv` | Full probe evaluations across 4 modes $\times$ 2 targets for both `trained` and `random_init` |
 | **Per-Model Probe Sidecar** | `results/{model_id}/{model_id}_probes.json` | Structured JSON containing hyperparameters and CV scores |
 | **Per-Model Archive** | `results/{model_id}.zip` | Individual compressed zip containing the single model's complete artifacts |
@@ -578,7 +586,7 @@ OUTPUT_BASE/ (e.g. /kaggle/working/ or ./experiments/)
 | **Master Probe CSV** | `{OUTPUT_BASE}/master_probe_results.csv` | Consolidated results across all 270 models (2,160 evaluated probe rows) |
 | **Master Distribution Package** | `{OUTPUT_BASE}/double_pendulum_results.zip` | Consolidated archive of all model folders, sidecars, maps, CSVs, and state manifest |
 
-### 5.3 Lookahead Probability Map & 5-Panel Synthesis Dashboard
+### 5.3 Visualizations & 5-Panel Synthesis Dashboard
 1. **Lookahead Probability Map (Standardized Test Sequence)**:
    - Evaluated on a **standardized fixed held-out test trajectory** (fixed evaluation seed) so all 270 models can be compared side-by-side on the exact same physical trajectory:
      ```python
@@ -591,7 +599,15 @@ OUTPUT_BASE/ (e.g. /kaggle/working/ or ./experiments/)
      plt.savefig(prob_map_path, dpi=150, bbox_inches="tight")
      ```
    - Saved into `results/{model_id}/` and bundled in `{model_id}.zip` and `double_pendulum_results.zip`.
-2. **Comprehensive 5-Panel Synthesis Dashboard**:
+2. **Belief Simplex Projections (3D Orientations & 2D Views)**:
+   - Evaluated alongside linear Ridge probing to visualize whether the transformer's residual stream linearly reconstructs the exact fractal attractor of the Mess-4 belief simplex.
+   - Plots an 8-panel standardized comparison:
+     - Top row: 4 distinct 3D elevation/azimuth perspectives of the regular tetrahedron (`(18°, 35°)`, `(18°, 125°)`, `(65°, 45°)`, `(5°, 70°)`).
+     - Bottom row: 3 orthogonal 2D projections (`XY`, `XZ`, `YZ`) plus 1 planar square projection (`square_projection_vertices()`).
+     - Background: Exact reachable belief set in pale gray (`#c3c2b7`).
+     - Foreground: Model-predicted belief coordinates colored by true next mood state (`#2a78d6`, `#eb6834`, `#1baf7a`, `#4a3aa7`).
+   - Saved as `{model_id}_belief_simplex.png` inside `results/{model_id}/`, bundled in `{model_id}.zip` and `double_pendulum_results.zip`.
+3. **Comprehensive 5-Panel Synthesis Dashboard**:
    At the conclusion of the queue, the pipeline generates 5 high-resolution summary figures in `results/`:
    - `scaling_curves.png`: Model width scaling ($d_{\text{model}} \in \{32, 64, 128\}$) vs belief $R^2$ and physics $R^2$.
    - `lookahead_comparison.png`: Forecasting horizon comparison ($k=1$ vs $k=\text{int}(n/2)$ vs $k=n$).
@@ -622,14 +638,13 @@ class ModelJob:
     k: int                        # lookahead horizon (1, int(n/2), or n)
     k_suffix: str                 # "_k1", "_k_mid", or "_k_full"
     seed: int                     # data generation seed (0, 1, or 2)
-    tokens_seen: int              # cumulative tokens trained so far
+    tokens_seen: int              # static metadata (0 at queue time, target tokens at completion)
     target_tokens: int            # target tokens for current run
     checkpoint_path: Path         # path to final .pt weights
     sidecar_path: Path            # path to final metadata .json
     probe_csv_path: Path          # path to probe results .csv
     prob_map_path: Path           # path to lookahead probability map .png
     status: str                   # "QUEUED", "TRAINING", "PROBING", "COMPLETED"
-    probe_history: list[dict]     # chronological history of probe scores across 4 modes
 ```
 
 ### 6.2 Re-queuing Mechanism (Dormant by Default)
@@ -655,15 +670,15 @@ requeue_top_models(metric="belief_r2", top_n=5, additional_tokens=1_000_000_000)
 
 The design decisions for the pipeline are resolved as follows:
 
-- **Decision 1 (Checkpoint Storage Policy)**: **APPROVED**. Save **only the final model weights** (`_final.pt`), lookahead probability maps, probe CSVs/JSONs, and metadata sidecars. No intermediate checkpoint `.pt` files will be saved to disk, preserving disk headroom.
-- **Decision 2 (Session Auto-Resume & State Resilience)**: **APPROVED**. Dual-path check inspecting `{OUTPUT_BASE}/pipeline_state.json` first, and if on Kaggle checking `/kaggle/input` for attached previous run outputs, copying completed models to `{RESULTS_DIR}/` before starting.
+- **Decision 1 (Checkpoint Storage Policy)**: **APPROVED**. Save **only the final model weights** (`_final.pt`), lookahead probability maps (`_lookahead_prob_map.png`), 8-panel belief simplex geometry figures (`_belief_simplex.png`), probe CSVs/JSONs, and metadata sidecars. No intermediate checkpoint `.pt` files will be saved to disk, preserving disk headroom.
+- **Decision 2 (Session Auto-Resume & State Resilience)**: **APPROVED**. Dual-path check inspecting `{OUTPUT_BASE}/pipeline_state.json` first, and if on Kaggle checking `/kaggle/input` for attached previous run outputs via `sync_from_kaggle_input`, copying completed model directories and archives to `{RESULTS_DIR}/` before starting.
 - **Decision 3 (Sequence Length Invariant)**: **APPROVED**. Fixed $m \times n = 500$ tokens across all tuples ($n \in \{5, 10, 20, 25\}$, with $m = 500 // n$).
 - **Decision 4 (Probing Scheme & Baselines)**: **APPROVED**. Evaluates across 4 representation views against matched `random_init` controls. For `single_layer_last_token`, **Cycle 0 is excluded** ($t = 2n-1, \dots$), evaluating from Cycle 1 onwards. Test data is generated on the fly.
-- **Decision 5 (Multi-Platform Hardware Modes & Worker Concurrency)**: **CONFIRMED**. Adaptive hardware dispatch across 3 modes:
-  - `rtx5090`: Spawns **5 concurrent worker processes** on `cuda:0` utilizing 5 dedicated physical cores of the Ryzen 7 CPU, taking **~2.2 to 2.5 hours total**.
-  - `kaggle`: Spawns **2 workers** across `cuda:0` and `cuda:1` taking **~61 hours total** across ~5 sessions.
-  - `local_cpu`: Spawns **1 worker** on CPU for dry-runs and smoke tests.
-- **Decision 6 (Two-Tier Packaging Architecture)**: **CONFIRMED**. Every model outputs to its own folder (`results/{model_id}/`) and is immediately zipped to `{model_id}.zip` upon job completion. A single master archive `double_pendulum_results.zip` consolidates all results for 1-click download.
+- **Decision 5 (Multi-Platform Hardware Modes & Dual-Pool Concurrency)**: **CONFIRMED**. Adaptive hardware dispatch across 3 modes with decoupled GPU train and CPU probe pools:
+  - `rtx5090`: Spawns **5 GPU train worker processes** on `cuda:0` and **2 CPU probe worker processes**, taking **~2.2 to 2.5 hours total**.
+  - `kaggle`: Spawns **$\min(2, \text{dev\_count})$ GPU train workers** across `cuda:0` and `cuda:1` and **1 CPU probe worker**, taking **~61 hours total** across ~5 sessions.
+  - `local_cpu`: Spawns **1 worker** on CPU for dry-runs and smoke tests (sequential execution).
+- **Decision 6 (Two-Tier Packaging Architecture)**: **CONFIRMED**. Every model outputs to its own folder (`results/{model_id}/`) and is immediately zipped to `{model_id}.zip` upon job completion. A single master archive `double_pendulum_results.zip` consolidates all results for 1-click download, strictly excluding nested `*.zip` files (`if f.suffix != ".zip"`) to avoid redundant archive inflation.
 - **Decision 7 (Direct Width Integration & Level 1 Artifact)**: **CONFIRMED**. Phase 2 separate width distillation sweep is removed; all 3 widths ($d_{\text{model}} \in \{32, 64, 128\}$) are trained in the main production queue (270 models total). The Level 1 chosen physics parameters are exported as `distilled_physics_tuples.csv` and `.json`.
 - **Decision 8 (5-Panel Synthesis Dashboard)**: **CONFIRMED**. Automated generation of 5 synthesis figures (`scaling_curves.png`, `lookahead_comparison.png`, `probe_views_breakdown.png`, `physics_vs_belief_scatter.png`, `trained_vs_random_gain.png`) alongside `master_probe_results.csv`.
 - **Decision 9 (Locked Batch Size Invariant)**: **LOCKED**. `BATCH_SIZE = 1024` sequences per step ($512,000$ tokens/step, 781 gradient steps) is strictly preserved. It is not increased to 2048 or 4096 because CPU physics generation bounds total time, and reducing gradient steps would degrade Adam optimizer convergence. Concurrency is scaled through workers (5 workers), not batch size.
@@ -675,10 +690,208 @@ The design decisions for the pipeline are resolved as follows:
 ## 8. Execution Readiness & Invariant Verification
 
 All design decisions and physical invariants are resolved and locked:
-1. **Multi-Platform Modes & Imports**: Cell 1 resolves repository root (with authenticated private cloning), auto-detects platform mode (`rtx5090`, `kaggle`, or `local_cpu`), establishes `SMOKE` flag, and configures worker concurrency (`NUM_WORKERS = 5` for RTX 5090, `2` for Kaggle T4x2).
+1. **Multi-Platform Modes & Imports**: Cell 1 resolves repository root (with authenticated private cloning), auto-detects platform mode (`rtx5090`, `kaggle`, or `local_cpu`), establishes `SMOKE` flag, and configures worker concurrency (`NUM_TRAIN_WORKERS = 5, NUM_PROBE_WORKERS = 2` for RTX 5090; `2` and `1` for Kaggle T4x2).
 2. **Sequence Length**: Fixed $m \times n = 500$ tokens across all impulse step sizes ($n \in \{5, 10, 20, 25\}$ with $m = 500 // n \in \{100, 50, 25, 20\}$).
-3. **Phase 1 Physics**: (Δv, $n$) sweep first $\to$ steady-state energy-balance $\gamma^*$ calculation $\to$ 9-point damping generation (3 unperturbed $k \cdot \gamma^*$ + 6 perturbed $k \cdot \gamma^* \pm 0.05$ across $k \in \{0.03, 0.07, 0.10\}$) $\to$ damping sweep on chosen tuples (single seed `seed=42`) $\to$ Distillation 1B exporting `distilled_physics_tuples.csv` and `.json`.
+3. **Phase 1 Physics**: (Δv, $n$) sweep first $\to$ steady-state energy-balance $\gamma^*$ calculation $\to$ 9-point damping generation (3 unperturbed $k \cdot \gamma^*$ + 6 perturbed $k \cdot \gamma^* \pm 0.05$ across $k \in \{0.03, 0.07, 0.10\}$) $\to$ damping sweep on chosen tuples (single seed `seed=42`) with non-chaotic gating and scoring $\to$ Distillation 1B exporting `distilled_physics_tuples.csv` and `.json`.
 4. **Phase 2 Deep Training Matrix**: 270 models (10 physics tuples $\times$ 3 widths [32, 64, 128] $\times$ 3 lookaheads `_k1`, `_k_mid`, `_k_full` $\times$ 3 seeds `[0, 1, 2]`) trained to 400M tokens/model (`DEEP_TRAIN_TOKENS = 400_000_000`, empirically calibrated via loss saturation profiling) at `BATCH_SIZE = 1024` sequences per step ($512,000$ tokens per gradient step, 781 steps).
 5. **State Resilience & Live Observability**: Full auto-resume supported via `{OUTPUT_BASE}/pipeline_state.json` and `/kaggle/input` detection. Real-time streaming step loss logs (every 50 steps), live probe summaries, and incremental persistence of `pipeline_state.json` and `master_probe_results.csv` after every model completes.
-6. **4-Way Linear Ridge Probes & Probability Map**: Grouped 5-Fold cross-validation across all 4 representation views (Cycle 0 excluded for last-token probe) against matched `random_init` controls, saving `{exp_cfg.name}_{training_cfg.name}_seed{seed}_final.pt`, `.json`, `_probes.csv`, and standardized `_lookahead_prob_map.png` packaged into both per-model `{model_id}.zip` archives and the master `{OUTPUT_BASE}/double_pendulum_results.zip`.
+6. **4-Way Linear Ridge Probes, Probability Map & Belief Simplex (GPU Invariant)**: Evaluated strictly on **GPU (`device="cuda"`)** using native PyTorch closed-form linear algebra (`torch.linalg.solve`), completely banning CPU Scikit-learn probing in production to prevent queue backlogs. Grouped 5-Fold cross-validation across all 4 representation views (Cycle 0 excluded for last-token probe) against matched `random_init` controls, saving `{exp_cfg.name}_{training_cfg.name}_seed{seed}_final.pt`, `.json`, `_probes.csv`, standardized `_lookahead_prob_map.png`, and 8-panel reconstructed `_belief_simplex.png` (3D orientations + 2D projections) packaged into both per-model `{model_id}.zip` archives and the master `{OUTPUT_BASE}/double_pendulum_results.zip`.
 7. **Synthesis Analytics**: 5-panel dashboard summarizing width scaling, lookahead horizons, probe views, physics vs belief decoupling, and trained vs random emergence.
+
+---
+
+## 9. Exhaustive Implementation Blueprint & Decision-Free Checklist
+
+This blueprint provides an unambiguous, deterministic specification for reproducing `scripts/production_train.py` without requiring human or model interpretation.
+
+### Task 1: Environment, Constants & Hardware Dispatch
+- [ ] **1.1 Observation Grid Resolution**:
+  - Enforce `obs_bins = (50, 50)` on `double_pendulum_mess4` ($N_{\text{obs}} = 2500$ vocabulary tokens).
+  - Explicitly invoke `set_double_pendulum_bins((50, 50))` at module load.
+- [ ] **1.2 Platform Mode Detection (`detect_platform_mode`)**:
+  - Priority 1: Read `os.environ["BELIEF_PLATFORM"]` (case-insensitive, choices: `"rtx5090"`, `"kaggle"`, `"local_cpu"`).
+  - Priority 2: Check `Path("/kaggle").exists()` $\implies$ `"kaggle"`.
+  - Priority 3: Check CUDA device properties: if GPU name contains `"5090"` or VRAM $\ge 28\text{ GB} \implies \text{"rtx5090"}$. If device count $\ge 2 \implies \text{"kaggle"}$.
+  - Priority 4: Fallback $\implies \text{"local\_cpu"}$.
+- [ ] **1.3 Hardware & Worker Allocation**:
+  - Mode `"rtx5090"`:
+    - Train workers: `NUM_TRAIN_WORKERS = int(os.environ.get("BELIEF_NUM_WORKERS", "5"))`.
+    - Train devices: `["cuda:0"] * NUM_TRAIN_WORKERS`.
+    - Probe workers: `NUM_PROBE_WORKERS = int(os.environ.get("BELIEF_NUM_PROBE_WORKERS", "2"))` (CPU-bound).
+    - Output directory: `Path(os.environ.get("BELIEF_OUTPUT_DIR", "./experiments"))`.
+  - Mode `"kaggle"`:
+    - Train workers: `NUM_TRAIN_WORKERS = max(1, min(2, torch.cuda.device_count()))`.
+    - Train devices: `[f"cuda:{i}" for i in range(NUM_TRAIN_WORKERS)]` if CUDA available else `["cpu"]`.
+    - Probe workers: `NUM_PROBE_WORKERS = int(os.environ.get("BELIEF_NUM_PROBE_WORKERS", "1"))`.
+    - Output directory: `Path("/kaggle/working")`.
+  - Mode `"local_cpu"`:
+    - Train workers: `NUM_TRAIN_WORKERS = 1` on `cpu`.
+    - Probe workers: `NUM_PROBE_WORKERS = 0` (triggers sequential execution path).
+    - Output directory: `Path("./experiments")`.
+
+### Task 2: Architecture & Lookahead Loss Subclass
+- [ ] **2.1 LookaheadTransformer (`TinyTransformer` Subclass)**:
+  - Constructor takes `(config: ModelConfig, k: int)`.
+  - Loss function:
+    $$\mathcal{L} = \text{CrossEntropy}(\text{logits}[:, :-k, :], \text{tokens}[:, k:])$$
+  - Validate $1 \le k < \text{seq\_len}$; raise `ValueError` otherwise.
+
+### Task 3: Data Structures & Invariants
+- [ ] **3.1 Configuration Dataclasses**:
+  - `DoublePendulumConfig`: `delta_v: float`, `gamma1: float`, `gamma2: float`, `dt: float = 0.2`, `obs_bins: Tuple[int, int] = (50, 50)`, `omega_max: float = 10.0`, `joint1_action_gain: float = 2.0`.
+  - `HMMConfig`: `n_states: int = 4`, `alpha: float = 0.7`, `stay: float = 0.7`.
+  - `ExperimentConfig`: `name: str`, `physics: DoublePendulumConfig`, `hmm: HMMConfig`, `m: int`, `n: int`, `seed: int = 20260925`.
+  - `TrainingConfig`: `name: str`, `d_model: int`, `d_mlp: int`, `n_layers: int = 4`, `n_heads: int = 2`, `k: int = 1`, `k_suffix: str = "_k1"`.
+- [ ] **3.2 Sequence Length Invariant**:
+  - Trajectory token length must strictly satisfy $m \times n = 500$ across all configurations ($m = 500 // n$).
+- [ ] **3.3 ModelJob Dataclass**:
+  - Fields: `job_id: str`, `exp_config: ExperimentConfig`, `train_config: TrainingConfig`, `k: int`, `k_suffix: str`, `seed: int`, `tokens_seen: int`, `target_tokens: int`, `checkpoint_path: Path`, `sidecar_path: Path`, `probe_csv_path: Path`, `prob_map_path: Path`, `status: str`.
+  - Status progression values: `"QUEUED"`, `"TRAINING"`, `"PROBING"`, `"COMPLETED"`.
+  - `probe_history` is strictly excluded; `tokens_seen` is static metadata.
+
+### Task 4: Phase 1 Physics Screening & 10-Tuple Distillation
+- [ ] **4.1 Sweep 1A ($\Delta v \times n$ Grid Screening)**:
+  - Candidates: $\Delta v \in \{0.6, 0.9, 1.2, 1.5, 2.0\}$, $n \in \{5, 10, 20, 25\}$ (in smoke mode: $\Delta v \in \{0.9, 1.2\}$, $n \in \{10, 20\}$).
+  - Baseline damping: $\gamma_1 = \gamma_2 = 0.65$ at $dt = 0.2$.
+  - Evaluation trace: Single seed `seed = 42`.
+  - Metrics extracted from `physics.visualise.stability(tr)`: `lyapunov`, `clipped`, `used_bins`, `gap_free_mean`, `bayes_gap`.
+- [ ] **4.2 Scoring Formula & Hard Stability Gate**:
+  - Normalized bin fraction: `used_bins_frac = float(stab["used_bins"]) / float(stab["n_obs"])`.
+  - Composite score:
+    $$\text{score} = \text{bayes\_gap} - 0.5 \min(0.0, \lambda) - 10.0 \max(0.0, \lambda) - 10.0 \cdot \text{clipped} - 1.0 \max(0.0, 0.015 - \text{used\_bins\_frac})$$
+  - Hard gate boolean:
+    $$\text{is\_go} = (\lambda < 0.0) \land (\text{clipped} < 0.01) \land (\text{used\_bins} \ge 15) \land (\text{bayes\_gap} \ge 0.05) \land (\text{gap\_free\_mean} > 10^{-3})$$
+- [ ] **4.3 Distillation Checkpoint 1A**:
+  - Filter `df_1a[df_1a["is_go"] == True]`.
+  - Fallback guard: If 0 pass, filter `df_1a[df_1a["lyapunov"] < 0.0]` sorted descending by score.
+  - Select top $N_{\text{top}}$ pairs ($10$ in production, $2$ in smoke).
+- [ ] **4.4 Energy-Balance Damping Calculation ($\gamma^*$)**:
+  - Sourced from `physics.controls.compute_optimal_gamma`:
+    `compute_optimal_gamma(system_name="double_pendulum_mess4", m=m, n_steps=n, dt=0.2, delta_v=dv, stay=0.7, alpha=0.7, damping_field="gamma1", n_trajs=32)`
+  - Slices $\gamma^*$ from result.
+- [ ] **4.5 9-Point Damping Generation**:
+  - For each chosen pair, generate 9 gammas across $k \in \{0.03, 0.07, 0.10\}$:
+    $$\gamma \in \{ k \cdot \gamma^*, \quad k \cdot \gamma^* - 0.05, \quad k \cdot \gamma^* + 0.05 \}$$
+  - Enforce clamp $\gamma \ge 0.05$ and round to 4 decimal places.
+- [ ] **4.6 Sweep 1B & Distillation Checkpoint 1B**:
+  - Evaluate all $(\text{pair} \times \gamma)$ combinations on `seed = 42`.
+  - Compute `score_1b` and `is_go_1b` using the exact formulas from Task 4.2.
+  - Sort DataFrame descending by score: `df_1b.sort_values("score", ascending=False)`.
+  - Filter `df_1b[df_1b["is_go"] == True]`.
+  - Fallback guard: If 0 pass, filter `df_1b[df_1b["lyapunov"] < 0.0]`.
+  - Apply diversity constraint: Maximum 2 gammas per `pair_id` (`max_per_pair = 2`).
+  - Backfill remaining slots up to target ($10$ in production, $2$ in smoke) by global score rank.
+- [ ] **4.7 Level 1 Artifact Export**:
+  - Save `distilled_physics_tuples.csv` to `{RESULTS_DIR}/`.
+  - Save `distilled_physics_tuples.json` to `{RESULTS_DIR}/` with keys: `name`, `delta_v`, `gamma1`, `gamma2`, `dt`, `n_steps`, `m`, `seq_len`.
+
+### Task 5: 4-Way Linear Ridge Probing Engine
+- [ ] **5.1 Representation Views**:
+  - `all_layers_single_token`: Residual stream across all 4 layers at cycle boundaries $t = c \cdot n - 1$.
+  - `single_layer_cycle`: Final layer across all $n$ tokens in impulse cycle.
+  - `single_layer_last_token`: Final layer at cycle boundary **strictly excluding Cycle 0** ($t = 2n-1, 3n-1, \dots, mn-1$).
+  - `single_layer_all_token`: Final layer across all sequence tokens ($N \times (m \cdot n)$ data points).
+- [ ] **5.2 Target Domains**:
+  - `belief`: Simplex-embedded posterior belief vector embedded via `simplex_embedding(4)` in $\mathbb{R}^3$.
+  - `physics`: Continuous angular velocities $(\omega_1, \omega_2)$ from `eval_batch["metric"]`.
+- [ ] **5.3 Evaluation Protocol (GPU Closed-Form Invariant)**:
+  - Generate fresh held-out evaluation trajectories ($N_{\text{eval}} = 512$, smoke: $64$) using `seed = 20260829 + job.seed`.
+  - Grouped 5-Fold cross-validation partitioning trajectories into 5 folds.
+  - Standardize features directly on CUDA: $\mathbf{X}_{\text{scaled}} = (\mathbf{X} - \mu) / \sigma$.
+  - Regularization tuning over `alphas = [0.1, 1.0, 10.0, 50.0, 100.0]` solved via GPU closed-form linear algebra: $\mathbf{W}^* = (\mathbf{X}^T \mathbf{X} + \alpha \mathbf{I})^{-1} \mathbf{X}^T \mathbf{Y}$ (`torch.linalg.solve`). CPU probing via `scikit-learn` is strictly prohibited.
+  - Evaluated on matched `random_model` control (untrained architecture with identical seed).
+  - Compute net emergence gain: `trained_minus_random = trained_r2 - random_r2`.
+
+### Task 6: Visualizations & Map Generation
+- [ ] **6.1 Lookahead Probability Map (`plot_lookahead_probability_map`)**:
+  - Evaluated on a fixed held-out sequence (`fixed_eval_seed = 2026`).
+  - Softmax probabilities over vocabulary ($2500$) plotted as heatmap with actual future token $t+k$ plotted in cyan.
+  - Saved as `{RESULTS_DIR}/{model_id}/{model_id}_lookahead_prob_map.png`.
+- [ ] **6.2 8-Panel Belief Simplex Projections (`plot_belief_simplex_projections`)**:
+  - Sourced from probe predictions on `single_layer_last_token` vs exact ground-truth reachable belief set.
+  - Layout: $2 \times 4$ panel figure:
+    - Panel 1: 3D View (`elev=18°, azim=35°`)
+    - Panel 2: 3D View (`elev=18°, azim=125°`)
+    - Panel 3: 3D View (`elev=65°, azim=45°`)
+    - Panel 4: 3D View (`elev=5°, azim=70°`)
+    - Panel 5: 2D Orthogonal Projection XY (`dims=(0, 1)`)
+    - Panel 6: 2D Orthogonal Projection XZ (`dims=(0, 2)`)
+    - Panel 7: 2D Orthogonal Projection YZ (`dims=(1, 2)`)
+    - Panel 8: 2D Planar Square View (`square_projection_vertices()`)
+  - Background: Pale gray scatter (`#c3c2b7`, alpha 0.15) for exact reachable set.
+  - Foreground: Model-predicted coordinates colored by dominant true next mood (`STATE_COLOURS = ("#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7")`).
+  - Wireframe edges drawn for 3D tetrahedron and 2D projected boundaries.
+  - Saved as `{RESULTS_DIR}/{model_id}/{model_id}_belief_simplex.png`.
+
+### Task 7: Concurrency Engine & Overlapped Train/Probe Pipeline
+- [ ] **7.1 Worker Function Split**:
+  - `train_only_worker`:
+    - Handles model initialization, optimizer, cosine decay schedule with 2% linear warmup, gradient clipping at 1.0.
+    - Micro-batching with gradient accumulation (`micro_batch = 64` default, accumulation steps = $1024 // 64 = 16$).
+    - Trains strictly to `total_tokens` (400M in production, 5M in smoke).
+    - Logs step loss every 50 steps (`loss`, `lr`, `tokens_seen`).
+    - Saves weights (`_final.pt`) and sidecar JSON (`_final.json`).
+    - Returns `(job_id, checkpoint_path, sidecar_path, history_df)`.
+  - `probe_only_worker`:
+    - Runs on CPU (`device="cpu"`).
+    - Loads checkpoint weights, instantiates matched random-init control.
+    - Executes `run_synchronous_probing`.
+    - Calls `plot_lookahead_probability_map` and `plot_belief_simplex_projections`.
+    - Writes `_probes.csv` and `_probes.json`.
+    - Compresses `{model_dir}` into atomic `{model_id}.zip`.
+    - Prints headline probe scores (`belief_r2`, `phys_r2`, `gain`).
+    - Returns `(job_id, probe_df)`.
+- [ ] **7.2 Concurrency Bridging Event Loop**:
+  - Create separate `ProcessPoolExecutor` for `train_executor` (`max_workers = num_train_workers`) and `probe_executor` (`max_workers = num_probe_workers`) using `torch.multiprocessing.get_context("spawn")`.
+  - Submit all pending jobs to `train_executor` with status `"TRAINING"`.
+  - Run asynchronous event loop:
+    ```python
+    while active_train or active_probe:
+        all_active = list(active_train.keys()) + list(active_probe.keys())
+        done, _ = concurrent.futures.wait(all_active, return_when=concurrent.futures.FIRST_COMPLETED)
+        for fut in done:
+            if fut in active_train:
+                # Bridge immediately to probe pool
+                job, dev = active_train.pop(fut)
+                job.status = "PROBING"
+                p_fut = probe_executor.submit(probe_only_worker, job, ckpt_path, results_dir, device="cpu", smoke=smoke)
+                active_probe[p_fut] = job
+            elif fut in active_probe:
+                # Incremental persistence on probe completion
+                job = active_probe.pop(fut)
+                job.status = "COMPLETED"
+                # Update master_probe_results.csv and pipeline_state.json
+    ```
+
+### Task 8: Persistence, Manifest & Kaggle Auto-Resume Sync
+- [ ] **8.1 Kaggle Auto-Resume (`sync_from_kaggle_input`)**:
+  - Gated strictly on `platform_mode == "kaggle"`.
+  - Check `/kaggle/input` for `master_probe_results.csv` and copy to `/kaggle/working/master_probe_results.csv` if missing.
+  - Check `/kaggle/input` for `pipeline_state.json` and copy to `/kaggle/working/pipeline_state.json` if missing.
+  - Scan `/kaggle/input` for `*.zip`: copy to `{RESULTS_DIR}/` and unpack per-model zips into `{RESULTS_DIR}/{model_id}/`.
+  - Scan `/kaggle/input` for `results/` folders and recursively copy items to `{RESULTS_DIR}/`.
+- [ ] **8.2 Startup Skip List & State Manifest**:
+  - Inspect `master_probe_results.csv` and `{RESULTS_DIR}/{model_id}.zip` + `{model_id}_probes.csv`.
+  - Any model already complete is marked `status = "COMPLETED"` and bypassed.
+  - Write updated manifest to `{OUTPUT_BASE}/pipeline_state.json`.
+- [ ] **8.3 Master Distribution Packaging**:
+  - Compress output base into `{OUTPUT_BASE}/double_pendulum_results.zip`.
+  - Include `pipeline_state.json`, `master_probe_results.csv`, and all files in `results/`.
+  - **Crucial Invariant**: Exclude nested `*.zip` files (`if f.is_file() and f.suffix != ".zip"`) to prevent archive duplication.
+
+### Task 9: Phase 3 Emergence Synthesis & 5-Panel Dashboard
+- [ ] **9.1 Generate 5 High-Resolution Figures in `{RESULTS_DIR}/`**:
+  - `scaling_curves.png`: Model width ($d_{\text{model}} \in \{32, 64, 128\}$) vs mean test $R^2$ (trained vs random) for both belief and physics.
+  - `lookahead_comparison.png`: Horizon comparison ($k=1$ vs $k=\text{int}(n/2)$ vs $k=n$) across target domains.
+  - `probe_views_breakdown.png`: Mean test $R^2$ across the 4 representation views.
+  - `physics_vs_belief_scatter.png`: Scatter plot ($R^2_{\text{physics}}$ vs $R^2_{\text{belief}}$) across models and probe modes.
+  - `trained_vs_random_gain.png`: Net emergence gain (`trained_minus_random`) grouped by probe mode and target.
+
+### Task 10: Non-Goals & Defensive Invariants
+- [ ] **10.1 Phase 4 Continuation**:
+  - Functions `requeue_model` and `requeue_top_models` append to `REQUEUE_JOBS` only. No automated consumer execution loop is implemented.
+- [ ] **10.2 Optimizer Checkpointing**:
+  - Checkpoint `.pt` files contain only `model.state_dict()`. Optimizer state dictionaries are strictly omitted.
+- [ ] **10.3 Batch Size Lock**:
+  - `BATCH_SIZE = 1024` sequences per step ($512,000$ tokens/step, 781 steps) is strictly preserved and never altered.
+
