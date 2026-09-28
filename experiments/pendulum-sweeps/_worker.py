@@ -733,7 +733,9 @@ def worker_main():
 
                         for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
                             score = cross_validated_ridge(
-                                X, y, groups, d_mask, t_mask, ridge_alphas=ridge_alphas, cv_folds=args.cv_folds
+                                X, y, groups, d_mask, t_mask,
+                                ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
+                                device=device,
                             )
                             probe_rows.append({
                                 "config_name": job["config_name"],
@@ -752,75 +754,68 @@ def worker_main():
                                 **score,
                             })
 
-        # Compute 3D belief arrays for visualization (use first 32 trajectories max)
-        N_VIS = min(32, args.n_probe_traj)
-        vis_beliefs = analysis_batch["beliefs"][:N_VIS]            # (N_VIS, seq_len, 4)
-        # Extract at cycle-end positions
-        last_positions = np.arange(n_steps - 1, proc.seq_len, n_steps)  # (m,)
-        vis_belief_gt = (vis_beliefs[:, last_positions, :]          # (N_VIS, m, 4)
-                         @ simplex_embedding(4))                    # (N_VIS, m, 3)
-        vis_hmm_states = vis_beliefs[:, last_positions, :].argmax(-1)  # (N_VIS, m)
-
-        # Probe-predicted belief from best model (trained, all_layers_last_token, best horizon by cv_r2)
-        best_row = (
-            probe_df[(probe_df["target"] == "belief")
-                     & (probe_df["model_type"] == "trained")
-                     & (probe_df["mode"] == "all_layers_last_token")]
-            .sort_values("cv_r2", ascending=False)
-        )
-        vis_belief_pred = None
-        if len(best_row) > 0:
-            best_k_suffix = best_row.iloc[0]["horizon"]
-            best_k = best_row.iloc[0]["k_value"]
-            best_alpha = best_row.iloc[0]["alpha"]
-            best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
-            best_pt = config_dir / f"{best_model_id}_final.pt"
-            if best_pt.exists():
-                vis_cfg = ModelConfig(
-                    vocab_size=181, n_ctx=proc.seq_len, n_layers=args.n_layers,
-                    n_heads=args.n_heads, d_model=width, d_mlp=4 * width, seed=seed,
-                )
-                vis_model = LookaheadTransformer(vis_cfg, k=int(best_k))
-                vis_model.load_state_dict(torch.load(best_pt, map_location=device))
-                vis_model.to(device).eval()
-                vis_streams = residual_streams_batched(
-                    vis_model, analysis_batch["tokens"][:N_VIS], device
-                )
-                # all_layers_last_token: concat streams, pick last_positions
-                vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, last_positions, :]  # (N_VIS, m, L*d)
-                vis_X = StandardScaler().fit_transform(
-                    vis_X_raw.reshape(N_VIS * len(last_positions), -1)
-                )
-                vis_y_bel = vis_belief_gt.reshape(N_VIS * len(last_positions), 3)
-                # Fit ridge with best alpha (no CV needed — just for viz)
-                _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
-                _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
-                _A = _Xt.T @ _Xt
-                _A.diagonal().add_(float(best_alpha))
-                _W = torch.linalg.solve(_A, _Xt.T @ _yt)
-                vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(last_positions), 3)
-
-        # 5. Generate summary plot
-        print(f"  [Summary] Generating summary plot...")
-        generate_summary_plot(
-            config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
-            n_layers=args.n_layers, n_heads=args.n_heads,
-            belief_gt=vis_belief_gt,
-            belief_pred=vis_belief_pred,
-            hmm_states=vis_hmm_states,
-        )
-
             # 4. Save per-job probes CSV
             probe_df = pd.DataFrame(probe_rows)
             probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
             probe_df.to_csv(probe_csv, index=False)
             print(f"  [Probing] Saved {len(probe_df)} rows to {probe_csv.name}")
 
+            # Compute 3D belief arrays for visualization (use first 32 trajectories max)
+            N_VIS = min(32, args.n_probe_traj)
+            vis_beliefs = analysis_batch["beliefs"][:N_VIS]            # (N_VIS, seq_len, 4)
+            # Extract at cycle-end positions
+            last_positions = np.arange(n_steps - 1, proc.seq_len, n_steps)  # (m,)
+            vis_belief_gt = (vis_beliefs[:, last_positions, :]          # (N_VIS, m, 4)
+                             @ simplex_embedding(4))                    # (N_VIS, m, 3)
+            vis_hmm_states = vis_beliefs[:, last_positions, :].argmax(-1)  # (N_VIS, m)
+
+            # Probe-predicted belief from best model (trained, all_layers_last_token, best horizon by cv_r2)
+            best_row = (
+                probe_df[(probe_df["target"] == "belief")
+                         & (probe_df["model_type"] == "trained")
+                         & (probe_df["mode"] == "all_layers_last_token")]
+                .sort_values("cv_r2", ascending=False)
+            )
+            vis_belief_pred = None
+            if len(best_row) > 0:
+                best_k_suffix = best_row.iloc[0]["horizon"]
+                best_k = best_row.iloc[0]["k_value"]
+                best_alpha = best_row.iloc[0]["alpha"]
+                best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
+                best_pt = config_dir / f"{best_model_id}_final.pt"
+                if best_pt.exists():
+                    vis_cfg = ModelConfig(
+                        vocab_size=181, n_ctx=proc.seq_len, n_layers=args.n_layers,
+                        n_heads=args.n_heads, d_model=width, d_mlp=4 * width, seed=seed,
+                    )
+                    vis_model = LookaheadTransformer(vis_cfg, k=int(best_k))
+                    vis_model.load_state_dict(torch.load(best_pt, map_location=device))
+                    vis_model.to(device).eval()
+                    vis_streams = residual_streams_batched(
+                        vis_model, analysis_batch["tokens"][:N_VIS], device
+                    )
+                    # all_layers_last_token: concat streams, pick last_positions
+                    vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, last_positions, :]  # (N_VIS, m, L*d)
+                    vis_X = StandardScaler().fit_transform(
+                        vis_X_raw.reshape(N_VIS * len(last_positions), -1)
+                    )
+                    vis_y_bel = vis_belief_gt.reshape(N_VIS * len(last_positions), 3)
+                    # Fit ridge with best alpha (no CV needed — just for viz)
+                    _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
+                    _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
+                    _A = _Xt.T @ _Xt
+                    _A.diagonal().add_(float(best_alpha))
+                    _W = torch.linalg.solve(_A, _Xt.T @ _yt)
+                    vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(last_positions), 3)
+
             # 5. Generate summary plot
             print(f"  [Summary] Generating summary plot...")
             generate_summary_plot(
                 config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
-                n_layers=args.n_layers, n_heads=args.n_heads
+                n_layers=args.n_layers, n_heads=args.n_heads,
+                belief_gt=vis_belief_gt,
+                belief_pred=vis_belief_pred,
+                hmm_states=vis_hmm_states,
             )
 
             # 6. Mark job complete atomically
