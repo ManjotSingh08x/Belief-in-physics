@@ -1,0 +1,71 @@
+{
+  "device": "cuda:0",
+  "batch_size": 1024,
+  "safe_max": 8,
+  "rounds": [
+    {
+      "n_workers": 1,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 393.0,
+      "peak_rss_mb": 1693.2,
+      "wall_s": 6.2
+    },
+    {
+      "n_workers": 2,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 871.0,
+      "peak_rss_mb": 1707.8,
+      "wall_s": 9.7
+    },
+    {
+      "n_workers": 3,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 1304.0,
+      "peak_rss_mb": 1723.9,
+      "wall_s": 12.8
+    },
+    {
+      "n_workers": 4,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 1739.0,
+      "peak_rss_mb": 1740.5,
+      "wall_s": 16.7
+    },
+    {
+      "n_workers": 5,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 2124.0,
+      "peak_rss_mb": 1754.1,
+      "wall_s": 21.7
+    },
+    {
+      "n_workers": 6,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 2429.0,
+      "peak_rss_mb": 1771.9,
+      "wall_s": 26.2
+    },
+    {
+      "n_workers": 7,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 2882.0,
+      "peak_rss_mb": 1787.5,
+      "wall_s": 32.3
+    },
+    {
+      "n_workers": 8,
+      "ok": true,
+      "failed": [],
+      "peak_vram_mb": 3327.0,
+      "peak_rss_mb": 1879.1,
+      "wall_s": 40.3
+    }
+  ]
+}

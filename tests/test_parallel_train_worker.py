@@ -20,6 +20,7 @@ from _worker import (
     build_process,
     claim_next_job,
     cross_validated_ridge,
+    _ridge_r2_gpu,
     extract_probe_features_and_targets,
     extract_raw_targets,
     is_pid_alive,
@@ -297,6 +298,122 @@ def test_cross_validated_ridge():
     y_random = rng.standard_normal((total_samples, 1))
     res_rand = cross_validated_ridge(X, y_random, groups, dev_mask, test_mask)
     assert res_rand["test_r2"] < 0.3
+
+
+def test_ridge_r2_gpu():
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((100, 5)).astype(np.float32)
+    w = np.array([[1.], [-2.], [0.5], [0.], [3.]], dtype=np.float32)
+    y = (X @ w + 0.01 * rng.standard_normal((100, 1))).astype(np.float32)
+
+    # CPU solve
+    r2_cpu = _ridge_r2_gpu(X[:80], y[:80], X[80:], y[80:], alpha=1.0, device="cpu")
+    assert r2_cpu > 0.95
+
+    # GPU solve if available
+    if torch.cuda.is_available():
+        r2_gpu = _ridge_r2_gpu(X[:80], y[:80], X[80:], y[80:], alpha=1.0, device="cuda:0")
+        assert r2_gpu > 0.95
+        assert abs(r2_cpu - r2_gpu) < 1e-4
+
+
+def test_cross_validated_ridge_gpu():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    rng = np.random.default_rng(42)
+    N_groups = 10
+    rows_per_group = 8
+    total_samples = N_groups * rows_per_group
+    groups = np.repeat(np.arange(N_groups), rows_per_group)
+
+    X = rng.standard_normal((total_samples, 6))
+    w = rng.standard_normal((6, 3))
+    y = X @ w + 0.01 * rng.standard_normal((total_samples, 3))
+
+    dev_mask = np.isin(groups, np.arange(8))
+    test_mask = ~dev_mask
+
+    res = cross_validated_ridge(X, y, groups, dev_mask, test_mask, device="cuda:0")
+    assert res["test_r2"] > 0.9
+    assert res["cv_r2"] > 0.9
+
+
+def test_cpu_gpu_ridge_equivalence():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    rng = np.random.default_rng(123)
+    N_groups = 15
+    rows_per_group = 12
+    total_samples = N_groups * rows_per_group
+    groups = np.repeat(np.arange(N_groups), rows_per_group)
+
+    X = rng.standard_normal((total_samples, 8)).astype(np.float32)
+    w = rng.standard_normal((8, 3)).astype(np.float32)
+    y = (X @ w + 0.05 * rng.standard_normal((total_samples, 3))).astype(np.float32)
+
+    dev_mask = np.isin(groups, np.arange(10))
+    test_mask = ~dev_mask
+
+    res_cpu = cross_validated_ridge(
+        X, y, groups, dev_mask, test_mask,
+        ridge_alphas=(0.1, 1.0, 10.0, 50.0), cv_folds=3, device="cpu",
+    )
+    res_gpu = cross_validated_ridge(
+        X, y, groups, dev_mask, test_mask,
+        ridge_alphas=(0.1, 1.0, 10.0, 50.0), cv_folds=3, device="cuda:0",
+    )
+
+    assert res_cpu["alpha"] == res_gpu["alpha"]
+    assert res_cpu["feature_dim"] == res_gpu["feature_dim"]
+    np.testing.assert_allclose(res_cpu["cv_r2"], res_gpu["cv_r2"], rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(res_cpu["test_r2"], res_gpu["test_r2"], rtol=1e-4, atol=1e-5)
+
+
+
+def test_generate_summary_plot_3d_tetrahedron():
+    from _worker import generate_summary_plot
+    from physics.messk import simplex_embedding
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        proc = build_process(delta_v=0.7, gamma=0.3, dt=0.2, n_steps=5, m=4)
+
+        probe_rows = []
+        for m_name in PROBE_MODES:
+            for m_type in ["trained", "random_init"]:
+                for t_name in ["belief", "physics"]:
+                    probe_rows.append({
+                        "mode": m_name,
+                        "model_type": m_type,
+                        "target": t_name,
+                        "test_r2": 0.8 if m_type == "trained" else 0.1,
+                    })
+        probe_df = pd.DataFrame(probe_rows)
+        job = {
+            "config_name": "test_cfg",
+            "delta_v": 0.7, "gamma": 0.3, "dt": 0.2, "n_steps": 5, "m": 4,
+        }
+
+        N_vis, m_cycles = 8, 4
+        # Synthetic 3D belief on simplex
+        tet = simplex_embedding(4)
+        hmm_states = np.random.randint(0, 4, size=(N_vis, m_cycles))
+        belief_gt = tet[hmm_states] + 0.02 * np.random.randn(N_vis, m_cycles, 3)
+        belief_pred = tet[hmm_states] + 0.05 * np.random.randn(N_vis, m_cycles, 3)
+
+        generate_summary_plot(
+            tmp_path, job, width=32, seed=0, horizons=[(1, "k1")],
+            loss_histories={}, probe_df=probe_df, proc=proc, device="cpu",
+            n_layers=2,
+            belief_gt=belief_gt,
+            belief_pred=belief_pred,
+            hmm_states=hmm_states,
+        )
+        png_path = tmp_path / "d32_seed0_summary.png"
+        assert png_path.exists()
+        assert png_path.stat().st_size > 10_000
 
 
 def test_training_and_plotting():

@@ -26,15 +26,16 @@ if str(ROOT) not in sys.path:
 
 import matplotlib
 matplotlib.use("Agg")
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
-from sklearn.model_selection import GridSearchCV, GroupKFold
-from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
 import torch
+from itertools import combinations
+
 
 from models.analysis import residual_streams_batched
 from models.explore import next_token_probs
@@ -279,6 +280,21 @@ def extract_probe_features_and_targets(
     return X.astype(np.float32), y_phys.astype(np.float32), y_bel.astype(np.float32), groups
 
 
+def _ridge_r2_gpu(X_tr, y_tr, X_val, y_val, alpha: float, device: str) -> float:
+    """Closed-form ridge on GPU: (XᵀX + αI)⁻¹ Xᵀy via torch.linalg.solve."""
+    Xtr = torch.tensor(X_tr, dtype=torch.float32, device=device)
+    ytr = torch.tensor(y_tr, dtype=torch.float32, device=device)
+    Xv  = torch.tensor(X_val, dtype=torch.float32, device=device)
+    yv  = torch.tensor(y_val, dtype=torch.float32, device=device)
+    A = Xtr.T @ Xtr
+    A.diagonal().add_(alpha)
+    W = torch.linalg.solve(A, Xtr.T @ ytr)   # (features, targets)
+    pred = Xv @ W
+    ss_res = ((yv - pred) ** 2).sum()
+    ss_tot = ((yv - yv.mean(0, keepdim=True)) ** 2).sum()
+    return float(1.0 - ss_res / ss_tot.clamp(min=1e-10))
+
+
 def cross_validated_ridge(
     X: np.ndarray,
     y: np.ndarray,
@@ -287,21 +303,62 @@ def cross_validated_ridge(
     test_mask: np.ndarray,
     ridge_alphas: tuple = (0.1, 1.0, 10.0, 50.0),
     cv_folds: int = 5,
+    device: str = "cpu",
 ) -> dict:
-    estimator = make_pipeline(StandardScaler(), Ridge(solver="auto"))
-    search = GridSearchCV(
-        estimator,
-        {"ridge__alpha": list(ridge_alphas)},
-        cv=GroupKFold(n_splits=cv_folds),
-        scoring="r2",
-        n_jobs=1,
+    """
+    StandardScaler + Ridge with alpha CV on GPU (torch.linalg.solve),
+    parallelised across folds via joblib (n_jobs=-1).
+    Falls back to CPU if CUDA unavailable.
+    """
+    from joblib import Parallel, delayed
+
+    X_dev, y_dev, g_dev = X[dev_mask], y[dev_mask], groups[dev_mask]
+
+    # StandardScale on dev set; apply same transform to test
+    scaler = StandardScaler().fit(X_dev)
+    X_dev_s = scaler.transform(X_dev).astype(np.float32)
+    X_test_s = scaler.transform(X[test_mask]).astype(np.float32)
+    y_dev_f  = y_dev.astype(np.float32)
+
+    ridge_device = device  # GPU if available, else cpu
+
+    # Warm-up torch.linalg.solve on device to avoid multi-thread lazy loader race condition
+    if ridge_device != "cpu":
+        _ = torch.linalg.solve(torch.eye(2, device=ridge_device), torch.ones(2, 1, device=ridge_device))
+
+    # Build (train_idx, val_idx) splits for GroupKFold
+    splits = list(GroupKFold(n_splits=cv_folds).split(X_dev_s, y_dev_f, g_dev))
+
+    def _fold_alpha(alpha, tr_idx, val_idx):
+        return _ridge_r2_gpu(
+            X_dev_s[tr_idx], y_dev_f[tr_idx],
+            X_dev_s[val_idx], y_dev_f[val_idx],
+            alpha, ridge_device,
+        )
+
+    # Parallel over (alpha × fold) — n_jobs=-1 uses all CPU threads
+    results = Parallel(n_jobs=-1, prefer="threads")(
+        delayed(_fold_alpha)(alpha, tr, val)
+        for alpha in ridge_alphas
+        for tr, val in splits
     )
-    search.fit(X[dev_mask], y[dev_mask], groups=groups[dev_mask])
-    prediction = search.best_estimator_.predict(X[test_mask])
+
+    n_folds = len(splits)
+    # Mean CV R² per alpha
+    alpha_scores = {
+        alpha: float(np.mean(results[i * n_folds : (i + 1) * n_folds]))
+        for i, alpha in enumerate(ridge_alphas)
+    }
+    best_alpha = max(alpha_scores, key=alpha_scores.__getitem__)
+    best_cv_r2 = alpha_scores[best_alpha]
+
+    # Refit on full dev set with best alpha and score on test
+    test_r2 = _ridge_r2_gpu(X_dev_s, y_dev_f, X_test_s,
+                             y[test_mask].astype(np.float32), best_alpha, ridge_device)
     return {
-        "alpha": float(search.best_params_["ridge__alpha"]),
-        "cv_r2": float(search.best_score_),
-        "test_r2": float(r2_score(y[test_mask], prediction, multioutput="uniform_average")),
+        "alpha": float(best_alpha),
+        "cv_r2": float(best_cv_r2),
+        "test_r2": float(test_r2),
         "feature_dim": int(X.shape[1]),
     }
 
@@ -317,20 +374,157 @@ def generate_summary_plot(
     device: str,
     n_layers: int = 4,
     n_heads: int = 1,
+    belief_gt: np.ndarray | None = None,
+    belief_pred: np.ndarray | None = None,
+    hmm_states: np.ndarray | None = None,
 ):
-    plot_enhanced_summary(
-        config_dir=config_dir,
-        job=job,
-        width=width,
-        seed=seed,
-        horizons=horizons,
-        loss_histories=loss_histories,
-        probe_df=probe_df,
-        proc=proc,
-        device=device,
-        n_layers=n_layers,
-        n_heads=n_heads,
-    )
+    fig = plt.figure(figsize=(18, 14), constrained_layout=True)
+    gs = fig.add_gridspec(3, 3)
+
+    eval_batch = proc.sample_batch(np.random.default_rng(seed + 9999), 1)
+    tokens_single = eval_batch["tokens"][0]
+
+    # Row 0: 3 Heatmaps (k=1, k=n//2, k=n)
+    for col_idx, (k, k_suffix) in enumerate(horizons):
+        ax = fig.add_subplot(gs[0, col_idx])
+        model_id = f"d{width}_{k_suffix}_seed{seed}"
+        pt_path = config_dir / f"{model_id}_final.pt"
+        json_path = config_dir / f"{model_id}_final.json"
+        if pt_path.exists():
+            layer_count = n_layers
+            if json_path.exists():
+                try:
+                    meta = json.loads(json_path.read_text())
+                    layer_count = meta.get("n_layers", n_layers)
+                except Exception:
+                    pass
+            cfg = ModelConfig(
+                vocab_size=181,
+                n_ctx=proc.seq_len,
+                n_layers=layer_count,
+                n_heads=n_heads,
+                d_model=width,
+                d_mlp=4 * width,
+                seed=seed,
+            )
+            model = LookaheadTransformer(cfg, k=k)
+            model.load_state_dict(torch.load(pt_path, map_location=device))
+            model.to(device).eval()
+            probs = next_token_probs(model, tokens_single, device=device)
+
+            if k < len(tokens_single):
+                pred_probs = probs[:-k]
+                actual = tokens_single[k:]
+                ax.imshow(pred_probs.T, origin="lower", aspect="auto", cmap="magma")
+                ax.plot(np.arange(len(actual)), actual, color="cyan", lw=1.2, label="Actual")
+                nll = -np.log(np.maximum(pred_probs[np.arange(len(actual)), actual], 1e-12)).mean()
+                ax.set_title(f"Horizon {k_suffix} (k={k}) | Mean NLL: {nll:.3f}")
+            else:
+                ax.text(0.5, 0.5, f"k={k} >= seq_len", ha="center", va="center")
+        ax.set_xlabel("Time step t")
+        ax.set_ylabel("Token bin (0..180)")
+
+    # Row 1: Loss curves across horizons (colspan=3)
+    ax_loss = fig.add_subplot(gs[1, :])
+    colors = {"k1": "#2ecc71", "kn2": "#3498db", "kn": "#9b59b6"}
+    for k, k_suffix in horizons:
+        hist = loss_histories.get(k_suffix, [])
+        if hist:
+            steps = [h["step"] for h in hist]
+            eval_losses = [h["eval_loss"] for h in hist]
+            ax_loss.plot(
+                steps,
+                eval_losses,
+                label=f"Eval Loss {k_suffix} (k={k})",
+                color=colors.get(k_suffix, "black"),
+                lw=1.8,
+            )
+    ax_loss.axhline(np.log(181), ls=":", color="gray", lw=1.5, label="Random ln(181)")
+    ax_loss.set_title(f"Loss Curves — {job['config_name']} (d={width}, seed={seed})")
+    ax_loss.set_xlabel("Training Steps")
+    ax_loss.set_ylabel("Cross Entropy Loss")
+    ax_loss.legend(loc="upper right")
+    ax_loss.grid(True, alpha=0.3)
+
+    # Row 2: Probe R² bars (Belief on col 0, Physics on col 1, Info on col 2)
+    for col_idx, target_name in enumerate(["belief", "physics"]):
+        ax_probe = fig.add_subplot(gs[2, col_idx])
+        sub_df = probe_df[probe_df["target"] == target_name]
+        modes = PROBE_MODES
+        x = np.arange(len(modes))
+        bar_w = 0.35
+
+        trained_r2 = []
+        random_r2 = []
+        for m_name in modes:
+            m_trained = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
+            m_random = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
+            trained_r2.append(float(m_trained.max()) if len(m_trained) > 0 else 0.0)
+            random_r2.append(float(m_random.max()) if len(m_random) > 0 else 0.0)
+
+        ax_probe.bar(x - bar_w / 2, trained_r2, bar_w, label="Trained (best k)", color="#2980b9")
+        ax_probe.bar(x + bar_w / 2, random_r2, bar_w, label="Random init", color="#e74c3c")
+        ax_probe.set_xticks(x)
+        ax_probe.set_xticklabels([m.replace("_", "\n") for m in modes], rotation=45, ha="right", fontsize=8)
+        ax_probe.set_ylabel("Test R²")
+        ax_probe.set_ylim(-0.1, 1.05)
+        ax_probe.set_title(f"{target_name.capitalize()} Probe R² by Mode")
+        ax_probe.legend(loc="upper left")
+        ax_probe.grid(True, axis="y", alpha=0.3)
+
+    # Row 2, Col 2: 3D tetrahedron belief projection
+    ax3d = fig.add_subplot(gs[2, 2], projection="3d")
+
+    tet_verts = simplex_embedding(4)  # (4, 3) — tetrahedron vertices
+    # Draw tetrahedron wireframe edges
+    for i, j in combinations(range(4), 2):
+        v = tet_verts[[i, j]]
+        ax3d.plot(v[:, 0], v[:, 1], v[:, 2], color="#555555", lw=0.8, alpha=0.5)
+
+    STATE_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f39c12"]  # 4 HMM states
+
+    if belief_gt is not None and hmm_states is not None:
+        # Flatten for scatter: pick first N_vis trajectories, all cycles
+        bg = belief_gt.reshape(-1, 3)      # (N_vis*m, 3)
+        st = hmm_states.reshape(-1)        # (N_vis*m,)
+        for s in range(4):
+            mask = st == s
+            ax3d.scatter(
+                bg[mask, 0], bg[mask, 1], bg[mask, 2],
+                s=6, c=STATE_COLORS[s], alpha=0.35, lw=0, label=f"State {s}",
+                rasterized=True,
+            )
+
+    if belief_pred is not None:
+        bp = belief_pred.reshape(-1, 3)
+        ax3d.scatter(
+            bp[:, 0], bp[:, 1], bp[:, 2],
+            s=8, c="#111111", alpha=0.7, lw=0.8, marker="x", label="Predicted",
+            rasterized=True,
+        )
+
+    # Tetrahedron vertex labels
+    state_labels = ["S0", "S1", "S2", "S3"]
+    for i, (v, lab) in enumerate(zip(tet_verts, state_labels)):
+        ax3d.text(v[0]*1.12, v[1]*1.12, v[2]*1.12, lab,
+                  color=STATE_COLORS[i], fontsize=8, fontweight="bold")
+
+    ax3d.set_title("Belief 3D (tetrahedron)\nColored by HMM state", fontsize=9)
+    ax3d.set_xlim(-1.1, 1.1); ax3d.set_ylim(-1.1, 1.1); ax3d.set_zlim(-1.1, 1.1)
+    ax3d.set_box_aspect([1, 1, 1])
+    ax3d.tick_params(labelsize=6)
+    ax3d.grid(False)
+    ax3d.set_xlabel(""); ax3d.set_ylabel(""); ax3d.set_zlabel("")
+    handles, labels = ax3d.get_legend_handles_labels()
+    if handles:
+        ax3d.legend(handles, labels, loc="upper left", fontsize=6, markerscale=1.5)
+
+    plot_path = config_dir / f"d{width}_seed{seed}_summary.png"
+    plt.savefig(plot_path, dpi=120)
+    plt.close(fig)
+
+
+# --- 5. Main Worker Loop ---
 
 def worker_main():
     parser = argparse.ArgumentParser(description="BeliefPhysics single-pendulum sweep worker")
@@ -558,10 +752,63 @@ def worker_main():
                                 **score,
                             })
 
-                del trained_model, random_model, streams
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+        # Compute 3D belief arrays for visualization (use first 32 trajectories max)
+        N_VIS = min(32, args.n_probe_traj)
+        vis_beliefs = analysis_batch["beliefs"][:N_VIS]            # (N_VIS, seq_len, 4)
+        # Extract at cycle-end positions
+        last_positions = np.arange(n_steps - 1, proc.seq_len, n_steps)  # (m,)
+        vis_belief_gt = (vis_beliefs[:, last_positions, :]          # (N_VIS, m, 4)
+                         @ simplex_embedding(4))                    # (N_VIS, m, 3)
+        vis_hmm_states = vis_beliefs[:, last_positions, :].argmax(-1)  # (N_VIS, m)
+
+        # Probe-predicted belief from best model (trained, all_layers_last_token, best horizon by cv_r2)
+        best_row = (
+            probe_df[(probe_df["target"] == "belief")
+                     & (probe_df["model_type"] == "trained")
+                     & (probe_df["mode"] == "all_layers_last_token")]
+            .sort_values("cv_r2", ascending=False)
+        )
+        vis_belief_pred = None
+        if len(best_row) > 0:
+            best_k_suffix = best_row.iloc[0]["horizon"]
+            best_k = best_row.iloc[0]["k_value"]
+            best_alpha = best_row.iloc[0]["alpha"]
+            best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
+            best_pt = config_dir / f"{best_model_id}_final.pt"
+            if best_pt.exists():
+                vis_cfg = ModelConfig(
+                    vocab_size=181, n_ctx=proc.seq_len, n_layers=args.n_layers,
+                    n_heads=args.n_heads, d_model=width, d_mlp=4 * width, seed=seed,
+                )
+                vis_model = LookaheadTransformer(vis_cfg, k=int(best_k))
+                vis_model.load_state_dict(torch.load(best_pt, map_location=device))
+                vis_model.to(device).eval()
+                vis_streams = residual_streams_batched(
+                    vis_model, analysis_batch["tokens"][:N_VIS], device
+                )
+                # all_layers_last_token: concat streams, pick last_positions
+                vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, last_positions, :]  # (N_VIS, m, L*d)
+                vis_X = StandardScaler().fit_transform(
+                    vis_X_raw.reshape(N_VIS * len(last_positions), -1)
+                )
+                vis_y_bel = vis_belief_gt.reshape(N_VIS * len(last_positions), 3)
+                # Fit ridge with best alpha (no CV needed — just for viz)
+                _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
+                _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
+                _A = _Xt.T @ _Xt
+                _A.diagonal().add_(float(best_alpha))
+                _W = torch.linalg.solve(_A, _Xt.T @ _yt)
+                vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(last_positions), 3)
+
+        # 5. Generate summary plot
+        print(f"  [Summary] Generating summary plot...")
+        generate_summary_plot(
+            config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
+            n_layers=args.n_layers, n_heads=args.n_heads,
+            belief_gt=vis_belief_gt,
+            belief_pred=vis_belief_pred,
+            hmm_states=vis_hmm_states,
+        )
 
             # 4. Save per-job probes CSV
             probe_df = pd.DataFrame(probe_rows)
