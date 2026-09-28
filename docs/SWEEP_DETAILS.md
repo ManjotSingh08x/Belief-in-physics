@@ -84,6 +84,8 @@ The default residual-stream dimension is 64 so this count remains 720. Setting `
 
 The notebook executes only the first manifest row by default. Set `BELIEF_RUN_FULL_SWEEP=1` on the intended compute job to activate the complete manifest.
 
+`BELIEF_K_MODE` selects the forecast horizon per physics candidate without changing the slice order: `fixed` (default, `TrainingConfig.k=1`), `half` (`k=max(1,n//2)`, so `n=5` uses `k=2`), or `n_plus_one` (`k=n+1`). Each mode is a separate 720-run manifest, or 60 Sphere seed-0 d64 runs after the Sphere/seed filters. Non-default runs include the resolved `k` in their artifact names, and the Kaggle packager gives each mode a distinct notebook slug. No lookahead sweep is activated by default.
+
 ## Per-run artifacts
 
 Every completed run writes exactly these primary files:

@@ -14,6 +14,7 @@ def main():
     parser.add_argument("--owner", required=True)
     parser.add_argument("--start", type=int, required=True)
     parser.add_argument("--stop", type=int, required=True)
+    parser.add_argument("--k-mode", choices=("fixed", "half", "n_plus_one"), default="fixed")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if not 0 <= args.start < args.stop <= 60:
@@ -35,6 +36,7 @@ def main():
         "BELIEF_RUN_FULL_SWEEP": "1",
         "BELIEF_SYSTEM_FILTER": "sphere",
         "BELIEF_SEED_FILTER": "0",
+        "BELIEF_K_MODE": args.k_mode,
         "BELIEF_RUN_START": str(args.start),
         "BELIEF_RUN_STOP": str(args.stop),
         "BELIEF_NOTEBOOK_DEVICE": "cuda",
@@ -49,7 +51,8 @@ def main():
         "cell_type": "code", "execution_count": None, "metadata": {},
         "outputs": [], "source": setup.splitlines(keepends=True),
     })
-    slug = f"sphere-alpha-sweep-{args.start:02d}-{args.stop:02d}"
+    mode_tag = {"fixed": "", "half": "-khalf", "n_plus_one": "-knplus1"}[args.k_mode]
+    slug = f"sphere-alpha-sweep{mode_tag}-{args.start:02d}-{args.stop:02d}"
     metadata = {
         "id": f"{args.owner}/{slug}", "title": slug.replace("-", " "),
         "code_file": "sphere_alpha_sweep.ipynb", "language": "python",
