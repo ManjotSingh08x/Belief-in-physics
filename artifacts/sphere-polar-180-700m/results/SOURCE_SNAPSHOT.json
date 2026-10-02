@@ -1,0 +1,33 @@
+{
+  "source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "archive_sha256": "11819c82d4042facca1f4839d020aaa3ecfacfa8d5bddf72d5849828bff85ecb",
+  "members": {
+    "models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "models/ablation.py": "6d22e5601f412eb0eb96e26e374a9685edbbce72f4127a86e35287c7ed94b775",
+    "models/analysis.py": "fa5e593246a24caf09860ff62a692fa14c5857db54591cc3ab19fd597b7734cb",
+    "models/bootstrap.py": "1db64d4189ad1e0c6743738ca42ff26fff1a2c0b4ad0a5ce23a1512bf188d50d",
+    "models/explore.py": "9bca904b23192d4955a12122184eff66ab9916ef6832a12fa54c3c22e88369ab",
+    "models/features.py": "03146051a4686b879b4a3953208fe9248821a1eaf17ca17424cb3ad9b7008bc4",
+    "models/lab.py": "9dbd1fc1733a66be6e330f311f93357c78a9bcb282bd423c5d214393141de61c",
+    "models/labplots.py": "7d590017da8c1d855936e45129cb8e9e0e61b6877d0e6ce2c6eceacc51b71ea2",
+    "models/probe.py": "0176bb6a0465d5260d9be1e97e74ee4fd72673c4a766f24b6076fed81a90ce8d",
+    "models/probe_extra.py": "1e5c6bf58498ef9beff91ea08ca19993d62bf4d459fdaf4bd15c470802f42676",
+    "models/train.py": "4a128659b90f5a5cb673d79d9608cde2429fbd675682ce05ec1e428d5ac93d72",
+    "models/transformer.py": "78eab705fdfbe3a05afd51535413276909c0e530ef152b335172879f7e110201",
+    "physics/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "physics/controls.py": "15e0a9aabdf395f8254184d37be536b957ad297f615dd329298adcccbf26f41f",
+    "physics/messk.py": "545c53cd42479cdc1bb4788b568250a863d39d5f35c78d2eb55369ae6b14079c",
+    "physics/messk_configs.py": "7496a78f8c38559eb88f04d87722eb2c363fbda4fae487e207bb59eebd66fea8",
+    "physics/systems/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "physics/systems/double_pendulum.py": "5cb571fea8be6ef3bad47209f7c32c6f029ad6747c080c69a53a3cb51da43095",
+    "physics/systems/pendulum.py": "e70fa34316a3f63d746a36ef953a445f8e9b828eb95d7ef20ceaddb74e8e423d",
+    "physics/systems/predator_prey.py": "4f524bb3f6eaa95f017ad3c543dc45bf059f612764e96eaa9d6e196b9566e651",
+    "physics/systems/sphere.py": "c3a162033b67e7323842960e2305b33983e6387fe2e7bf4aefe836d98f0fc4af",
+    "physics/systems/sphere_polar.py": "74d08b5e13d9c572eac9dc4c5d1b1943a5c0c94348b765a269c604a6f2fe1787",
+    "physics/visualise.py": "fc586e6945fb2641e52312f8e0fda9df02abe30c7136a2dc9bd5bfc2131e7400",
+    "experiments/sphere_vast_train.py": "bb51bb5961ef8637bd00970c6a40b06e717e2d4f4e006dcbdcc9140b5bd57616",
+    "experiments/sphere_staging_probe.py": "52d39d8f4d2b88d9ab6167e60e0cb15f00808f6d49ddeb15781cbf5b4d032b3b",
+    "notebooks/three_phase_pipeline.ipynb": "f41955e6589ffed0e3b771bfa4202ae1c3223cdee5bfb96d0a1994f27074694a",
+    "pyproject.toml": "118c2ea404f1557dfab7ed3aa19204114e4fb9c25cc9b337e67f1f782c15aaf5"
+  }
+}

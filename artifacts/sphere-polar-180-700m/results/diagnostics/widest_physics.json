@@ -1,0 +1,191 @@
+{
+  "selection": "widest_physics",
+  "model_name": "sphere_polar_c14_n_down_gamma_constant_d0p14_a0p5_m16_d128l4h2mlp512_700m_seed0_k2",
+  "setting": {
+    "model_name": "sphere_polar_c14_n_down_gamma_constant_d0p14_a0p5_m16_d128l4h2mlp512_700m_seed0_k2",
+    "lookahead_mode": "half",
+    "hmm_alpha": "0.5",
+    "n": "5",
+    "gamma": "0.35",
+    "delta_v": "0.14",
+    "k_lookahead": "2",
+    "target": "physics",
+    "trained_r2": 0.9911533517634041,
+    "random_r2": 0.7052508920671934,
+    "gap": 0.28590245969621075
+  },
+  "source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "configuration_sha256": "c17d121d4e1326dd5ba8b0d7e332a588e07ea6c70ea5909e0873f151eaaf4c39",
+  "original_split_counts": [
+    1228,
+    410,
+    410
+  ],
+  "fresh_test_trajectories": 2048,
+  "fresh_full_histories_removed": 0,
+  "test_prefix_seen_in_fit_fraction_by_tick": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.6829268292682927,
+    0.3048780487804878,
+    0.0951219512195122,
+    0.024390243902439025,
+    0.00975609756097561,
+    0.007317073170731708,
+    0.0024390243902439024,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "true_belief_simplex_and_letter_alignment_passed": true,
+  "models": {
+    "trained": {
+      "weight_sha256": "bb402fe241763872311d15b25f0d604ac18b0b84a2f73b475d4959b3703d9a4d",
+      "causal_future_perturbation_max_error": 0.0,
+      "fresh_k_ahead_cross_entropy_nats": 1.145429603755474,
+      "belief": {
+        "ridge_alpha": 1.0,
+        "validation_r2": 0.3407162046464909,
+        "original_test_r2": 0.3316661881832804,
+        "reproduction_abs_error": 0.0,
+        "fresh_test_r2": 0.33373821140989235,
+        "shuffled_fit_and_validation_labels_fresh_r2": -0.0024013495209564417,
+        "shuffled_ridge_alpha": 10000.0,
+        "probability_checks": {
+          "raw_entries_outside_0_1_fraction": 7.62939453125e-06,
+          "raw_rows_outside_simplex_fraction": 3.0517578125e-05,
+          "raw_sum_max_abs_error": 0.03278207778930664,
+          "raw_min": -0.05142925679683685,
+          "raw_max": 0.6603623032569885,
+          "projected_belief_r2": 0.33392826379519147,
+          "projected_belief_mse": 0.0071385470177052195,
+          "projected_mood_brier_sum": 0.7345057612441916,
+          "projected_mood_log_loss": 1.3581712790535545,
+          "projected_mood_accuracy": 0.33282470703125,
+          "reliability_bins": [
+            {
+              "confidence": 0.28144029389230285,
+              "accuracy": 0.27387091733083296,
+              "count": 12798
+            },
+            {
+              "confidence": 0.339445782557904,
+              "accuracy": 0.3560106444521578,
+              "count": 17286
+            },
+            {
+              "confidence": 0.4376674123168961,
+              "accuracy": 0.4548780487804878,
+              "count": 2460
+            },
+            {
+              "confidence": 0.5029830935302081,
+              "accuracy": 0.5765765765765766,
+              "count": 222
+            },
+            {
+              "confidence": 0.6521343092123668,
+              "accuracy": 0.0,
+              "count": 2
+            }
+          ]
+        }
+      },
+      "physics": {
+        "ridge_alpha": 1.0,
+        "validation_r2": 0.9925381757758055,
+        "original_test_r2": 0.9911533517634041,
+        "reproduction_abs_error": 0.0,
+        "fresh_test_r2": 0.9924774314035714,
+        "shuffled_fit_and_validation_labels_fresh_r2": 0.00886306335117848,
+        "shuffled_ridge_alpha": 10000.0
+      }
+    },
+    "random_init": {
+      "weight_sha256": "be2f47c1cc640570be424ec2f5c748ad3fba4436ba5b1e30de59cfc309e9feb2",
+      "causal_future_perturbation_max_error": 0.0,
+      "fresh_k_ahead_cross_entropy_nats": 5.355971843004227,
+      "belief": {
+        "ridge_alpha": 1.0,
+        "validation_r2": 0.2129649435630109,
+        "original_test_r2": 0.20798292767409823,
+        "reproduction_abs_error": 0.0,
+        "fresh_test_r2": 0.21098995374059892,
+        "shuffled_fit_and_validation_labels_fresh_r2": -0.0021749699941037703,
+        "shuffled_ridge_alpha": 10000.0,
+        "probability_checks": {
+          "raw_entries_outside_0_1_fraction": 3.0517578125e-05,
+          "raw_rows_outside_simplex_fraction": 0.0001220703125,
+          "raw_sum_max_abs_error": 0.03495556116104126,
+          "raw_min": -0.18619459867477417,
+          "raw_max": 0.7133116722106934,
+          "projected_belief_r2": 0.21129737305831928,
+          "projected_belief_mse": 0.008445784527197462,
+          "projected_mood_brier_sum": 0.7390724110867788,
+          "projected_mood_log_loss": 1.366056129519607,
+          "projected_mood_accuracy": 0.311309814453125,
+          "reliability_bins": [
+            {
+              "confidence": 0.2804169284950423,
+              "accuracy": 0.26980826980826983,
+              "count": 17316
+            },
+            {
+              "confidence": 0.3373813887203375,
+              "accuracy": 0.34547492294760435,
+              "count": 14276
+            },
+            {
+              "confidence": 0.4473782798662277,
+              "accuracy": 0.5080988917306053,
+              "count": 1173
+            },
+            {
+              "confidence": 0.5125377078851063,
+              "accuracy": 0.0,
+              "count": 2
+            },
+            {
+              "confidence": 0.6990182002385458,
+              "accuracy": 1.0,
+              "count": 1
+            }
+          ]
+        }
+      },
+      "physics": {
+        "ridge_alpha": 1.0,
+        "validation_r2": 0.7064594505821582,
+        "original_test_r2": 0.7052508920671934,
+        "reproduction_abs_error": 0.0,
+        "fresh_test_r2": 0.7072612458541898,
+        "shuffled_fit_and_validation_labels_fresh_r2": 0.002752927545944417,
+        "shuffled_ridge_alpha": 10000.0
+      }
+    }
+  },
+  "fresh_gap_bootstrap_95_ci": {
+    "belief": [
+      0.11776215768870604,
+      0.1274815875724393
+    ],
+    "physics": [
+      0.27835117620593824,
+      0.29225174116595487
+    ]
+  },
+  "current_token_and_tick_baseline": {
+    "belief": {
+      "fresh_test_r2": 0.09041717186926637,
+      "ridge_alpha": 100.0
+    },
+    "physics": {
+      "fresh_test_r2": 0.6563859761054768,
+      "ridge_alpha": 100.0
+    }
+  }
+}

@@ -1,0 +1,4 @@
+sphere_polar_*.zip
+*.pth
+*_random_init.pt
+__pycache__/
