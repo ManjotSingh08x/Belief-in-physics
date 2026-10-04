@@ -82,6 +82,9 @@ except ImportError:
 set_double_pendulum_bins((50, 50))
 
 
+from sklearn.model_selection import GroupKFold
+
+
 # ==============================================================================
 # 1. Ultra-Fast GPU Ridge Regression with GroupKFold
 # ==============================================================================
@@ -97,21 +100,20 @@ def gpu_ridge_cv(
     device = X_t.device
     D = X_t.shape[1]
 
-    unique_groups = torch.unique(groups_t)
-    n_groups = len(unique_groups)
-    group_folds = torch.arange(n_groups, device=device) % n_splits
+    # Pre-compute exact GroupKFold splits matching Scikit-Learn
+    groups_np = groups_t.cpu().numpy() if isinstance(groups_t, torch.Tensor) else np.asarray(groups_t)
+    cv = GroupKFold(n_splits=n_splits)
+    splits = [
+        (torch.as_tensor(tr, device=device), torch.as_tensor(va, device=device))
+        for tr, va in cv.split(groups_np, groups=groups_np)
+    ]
 
     alpha_mean_r2s = []
     for alpha in alphas:
         fold_r2s = []
-        for f in range(n_splits):
-            val_group_mask = (group_folds == f)
-            val_groups = unique_groups[val_group_mask]
-            val_mask = torch.isin(groups_t, val_groups)
-            train_mask = ~val_mask
-
-            X_tr, Y_tr = X_t[train_mask], Y_t[train_mask]
-            X_va, Y_va = X_t[val_mask], Y_t[val_mask]
+        for tr_idx, val_idx in splits:
+            X_tr, Y_tr = X_t[tr_idx], Y_t[tr_idx]
+            X_va, Y_va = X_t[val_idx], Y_t[val_idx]
 
             # StandardScaler on train, apply to val
             mean_X = X_tr.mean(dim=0, keepdim=True)
