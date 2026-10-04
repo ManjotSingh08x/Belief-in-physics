@@ -107,7 +107,7 @@ Channels: `theta1`, `theta2`. Release: `th1_0 = 0.9`, `th2_0 = -0.4`, `w1_0 = w2
 | `g` | `9.8` | Gravity |
 | `l1`, `l2` | `1.0`, `1.0` | Arm lengths |
 | `m1`, `m2` | `1.0`, `1.0` | Bob masses |
-| `gamma1`, `gamma2` | `2.5`, `2.5` | Viscous joint friction; screened optimal range [2.5, 3.0] with 3.0 yielding 100% pass rate, Bayes gap 1.96 nats, and lambda=-0.81/s |
+| `gamma1`, `gamma2` | `0.65`, `0.65` | Viscous joint friction; calibrated dynamically via $k \cdot \gamma^*$ ($k \in \{0.03, 0.07, 0.10\}$, screened contractive operating point $\gamma \approx 0.61 - 0.65$ yielding $100\%$ pass rate, Bayes gap $0.231\text{ nats}$, and $\lambda = -0.21/\text{s}$) |
 | `omega_max` | `10.0` | Rate clamp |
 | `joint1_action_gain` | `2.0` | Amplifies joint-1 kicks so all four actions give distinct observation sequences |
 | `obs_ranges` | `((-pi, pi), (-pi, pi))` | Binned range of (theta1, theta2) |
