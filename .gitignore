@@ -10,5 +10,7 @@ build/
 *.egg-info/
 *outputs*
 /cache/
-prompts/
 .commandcode/
+graphify-out
+.agents
+.env
