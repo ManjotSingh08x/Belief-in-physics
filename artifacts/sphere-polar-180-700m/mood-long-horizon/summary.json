@@ -1,0 +1,290 @@
+{
+  "experiment_id": "sphere-mood-forks-80s-20261005",
+  "source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k10",
+  "configuration_sha256": "67c444c07fc5e50be50ed982d06ec82e453fb3eba9f4c28f9ff73c320e2b3b08",
+  "script_sha256": "cb1e2b7476b3c494086fb327e2324bc1ce719c9ea6228b700ba6e7977d300270",
+  "input_mood_arrays_sha256": "e7130b4f20e2eedeb458746873d9644e6443c38cc91c048e38a2cd3bfa1f666e",
+  "runtime_source_files_verified": 26,
+  "horizon_observations": 2000,
+  "seconds": 80.0,
+  "dt": 0.04,
+  "integration_dt": 0.005,
+  "reference_integration_dt": 0.0025,
+  "chain_seed": 20261005,
+  "training_seed": 0,
+  "protocols": {
+    "shared_future_kicks": {
+      "reference_max_theta_error": 1.0129183802831676e-07,
+      "reference_token_agreement": 1.0,
+      "observable_bin_clipping_fraction": 0.0,
+      "polar_or_rate_contacts": 0,
+      "forks": [
+        {
+          "path": 1,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 458,
+          "same_token_through_remainder": 1245,
+          "terminal_theta_spread": 4.709729467533563e-08,
+          "terminal_xyz_diameter": 0.18764328209664885
+        },
+        {
+          "path": 1,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 453,
+          "same_token_through_remainder": 1835,
+          "terminal_theta_spread": 1.676037832964994e-07,
+          "terminal_xyz_diameter": 0.14689961073677194
+        },
+        {
+          "path": 1,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 446,
+          "same_token_through_remainder": 1675,
+          "terminal_theta_spread": 5.8623229715060177e-08,
+          "terminal_xyz_diameter": 0.12788683135415585
+        },
+        {
+          "path": 1,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 436,
+          "same_token_through_remainder": 1515,
+          "terminal_theta_spread": 7.742178192993165e-08,
+          "terminal_xyz_diameter": 0.09661919925632792
+        },
+        {
+          "path": 2,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 431,
+          "same_token_through_remainder": 1177,
+          "terminal_theta_spread": 5.863370095005038e-08,
+          "terminal_xyz_diameter": 0.13939440720146032
+        },
+        {
+          "path": 2,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 428,
+          "same_token_through_remainder": 1037,
+          "terminal_theta_spread": 1.0155507490505755e-08,
+          "terminal_xyz_diameter": 0.1251463121184068
+        },
+        {
+          "path": 2,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 462,
+          "same_token_through_remainder": 1001,
+          "terminal_theta_spread": 6.944926889129732e-08,
+          "terminal_xyz_diameter": 0.12223418464051734
+        },
+        {
+          "path": 2,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 444,
+          "same_token_through_remainder": 1092,
+          "terminal_theta_spread": 9.97078424824771e-08,
+          "terminal_xyz_diameter": 0.11359510226448218
+        },
+        {
+          "path": 3,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 502,
+          "same_token_through_remainder": 1431,
+          "terminal_theta_spread": 3.2333015265173515e-08,
+          "terminal_xyz_diameter": 0.1901867930042092
+        },
+        {
+          "path": 3,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 494,
+          "same_token_through_remainder": 1229,
+          "terminal_theta_spread": 1.1052228965358069e-07,
+          "terminal_xyz_diameter": 0.13477238251967694
+        },
+        {
+          "path": 3,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 397,
+          "same_token_through_remainder": 1131,
+          "terminal_theta_spread": 9.098616160496675e-08,
+          "terminal_xyz_diameter": 0.13647864239185373
+        },
+        {
+          "path": 3,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 441,
+          "same_token_through_remainder": 971,
+          "terminal_theta_spread": 5.2469775635444194e-08,
+          "terminal_xyz_diameter": 0.09900849959157182
+        },
+        {
+          "path": 4,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 437,
+          "same_token_through_remainder": 1120,
+          "terminal_theta_spread": 1.0240270142958252e-07,
+          "terminal_xyz_diameter": 0.09900761305045187
+        },
+        {
+          "path": 4,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 373,
+          "same_token_through_remainder": 885,
+          "terminal_theta_spread": 6.498665150456162e-08,
+          "terminal_xyz_diameter": 0.12204962796331914
+        },
+        {
+          "path": 4,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 467,
+          "same_token_through_remainder": 1514,
+          "terminal_theta_spread": 1.280987498852859e-07,
+          "terminal_xyz_diameter": 0.14911322231509352
+        },
+        {
+          "path": 4,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 417,
+          "same_token_through_remainder": 1022,
+          "terminal_theta_spread": 9.293752717409731e-08,
+          "terminal_xyz_diameter": 0.10874604842649963
+        }
+      ]
+    },
+    "no_later_kicks": {
+      "reference_max_theta_error": 1.836257312870515e-08,
+      "reference_token_agreement": 1.0,
+      "observable_bin_clipping_fraction": 0.0,
+      "polar_or_rate_contacts": 0,
+      "forks": [
+        {
+          "path": 1,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 446,
+          "same_token_through_remainder": 574,
+          "terminal_theta_spread": 7.041390126527602e-08,
+          "terminal_xyz_diameter": 0.14628974855715537
+        },
+        {
+          "path": 1,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 442,
+          "same_token_through_remainder": 586,
+          "terminal_theta_spread": 2.2692217549469262e-08,
+          "terminal_xyz_diameter": 0.10678624044414045
+        },
+        {
+          "path": 1,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 431,
+          "same_token_through_remainder": 509,
+          "terminal_theta_spread": 1.0587548004981073e-08,
+          "terminal_xyz_diameter": 0.12828158339662746
+        },
+        {
+          "path": 1,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 431,
+          "same_token_through_remainder": 560,
+          "terminal_theta_spread": 1.754239870033203e-08,
+          "terminal_xyz_diameter": 0.11395224187469856
+        },
+        {
+          "path": 2,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 445,
+          "same_token_through_remainder": 546,
+          "terminal_theta_spread": 4.563277106184316e-08,
+          "terminal_xyz_diameter": 0.1453021922378774
+        },
+        {
+          "path": 2,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 418,
+          "same_token_through_remainder": 455,
+          "terminal_theta_spread": 8.84461651695645e-08,
+          "terminal_xyz_diameter": 0.1283215080806866
+        },
+        {
+          "path": 2,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 430,
+          "same_token_through_remainder": 507,
+          "terminal_theta_spread": 1.0569101910329337e-07,
+          "terminal_xyz_diameter": 0.11977134719914062
+        },
+        {
+          "path": 2,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 431,
+          "same_token_through_remainder": 444,
+          "terminal_theta_spread": 9.149731927671212e-08,
+          "terminal_xyz_diameter": 0.13205044547259298
+        },
+        {
+          "path": 3,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 461,
+          "same_token_through_remainder": 575,
+          "terminal_theta_spread": 1.650145575737838e-08,
+          "terminal_xyz_diameter": 0.14528894412084908
+        },
+        {
+          "path": 3,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 434,
+          "same_token_through_remainder": 499,
+          "terminal_theta_spread": 3.150665550677445e-08,
+          "terminal_xyz_diameter": 0.13960093990063563
+        },
+        {
+          "path": 3,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 422,
+          "same_token_through_remainder": 500,
+          "terminal_theta_spread": 2.8498144455380015e-08,
+          "terminal_xyz_diameter": 0.14010447142826296
+        },
+        {
+          "path": 3,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 408,
+          "same_token_through_remainder": 535,
+          "terminal_theta_spread": 5.7887112880905534e-08,
+          "terminal_xyz_diameter": 0.11864680709118453
+        },
+        {
+          "path": 4,
+          "after_token": 20,
+          "below_one_bin_through_remainder": 447,
+          "same_token_through_remainder": 574,
+          "terminal_theta_spread": 1.3067927301380067e-07,
+          "terminal_xyz_diameter": 0.1477709611577694
+        },
+        {
+          "path": 4,
+          "after_token": 160,
+          "below_one_bin_through_remainder": 406,
+          "same_token_through_remainder": 500,
+          "terminal_theta_spread": 8.659431782742644e-08,
+          "terminal_xyz_diameter": 0.13417969186931916
+        },
+        {
+          "path": 4,
+          "after_token": 320,
+          "below_one_bin_through_remainder": 460,
+          "same_token_through_remainder": 574,
+          "terminal_theta_spread": 1.435874701360973e-07,
+          "terminal_xyz_diameter": 0.14585097364186328
+        },
+        {
+          "path": 4,
+          "after_token": 480,
+          "below_one_bin_through_remainder": 432,
+          "same_token_through_remainder": 484,
+          "terminal_theta_spread": 9.663549649374659e-08,
+          "terminal_xyz_diameter": 0.12647703043658298
+        }
+      ]
+    }
+  }
+}
