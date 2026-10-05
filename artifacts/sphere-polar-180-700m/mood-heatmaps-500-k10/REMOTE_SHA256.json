@@ -1,0 +1,19 @@
+{
+  "four_mood_future_heatmaps_path1_token320.png": "1837ab1773f0e9b6e3c33f3cb952fcb5a378118245cc17be1ae5e41de954e12c",
+  "generate.py": "df7ca1b5db6fb55b5c1b29fe1f3990c741e84e1d986faa7641d506ab233b47a1",
+  "mood_arrays.npz": "e7130b4f20e2eedeb458746873d9644e6443c38cc91c048e38a2cd3bfa1f666e",
+  "mood_heatmaps_500_tokens.png": "f278d6af25103ed20b7b308f7590e1dc193f931adeac9b81cd9b2236ca3c72b1",
+  "mood_heatmaps_tick_ends.png": "81438dc000950968e44daa21714613238f8ace24022f10f967000d2bf0a36324",
+  "mood_probabilities.csv": "133db81c9e010885283963e6ac7f4e91a80275647607c30de358822b1435e4b8",
+  "mood_trajectory_fans_path_1.png": "b1927a2a26db8736d2ce783a339a237f8de3007310c8e6974c55019bb5d49041",
+  "mood_trajectory_fans_path_2.png": "516e9a8ac18bb61c7f0ae09a370d3003f8991172b8b2c1072e4f362b83e40fdb",
+  "mood_trajectory_fans_path_3.png": "d888f815e90d8eb65a70097be367344b54327b8ca8afbdd1293efaa6baa33b7a",
+  "mood_trajectory_fans_path_4.png": "6bcf7c519301e815253065a8e02ed86a7b5087076867059d6b49fdc209518653",
+  "path_1_moods_and_trajectories.png": "e4a930350f7a23a459983f997c10d63d4594c0df8b877e967b84aba39be277dc",
+  "path_2_moods_and_trajectories.png": "730ad4a52bbae13f66a69c0b1cf57678d71bc4ad11abeaafe5ec2e5281d29fe0",
+  "path_3_moods_and_trajectories.png": "de5d482f9fb04c7fa9ab56f1a793ec80c764c466afa989ca90a248b9ad87d665",
+  "path_4_moods_and_trajectories.png": "944fed361b10d3de6ad99b51754e68aa9251c3024f894359f07fa322923af7aa",
+  "render.py": "8cac4e2b97f06dd91d3a9619fb018ae69a265a9ecddc04113da00496902af270",
+  "summary.json": "0215036f1a92ec003d2cb050071a0498b6f52d3aa1b209399786ff1904229469",
+  "verify.py": "fdf259f8d217c92a723f27f1ad3db6575d884b5697ac5f293c29f89ee52691b1"
+}

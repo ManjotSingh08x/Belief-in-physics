@@ -1,0 +1,64 @@
+{
+  "experiment_id": "sphere-mood-500-k10-20261005",
+  "hypothesis_id": "H-R2-05-polar-ladder-capacity",
+  "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k10",
+  "source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "configuration_sha256": "67c444c07fc5e50be50ed982d06ec82e453fb3eba9f4c28f9ff73c320e2b3b08",
+  "metadata_sha256": "4a3df355b97c1b75f0347ffeef117017782bdbfa882fc912e467fde134cad7ce",
+  "source_input_sha256": "3bfcea5a12a52d265b3bb6b0ccf11e114a554795fdd36835cd66e7187458c08c",
+  "diagnostics_helper_sha256": "86f2b816c3e7d50a1859f6a76512658cd5bc7176c4074885af7069fb9a51c44e",
+  "script_sha256": "df7ca1b5db6fb55b5c1b29fe1f3990c741e84e1d986faa7641d506ab233b47a1",
+  "runtime_source_files_verified": 26,
+  "training_seed": 0,
+  "initial_seed": 20261006,
+  "action_seed": 20261005,
+  "original_probe_eval_seed": 20260929,
+  "original_probe_trajectories": 2048,
+  "split_counts": [
+    1230,
+    409,
+    409
+  ],
+  "readout": "all_block_layers_single_token",
+  "readout_fit_on_long_paths": false,
+  "context": 320,
+  "trajectory_tokens": 500,
+  "tick_length": 20,
+  "ticks": 25,
+  "k": 10,
+  "anchors_observed_token_counts": [
+    20,
+    160,
+    320,
+    480
+  ],
+  "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "numpy": "2.5.3",
+  "torch": "2.14.0+cpu",
+  "scores": {
+    "trained": {
+      "weight_sha256": "5d5f7c322b8eba39373d665458afb3c12a9d44f694569c74cdf345104fedc114",
+      "ridge_alpha": 1.0,
+      "original_test_r2": 0.6519392613370226,
+      "expected_original_test_r2": 0.6519392613370226,
+      "tick_end_500_raw_r2": -0.41705538005618004,
+      "tick_end_500_projected_mse": 0.06877954557052336,
+      "raw_rows_outside_0_1_fraction": 0.7485
+    },
+    "random_init": {
+      "weight_sha256": "8d0593f18d21b6a038237aba34d7ca855fe7ffc6c32a634f071d80d602fa769f",
+      "ridge_alpha": 1.0,
+      "original_test_r2": 0.37071402982541146,
+      "expected_original_test_r2": 0.37071402982541146,
+      "tick_end_500_raw_r2": -0.3824428821813616,
+      "tick_end_500_projected_mse": 0.07506952011932011,
+      "raw_rows_outside_0_1_fraction": 0.7
+    }
+  },
+  "acceptance": "diagnostic only; one training seed, four OOD starts, projected linear readouts",
+  "mood_semantics": "predictive next-tick moods; oracle conditions on hidden action letters",
+  "forecast_semantics": "known simulator state + HMM emission mixture; transformer provides probe mood weights only",
+  "forecast_reference_dt": 0.0025,
+  "forecast_reference_token_agreement": 1.0,
+  "forecast_reference_max_theta_error": 7.51458234526936e-09
+}
