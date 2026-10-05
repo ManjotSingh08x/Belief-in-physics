@@ -1,0 +1,426 @@
+{
+  "models": 4,
+  "requested_tokens_each": 700000000,
+  "actual_tokens_each": 699904000,
+  "training_source_revision": "98d5b417fc3a162cd61f45a371e0209783261ab9",
+  "instance_id": 54348163,
+  "gpu_release": {
+    "instance_id": 54348163,
+    "deadline": 1791293025.304481,
+    "phase": "gpu_released",
+    "max_total_dollars": 5,
+    "models_expected": 4,
+    "controller_pid": 2371037,
+    "updated_at": 1791235773.8789144,
+    "provider_status": "running",
+    "setup_attempt": 1,
+    "source_archive_sha256": "28c7b4183b4d66996a01cb514f99796e1cb0378d464802154219e473a2a1f427",
+    "launcher_pid": 1049,
+    "verified_full_models": 4,
+    "ready_names": [
+      "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10"
+    ],
+    "campaign_guard_spend": 1.8065533233218725,
+    "reason": "four_models_transferred_and_verified",
+    "teardown_error": "HTTPError",
+    "destroyed_verified": true,
+    "destroyed_at": 1791235773.878912
+  },
+  "ranking": [
+    {
+      "model_name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.7,
+      "delta_v": 0.3,
+      "alpha": 0.95,
+      "target": "belief",
+      "trained_r2": 0.472214651643495,
+      "random_r2": 0.12249568603440092,
+      "gap": 0.3497189656090941
+    },
+    {
+      "model_name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.7,
+      "delta_v": 0.2,
+      "alpha": 0.95,
+      "target": "belief",
+      "trained_r2": 0.4230860319586203,
+      "random_r2": 0.10132628998870832,
+      "gap": 0.32175974196991197
+    },
+    {
+      "model_name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.35,
+      "delta_v": 0.2,
+      "alpha": 0.95,
+      "target": "belief",
+      "trained_r2": 0.3240855256577948,
+      "random_r2": 0.05448904298355589,
+      "gap": 0.2695964826742389
+    },
+    {
+      "model_name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.35,
+      "delta_v": 0.2,
+      "alpha": 0.85,
+      "target": "belief",
+      "trained_r2": 0.2913516725112258,
+      "random_r2": 0.040847737091657926,
+      "gap": 0.25050393541956784
+    },
+    {
+      "model_name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.7,
+      "delta_v": 0.3,
+      "alpha": 0.95,
+      "target": "physics",
+      "trained_r2": 0.9263259513923192,
+      "random_r2": 0.19547217917210524,
+      "gap": 0.730853772220214
+    },
+    {
+      "model_name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.35,
+      "delta_v": 0.2,
+      "alpha": 0.85,
+      "target": "physics",
+      "trained_r2": 0.9301628701241706,
+      "random_r2": 0.21064917695276225,
+      "gap": 0.7195136931714083
+    },
+    {
+      "model_name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.35,
+      "delta_v": 0.2,
+      "alpha": 0.95,
+      "target": "physics",
+      "trained_r2": 0.9342722946795985,
+      "random_r2": 0.22276677812996337,
+      "gap": 0.7115055165496351
+    },
+    {
+      "model_name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "n": 20,
+      "gamma": 0.7,
+      "delta_v": 0.2,
+      "alpha": 0.95,
+      "target": "physics",
+      "trained_r2": 0.9522407158283539,
+      "random_r2": 0.29574334249420553,
+      "gap": 0.6564973733341484
+    }
+  ],
+  "native_head_metrics": {
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10": {
+      "trained": {
+        "nll": 2.011777451746407,
+        "brier_sum": 0.7737394333348576,
+        "entropy": 2.220854537313513,
+        "accuracy": 0.3544897959183673,
+        "positions": 200900,
+        "ece_10_bins": 0.05818385634821645,
+        "max_probability_sum_error": 3.933906555175781e-06,
+        "reliability": [
+          {
+            "count": 4466,
+            "confidence": 0.08735343166099394,
+            "accuracy": 0.10680698611733094
+          },
+          {
+            "count": 57490,
+            "confidence": 0.15547068624027108,
+            "accuracy": 0.19076361106279352
+          },
+          {
+            "count": 50371,
+            "confidence": 0.24749355067128032,
+            "accuracy": 0.2938794147426098
+          },
+          {
+            "count": 40771,
+            "confidence": 0.34858968078538966,
+            "accuracy": 0.40955581172892497
+          },
+          {
+            "count": 29111,
+            "confidence": 0.445507837122568,
+            "accuracy": 0.5361203668716292
+          },
+          {
+            "count": 14413,
+            "confidence": 0.54297255521875,
+            "accuracy": 0.6510788871157982
+          },
+          {
+            "count": 4101,
+            "confidence": 0.6336802986155949,
+            "accuracy": 0.7634723238234576
+          },
+          {
+            "count": 177,
+            "confidence": 0.7181953461156727,
+            "accuracy": 0.847457627118644
+          }
+        ],
+        "causal_prefix_max_error": 5.245208740234375e-06,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.2958759471054923,
+        "minimum_unique_physical_endpoints": 1
+      },
+      "random_init": {
+        "nll": 7.9912705571073515,
+        "brier_sum": 0.9997594179968861,
+        "entropy": 7.658379156561148,
+        "accuracy": 0.00038825286212045793,
+        "positions": 200900,
+        "ece_10_bins": 0.0021391577852114332,
+        "max_probability_sum_error": 6.556510925292969e-07,
+        "reliability": [
+          {
+            "count": 200900,
+            "confidence": 0.0025274106473318915,
+            "accuracy": 0.00038825286212045793
+          }
+        ],
+        "causal_prefix_max_error": 7.152557373046875e-07,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.0009294277790754027,
+        "minimum_unique_physical_endpoints": 1
+      }
+    },
+    "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10": {
+      "trained": {
+        "nll": 2.0088322713819826,
+        "brier_sum": 0.789522137184117,
+        "entropy": 2.212016842710433,
+        "accuracy": 0.3287954206072673,
+        "positions": 200900,
+        "ece_10_bins": 0.04534873294816971,
+        "max_probability_sum_error": 4.0531158447265625e-06,
+        "reliability": [
+          {
+            "count": 1062,
+            "confidence": 0.08987598618573163,
+            "accuracy": 0.08945386064030132
+          },
+          {
+            "count": 50449,
+            "confidence": 0.1631331687894337,
+            "accuracy": 0.16733731094768975
+          },
+          {
+            "count": 68756,
+            "confidence": 0.24843306346004376,
+            "accuracy": 0.2675984641340392
+          },
+          {
+            "count": 49488,
+            "confidence": 0.3461148257048441,
+            "accuracy": 0.4165656320724216
+          },
+          {
+            "count": 24480,
+            "confidence": 0.44212093818080583,
+            "accuracy": 0.5665032679738562
+          },
+          {
+            "count": 6384,
+            "confidence": 0.5346341279701781,
+            "accuracy": 0.6925125313283208
+          },
+          {
+            "count": 281,
+            "confidence": 0.6190874392027532,
+            "accuracy": 0.7651245551601423
+          }
+        ],
+        "causal_prefix_max_error": 5.7220458984375e-06,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.30422063448240527,
+        "minimum_unique_physical_endpoints": 1
+      },
+      "random_init": {
+        "nll": 7.99436189805055,
+        "brier_sum": 0.9997617481554724,
+        "entropy": 7.658363630867316,
+        "accuracy": 0.00036834245893479345,
+        "positions": 200900,
+        "ece_10_bins": 0.002157909037646035,
+        "max_probability_sum_error": 7.152557373046875e-07,
+        "reliability": [
+          {
+            "count": 200900,
+            "confidence": 0.0025262514965808283,
+            "accuracy": 0.00036834245893479345
+          }
+        ],
+        "causal_prefix_max_error": 7.152557373046875e-07,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.0009034790204391263,
+        "minimum_unique_physical_endpoints": 1
+      }
+    },
+    "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10": {
+      "trained": {
+        "nll": 1.90931128572044,
+        "brier_sum": 0.7656986326599311,
+        "entropy": 2.097269106404304,
+        "accuracy": 0.3627177700348432,
+        "positions": 200900,
+        "ece_10_bins": 0.05139798366829508,
+        "max_probability_sum_error": 4.172325134277344e-06,
+        "reliability": [
+          {
+            "count": 607,
+            "confidence": 0.08924634012668294,
+            "accuracy": 0.09390444810543658
+          },
+          {
+            "count": 36391,
+            "confidence": 0.16704024370431225,
+            "accuracy": 0.1866395537358138
+          },
+          {
+            "count": 66266,
+            "confidence": 0.24860724983510035,
+            "accuracy": 0.2776687894244409
+          },
+          {
+            "count": 51386,
+            "confidence": 0.346950719381174,
+            "accuracy": 0.40472113026894485
+          },
+          {
+            "count": 31718,
+            "confidence": 0.4441203031581109,
+            "accuracy": 0.5350589570590831
+          },
+          {
+            "count": 12561,
+            "confidence": 0.5403404690953408,
+            "accuracy": 0.6665870551707667
+          },
+          {
+            "count": 1953,
+            "confidence": 0.6256499421395099,
+            "accuracy": 0.7501280081925243
+          },
+          {
+            "count": 18,
+            "confidence": 0.7152564095126258,
+            "accuracy": 0.8333333333333334
+          }
+        ],
+        "causal_prefix_max_error": 4.76837158203125e-06,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.32692802124921233,
+        "minimum_unique_physical_endpoints": 1
+      },
+      "random_init": {
+        "nll": 7.994251211602157,
+        "brier_sum": 0.9997606738836626,
+        "entropy": 7.658371934884439,
+        "accuracy": 0.0004230960676953708,
+        "positions": 200900,
+        "ece_10_bins": 0.0021030363441829005,
+        "max_probability_sum_error": 6.556510925292969e-07,
+        "reliability": [
+          {
+            "count": 200900,
+            "confidence": 0.0025261324118782714,
+            "accuracy": 0.0004230960676953708
+          }
+        ],
+        "causal_prefix_max_error": 8.344650268554688e-07,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.0009034937498431739,
+        "minimum_unique_physical_endpoints": 1
+      }
+    },
+    "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10": {
+      "trained": {
+        "nll": 1.6601348621658925,
+        "brier_sum": 0.7079553125918119,
+        "entropy": 1.8125269753835769,
+        "accuracy": 0.4230214036834246,
+        "positions": 200900,
+        "ece_10_bins": 0.03753356211484517,
+        "max_probability_sum_error": 4.410743713378906e-06,
+        "reliability": [
+          {
+            "count": 113,
+            "confidence": 0.09278177423814757,
+            "accuracy": 0.04424778761061947
+          },
+          {
+            "count": 18822,
+            "confidence": 0.17158432438179508,
+            "accuracy": 0.1921156093932632
+          },
+          {
+            "count": 54009,
+            "confidence": 0.2501880519716862,
+            "accuracy": 0.279508970727101
+          },
+          {
+            "count": 43739,
+            "confidence": 0.3473325198749916,
+            "accuracy": 0.380164155559112
+          },
+          {
+            "count": 35589,
+            "confidence": 0.4483938771213792,
+            "accuracy": 0.48450363876478686
+          },
+          {
+            "count": 25685,
+            "confidence": 0.5466034116205687,
+            "accuracy": 0.5991045357212381
+          },
+          {
+            "count": 15714,
+            "confidence": 0.6452028952027848,
+            "accuracy": 0.7038309787450681
+          },
+          {
+            "count": 6762,
+            "confidence": 0.7385073042205014,
+            "accuracy": 0.8179532682638273
+          },
+          {
+            "count": 467,
+            "confidence": 0.816156243358996,
+            "accuracy": 0.8950749464668094
+          }
+        ],
+        "causal_prefix_max_error": 6.67572021484375e-06,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.4085506255491203,
+        "minimum_unique_physical_endpoints": 1
+      },
+      "random_init": {
+        "nll": 7.993668757697846,
+        "brier_sum": 0.9997609285868597,
+        "entropy": 7.658425902058223,
+        "accuracy": 0.0004131408661025386,
+        "positions": 200900,
+        "ece_10_bins": 0.0021132725941941178,
+        "max_probability_sum_error": 7.152557373046875e-07,
+        "reliability": [
+          {
+            "count": 200900,
+            "confidence": 0.002526413460296656,
+            "accuracy": 0.0004131408661025386
+          }
+        ],
+        "causal_prefix_max_error": 6.556510925292969e-07,
+        "mean_probability_mass_on_four_physical_endpoint_bins": 0.0008899781566432633,
+        "minimum_unique_physical_endpoints": 1
+      }
+    }
+  },
+  "scientific_acceptance": "one training seed measured; physical preflight selected settings, not proven optimum",
+  "analysis_script_sha256": "b5da1dd21570954a191f998123e5bfded59e7077f6b1b5d4f16d67080db76d06"
+}

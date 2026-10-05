@@ -1,0 +1,239 @@
+{
+  "project": "Belief-in-physics",
+  "hypothesis_id": "H-SPHERE-JOINT-50",
+  "experiment_id": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+  "dataset": "fresh streamed Mess-4 joint-angle Sphere; bounded uniform offsets [-.1,.1], uniform azimuth; 500 tokens",
+  "acceptance_state": "full_training_complete; held-out probes pending",
+  "scientific_acceptance": "unmeasured",
+  "process": "sphere_dual_mess4",
+  "experiment": {
+    "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85",
+    "physics": {
+      "dt": 0.04,
+      "integration_dt": 0.005,
+      "delta_v": 0.2,
+      "obs_bins": [
+        50,
+        50
+      ],
+      "g": 9.8,
+      "length": 1.0,
+      "gamma": 0.35,
+      "rate_max": 32.0,
+      "theta0": 0.6,
+      "psi_dot0": 2.0,
+      "system_name": "sphere_dual"
+    },
+    "hmm": {
+      "n_states": 4,
+      "alpha": 0.85,
+      "stay": 0.7
+    },
+    "initial_state": {
+      "mode": "random",
+      "jitter_std": 0.05773502691896258,
+      "azimuth_mode": "uniform [-pi,pi)",
+      "release_distribution": "uniform coordinate offsets [-.1,.1]"
+    },
+    "seed": 20260920,
+    "n_trajectories": 256,
+    "m": 25,
+    "n": 20
+  },
+  "model": {
+    "vocab_size": 2500,
+    "n_ctx": 500,
+    "n_layers": 4,
+    "n_heads": 2,
+    "d_model": 128,
+    "d_mlp": 512,
+    "seed": 0
+  },
+  "training": {
+    "name": "d128l4h2mlp512_700m_seed0_k10",
+    "seed": 0,
+    "k": 10,
+    "d_model": 128,
+    "n_layers": 4,
+    "n_heads": 2,
+    "d_mlp": 512,
+    "batch_size": 1024,
+    "total_tokens": 700000000,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0,
+    "log_every": 50,
+    "stream_seed_offset": 101,
+    "eval_size": 256,
+    "grad_clip": 1.0
+  },
+  "source_revision": "98d5b417fc3a162cd61f45a371e0209783261ab9",
+  "configuration_sha256": "98f52391a27e97e392d0b1ca1873f17facb00e67d4b9c02cabda609e42323e88",
+  "device": "cuda",
+  "torch_version": "2.7.1+cu128",
+  "python_version": "3.11.13",
+  "host": "8ab8683fa38d",
+  "gpu_name": "NVIDIA GeForce RTX 3090",
+  "tokens_seen": 699904000,
+  "updates": 1367,
+  "requested_tokens": 700000000,
+  "final_loss": {
+    "step": 1366,
+    "train_loss": 2.0266878604888916,
+    "eval_loss": 2.036048173904419
+  },
+  "loss_history": [
+    {
+      "step": 0,
+      "train_loss": 7.994422435760498,
+      "eval_loss": 7.993884563446045
+    },
+    {
+      "step": 50,
+      "train_loss": 5.770394802093506,
+      "eval_loss": 5.789994716644287
+    },
+    {
+      "step": 100,
+      "train_loss": 5.289512634277344,
+      "eval_loss": 5.287975311279297
+    },
+    {
+      "step": 150,
+      "train_loss": 4.029252529144287,
+      "eval_loss": 4.076455116271973
+    },
+    {
+      "step": 200,
+      "train_loss": 3.507418632507324,
+      "eval_loss": 3.5116403102874756
+    },
+    {
+      "step": 250,
+      "train_loss": 3.0674338340759277,
+      "eval_loss": 3.119148015975952
+    },
+    {
+      "step": 300,
+      "train_loss": 2.8336753845214844,
+      "eval_loss": 2.8752589225769043
+    },
+    {
+      "step": 350,
+      "train_loss": 2.7418649196624756,
+      "eval_loss": 2.7633297443389893
+    },
+    {
+      "step": 400,
+      "train_loss": 2.66178560256958,
+      "eval_loss": 2.7359423637390137
+    },
+    {
+      "step": 450,
+      "train_loss": 2.614847183227539,
+      "eval_loss": 2.6275222301483154
+    },
+    {
+      "step": 500,
+      "train_loss": 2.552809476852417,
+      "eval_loss": 2.5627293586730957
+    },
+    {
+      "step": 550,
+      "train_loss": 2.4676601886749268,
+      "eval_loss": 2.483412504196167
+    },
+    {
+      "step": 600,
+      "train_loss": 2.3868062496185303,
+      "eval_loss": 2.4197709560394287
+    },
+    {
+      "step": 650,
+      "train_loss": 2.3484930992126465,
+      "eval_loss": 2.3539884090423584
+    },
+    {
+      "step": 700,
+      "train_loss": 2.288151741027832,
+      "eval_loss": 2.3043458461761475
+    },
+    {
+      "step": 750,
+      "train_loss": 2.2454798221588135,
+      "eval_loss": 2.2626872062683105
+    },
+    {
+      "step": 800,
+      "train_loss": 2.1930177211761475,
+      "eval_loss": 2.2290053367614746
+    },
+    {
+      "step": 850,
+      "train_loss": 2.168686628341675,
+      "eval_loss": 2.185758113861084
+    },
+    {
+      "step": 900,
+      "train_loss": 2.1293365955352783,
+      "eval_loss": 2.1445302963256836
+    },
+    {
+      "step": 950,
+      "train_loss": 2.0997307300567627,
+      "eval_loss": 2.114807605743408
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.075528860092163,
+      "eval_loss": 2.0904107093811035
+    },
+    {
+      "step": 1050,
+      "train_loss": 2.0639514923095703,
+      "eval_loss": 2.072798013687134
+    },
+    {
+      "step": 1100,
+      "train_loss": 2.0487189292907715,
+      "eval_loss": 2.0577595233917236
+    },
+    {
+      "step": 1150,
+      "train_loss": 2.029337167739868,
+      "eval_loss": 2.0478882789611816
+    },
+    {
+      "step": 1200,
+      "train_loss": 2.0239367485046387,
+      "eval_loss": 2.041571617126465
+    },
+    {
+      "step": 1250,
+      "train_loss": 2.0185983180999756,
+      "eval_loss": 2.0381107330322266
+    },
+    {
+      "step": 1300,
+      "train_loss": 2.017245054244995,
+      "eval_loss": 2.0365383625030518
+    },
+    {
+      "step": 1350,
+      "train_loss": 2.0191171169281006,
+      "eval_loss": 2.036054849624634
+    },
+    {
+      "step": 1366,
+      "train_loss": 2.0266878604888916,
+      "eval_loss": 2.036048173904419
+    }
+  ],
+  "stream_seed": 101,
+  "eval_seed": 99999,
+  "eval_size": 256,
+  "micro_batch_size": 32,
+  "elapsed_seconds": 14814.53885436058,
+  "checkpoint_sha256": "c45d6213f24666d4d228c517a754fe1973fb1808169f67dd8c1408256f503869",
+  "random_checkpoint_filename": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt",
+  "random_checkpoint_sha256": "879667f4d8e903069b4db96747f5b60c113021c9c2ed14717555bdf7626edefe"
+}

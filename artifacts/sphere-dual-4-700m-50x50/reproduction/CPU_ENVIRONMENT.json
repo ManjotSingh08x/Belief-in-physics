@@ -1,0 +1,10 @@
+{
+  "python": "3.13.5",
+  "platform": "Linux-6.12.107+deb13-cloud-arm64-aarch64-with-glibc2.41",
+  "packages": {
+    "torch": "2.14.0+cpu",
+    "numpy": "2.5.3",
+    "scikit-learn": "1.9.1",
+    "matplotlib": "3.11.2"
+  }
+}

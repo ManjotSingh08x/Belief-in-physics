@@ -1,0 +1,65 @@
+{
+  "model_name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+  "input_sha256": {
+    "trained_native_probabilities.npz": "d35b5bfb3b9a6b216ec24b560fbaaee545ce537714a7ff5932861f6320628796",
+    "random_init_native_probabilities.npz": "3b28a74b04098be65bd3529af5836c81e9ccafbf78908f467e5d5180add582c3"
+  },
+  "html_sha256": {
+    "path-1340.html": "d92a27c63af24dcc923637ddca3734ac352f28d37a9f0afd6a0838a8c89fe17c",
+    "path-436.html": "a37e51a9d92981db932eb0c89dccfa3ce23cab2411b635268a424f67d2847034",
+    "path-1659.html": "571e1abd36c2321b612dce73ba5c9adeef400c5a31747b7075bb3ecbce148c29",
+    "path-910.html": "deef42748fc07cfe381c3bb3642ff3ecf63e17ddf0dd63a2e94e638bb0086ca5"
+  },
+  "plotly_sha256": "3b6e15d45dbb7fca5bd2094291e961ddc5472cd887009e6009a56dab668d721f",
+  "plotly_source": "https://cdn.plot.ly/plotly-4.1.1.min.js",
+  "script_sha256": "843d7d758ee3844d54edea57071ebfae7fa2fbd4cac56c90a021ab63c99f240a",
+  "experiment": {
+    "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95",
+    "physics": {
+      "dt": 0.04,
+      "integration_dt": 0.005,
+      "delta_v": 0.3,
+      "obs_bins": [
+        50,
+        50
+      ],
+      "g": 9.8,
+      "length": 1.0,
+      "gamma": 0.7,
+      "rate_max": 32.0,
+      "theta0": 0.6,
+      "psi_dot0": 2.0,
+      "system_name": "sphere_dual"
+    },
+    "hmm": {
+      "n_states": 4,
+      "alpha": 0.95,
+      "stay": 0.7
+    },
+    "initial_state": {
+      "mode": "random",
+      "jitter_std": 0.05773502691896258,
+      "azimuth_mode": "uniform [-pi,pi)",
+      "release_distribution": "uniform coordinate offsets [-.1,.1]"
+    },
+    "seed": 20260920,
+    "n_trajectories": 256,
+    "m": 25,
+    "n": 20
+  },
+  "configuration_sha256": "7544571c861e06a6457bb46e0e92249c83b9b5deff36b690498a6d404ba34aaa",
+  "checkpoint_sha256": "41de75cabf2c20f59c73752905eee8099fd63836063ff22759d49c0cc87bd96e",
+  "axes": [
+    "theta bin",
+    "azimuth bin",
+    "joint probability"
+  ],
+  "query_positions": [
+    0,
+    489
+  ],
+  "k": 10,
+  "training_context_tokens": 500,
+  "probability_encoding": "exact saved float32, little endian; no smoothing or normalization changes",
+  "physical_markers": "physical action endpoints, not neural mood-conditioned rollouts"
+}

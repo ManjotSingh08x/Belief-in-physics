@@ -1,0 +1,4405 @@
+{
+  "hypothesis_id": "H-SPHERE-JOINT-50",
+  "experiment_id": "sphere-dual-four-screen",
+  "dataset": "fresh bounded uniform offsets [-.1,.1]; azimuth uniform [-pi,pi)",
+  "host": "stg-entity-server",
+  "python": "3.13.5",
+  "numpy": "2.5.3",
+  "obs_bins": [
+    50,
+    50
+  ],
+  "vocabulary_size": 2500,
+  "horizon": 500,
+  "seeds": [
+    20261005,
+    20261006,
+    20261007
+  ],
+  "trajectories_per_seed": 16,
+  "dt": 0.04,
+  "integration_dt": 0.005,
+  "k": 10,
+  "source_sha256": {
+    "experiments/sphere_dual_screen.py": "45a2878849642f7f5a25965af49e54b39b35f74683287c48db9ba35e70ff2ca2",
+    "physics/messk.py": "ef47d6a72142c0fa7a43828d8cf6b73c4bb6aabbc9354e8375688b327a44b3ce",
+    "physics/systems/sphere_angles.py": "c98bf8c32ab465b77c68fb33cfdc49d365a3a8349aace7d6696c60e602d079e5",
+    "physics/systems/sphere_polar.py": "74d08b5e13d9c572eac9dc4c5d1b1943a5c0c94348b765a269c604a6f2fe1787"
+  },
+  "status": "four_selected",
+  "results": [
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2649769956854605,
+            0.6900391224217634
+          ],
+          "max_abs_rates": [
+            1.1644033861929448,
+            6.598184126887316
+          ],
+          "four_distinct_10token_histories": 0.9875,
+          "four_distinct_endpoint_bins": 0.8375,
+          "each_action_changes_bins": [
+            1.0,
+            0.975,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.001322529475511324,
+          "late_full_phase_lambda_mean": -0.00813929772906212,
+          "full_phase_initial_gap_mean": 1.9990571954438485e-07,
+          "full_phase_final_gap_mean": 5.762388381109249e-08,
+          "maximum_conserved_momentum_drift": 1.328792398336276e-08,
+          "used_joint_bins": 282,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.28412691305994753,
+            0.7076376985784827
+          ],
+          "max_abs_rates": [
+            1.173067629302569,
+            6.196614481943484
+          ],
+          "four_distinct_10token_histories": 0.9625,
+          "four_distinct_endpoint_bins": 0.7625,
+          "each_action_changes_bins": [
+            1.0,
+            0.9375,
+            0.8875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.00042800520507775444,
+          "late_full_phase_lambda_mean": -0.006134407159070789,
+          "full_phase_initial_gap_mean": 1.9766425240002074e-07,
+          "full_phase_final_gap_mean": 6.479779127619183e-08,
+          "maximum_conserved_momentum_drift": 1.1198702853931763e-08,
+          "used_joint_bins": 299,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2789002553641869,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            0.982584134166876,
+            6.277062079956625
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8625,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.9625,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0018154414769740697,
+          "late_full_phase_lambda_mean": -0.008439868860342951,
+          "full_phase_initial_gap_mean": 2.0003759566403444e-07,
+          "full_phase_final_gap_mean": 5.3562978470964415e-08,
+          "maximum_conserved_momentum_drift": 1.0134132588657252e-08,
+          "used_joint_bins": 288,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.8875,
+      "minimum_four_distinct_histories": 0.9625,
+      "minimum_four_distinct_endpoint_bins": 0.7625,
+      "maximum_late_full_phase_lambda": 0.00042800520507775444
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2823486473704715,
+            0.6900391224217634
+          ],
+          "max_abs_rates": [
+            1.1644033861929448,
+            6.308657316145665
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8375,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.9625,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0020269365152063303,
+          "late_full_phase_lambda_mean": -0.00880121087313981,
+          "full_phase_initial_gap_mean": 2.0085329406085054e-07,
+          "full_phase_final_gap_mean": 5.8317538695932485e-08,
+          "maximum_conserved_momentum_drift": 1.161106688574165e-08,
+          "used_joint_bins": 273,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.283122620116365,
+            0.7076376985784827
+          ],
+          "max_abs_rates": [
+            1.1183932640485752,
+            6.420260376852207
+          ],
+          "four_distinct_10token_histories": 0.975,
+          "four_distinct_endpoint_bins": 0.8,
+          "each_action_changes_bins": [
+            1.0,
+            0.8875,
+            0.9,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.00032781759540498047,
+          "late_full_phase_lambda_mean": -0.006128328676348589,
+          "full_phase_initial_gap_mean": 1.9824160525445514e-07,
+          "full_phase_final_gap_mean": 6.751238347255157e-08,
+          "maximum_conserved_momentum_drift": 1.1461484539232458e-08,
+          "used_joint_bins": 300,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2993257302350692,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            0.9002242547495398,
+            5.904334458114318
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8625,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.9375,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0011530121636069781,
+          "late_full_phase_lambda_mean": -0.009474858420220616,
+          "full_phase_initial_gap_mean": 2.005171865814742e-07,
+          "full_phase_final_gap_mean": 5.4320098981521355e-08,
+          "maximum_conserved_momentum_drift": 9.703597481092174e-09,
+          "used_joint_bins": 278,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.8875,
+      "minimum_four_distinct_histories": 0.975,
+      "minimum_four_distinct_endpoint_bins": 0.8,
+      "maximum_late_full_phase_lambda": 0.00032781759540498047
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.28609128890821134,
+            0.6900391224217634
+          ],
+          "max_abs_rates": [
+            1.1644033861929448,
+            6.308657316145665
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8875,
+          "each_action_changes_bins": [
+            1.0,
+            0.95,
+            0.95,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0012381247202546864,
+          "late_full_phase_lambda_mean": -0.00920385224080736,
+          "full_phase_initial_gap_mean": 2.0110921311828903e-07,
+          "full_phase_final_gap_mean": 5.850380867359362e-08,
+          "maximum_conserved_momentum_drift": 1.161106688574165e-08,
+          "used_joint_bins": 265,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2803755454705714,
+            0.7076376985784827
+          ],
+          "max_abs_rates": [
+            1.1183932640485752,
+            6.420260376852207
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8125,
+          "each_action_changes_bins": [
+            1.0,
+            0.9,
+            0.925,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0006651802434368591,
+          "late_full_phase_lambda_mean": -0.004863892035060593,
+          "full_phase_initial_gap_mean": 1.9833814261793976e-07,
+          "full_phase_final_gap_mean": 6.874866641544902e-08,
+          "maximum_conserved_momentum_drift": 1.1461484539232458e-08,
+          "used_joint_bins": 296,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2964907090985061,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            0.9002242547495398,
+            5.904334458114318
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8875,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.95,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0005111008671238887,
+          "late_full_phase_lambda_mean": -0.008910641120922,
+          "full_phase_initial_gap_mean": 2.0111056011447608e-07,
+          "full_phase_final_gap_mean": 5.801700777591203e-08,
+          "maximum_conserved_momentum_drift": 9.703597481092174e-09,
+          "used_joint_bins": 276,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.8125,
+      "maximum_late_full_phase_lambda": 0.0006651802434368591
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24610644816767321,
+            0.7442689046449428
+          ],
+          "max_abs_rates": [
+            1.4187326737623047,
+            7.9415945927897384
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0010762018046692298,
+          "late_full_phase_lambda_mean": -0.01103916799393812,
+          "full_phase_initial_gap_mean": 2.006339431343189e-07,
+          "full_phase_final_gap_mean": 5.716514781296453e-08,
+          "maximum_conserved_momentum_drift": 3.612238663741607e-08,
+          "used_joint_bins": 337,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.25019437734277356,
+            0.748404631493277
+          ],
+          "max_abs_rates": [
+            1.428963869189129,
+            7.7344118340393235
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0021251305020007685,
+          "late_full_phase_lambda_mean": -0.009337520646717805,
+          "full_phase_initial_gap_mean": 1.9863463536689047e-07,
+          "full_phase_final_gap_mean": 6.620322616126753e-08,
+          "maximum_conserved_momentum_drift": 3.3227648299494206e-08,
+          "used_joint_bins": 351,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24768562278092662,
+            0.7124866366647308
+          ],
+          "max_abs_rates": [
+            1.2545578240840014,
+            7.91520267304951
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.001897191650737965,
+          "late_full_phase_lambda_mean": -0.011157329743572489,
+          "full_phase_initial_gap_mean": 2.0087590124614586e-07,
+          "full_phase_final_gap_mean": 5.3661714959801483e-08,
+          "maximum_conserved_momentum_drift": 3.670264148158964e-08,
+          "used_joint_bins": 335,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.975,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.9875,
+      "maximum_late_full_phase_lambda": 0.0021251305020007685
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2697813786171001,
+            0.7442689046449428
+          ],
+          "max_abs_rates": [
+            1.4187326737623047,
+            7.609512539137241
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.95,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00014327617618919205,
+          "late_full_phase_lambda_mean": -0.013522290876016944,
+          "full_phase_initial_gap_mean": 2.0201633543707961e-07,
+          "full_phase_final_gap_mean": 5.874394169721191e-08,
+          "maximum_conserved_momentum_drift": 2.8822877529144364e-08,
+          "used_joint_bins": 308,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24807026843951005,
+            0.7436372263269576
+          ],
+          "max_abs_rates": [
+            1.312224461968779,
+            7.8646444802685584
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.95,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0016173360971747574,
+          "late_full_phase_lambda_mean": -0.0134055470802498,
+          "full_phase_initial_gap_mean": 1.994351118113531e-07,
+          "full_phase_final_gap_mean": 6.930534712530479e-08,
+          "maximum_conserved_momentum_drift": 2.9364336961990034e-08,
+          "used_joint_bins": 336,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.27471097984279236,
+            0.6945646564332711
+          ],
+          "max_abs_rates": [
+            1.0822748912654507,
+            6.8314954796582406
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.9375,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0018031983400252113,
+          "late_full_phase_lambda_mean": -0.014638821846767784,
+          "full_phase_initial_gap_mean": 2.016635441045789e-07,
+          "full_phase_final_gap_mean": 5.395393086360903e-08,
+          "maximum_conserved_momentum_drift": 1.425344264838202e-08,
+          "used_joint_bins": 314,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9375,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.95,
+      "maximum_late_full_phase_lambda": 0.0018031983400252113
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2828303331736853,
+            0.7442689046449428
+          ],
+          "max_abs_rates": [
+            1.4187326737623047,
+            6.933927914784433
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            0.95,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0010586147965254086,
+          "late_full_phase_lambda_mean": -0.015186888195085626,
+          "full_phase_initial_gap_mean": 2.0243256771332434e-07,
+          "full_phase_final_gap_mean": 5.874710494991799e-08,
+          "maximum_conserved_momentum_drift": 2.066496485042535e-08,
+          "used_joint_bins": 283,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.25194459545172776,
+            0.7436372263269576
+          ],
+          "max_abs_rates": [
+            1.312224461968779,
+            7.204725370071644
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9625,
+          "each_action_changes_bins": [
+            1.0,
+            0.975,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002133779592346703,
+          "late_full_phase_lambda_mean": -0.0056811110105707725,
+          "full_phase_initial_gap_mean": 1.9957124837920197e-07,
+          "full_phase_final_gap_mean": 7.204224475784659e-08,
+          "maximum_conserved_momentum_drift": 1.8970053861089298e-08,
+          "used_joint_bins": 327,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.26943652337140916,
+            0.6945646564332711
+          ],
+          "max_abs_rates": [
+            1.009107811419593,
+            6.731545210642531
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0013255080573631025,
+          "late_full_phase_lambda_mean": -0.01617994388783333,
+          "full_phase_initial_gap_mean": 2.0255063388466844e-07,
+          "full_phase_final_gap_mean": 5.883707304586792e-08,
+          "maximum_conserved_momentum_drift": 1.3650482078020332e-08,
+          "used_joint_bins": 286,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.95,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.9625,
+      "maximum_late_full_phase_lambda": 0.002133779592346703
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2033387416294375,
+            0.8302174274246924
+          ],
+          "max_abs_rates": [
+            1.9467111451446284,
+            11.155669775911235
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0005305181652511202,
+          "late_full_phase_lambda_mean": -0.02252592049367832,
+          "full_phase_initial_gap_mean": 2.025008393118323e-07,
+          "full_phase_final_gap_mean": 5.753599176013257e-08,
+          "maximum_conserved_momentum_drift": 1.5977024592217504e-07,
+          "used_joint_bins": 410,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.209351326342813,
+            0.8352799083357874
+          ],
+          "max_abs_rates": [
+            1.8070295724892933,
+            10.977519883755656
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.005066561490551236,
+          "late_full_phase_lambda_mean": -0.024157377429247718,
+          "full_phase_initial_gap_mean": 2.0080950183033152e-07,
+          "full_phase_final_gap_mean": 7.032353911448897e-08,
+          "maximum_conserved_momentum_drift": 1.3944788573860833e-07,
+          "used_joint_bins": 412,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.20964988784058747,
+            0.8097221825979554
+          ],
+          "max_abs_rates": [
+            1.7649041973741189,
+            10.983668348971735
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007644035085696249,
+          "late_full_phase_lambda_mean": -0.028913986520136978,
+          "full_phase_initial_gap_mean": 2.0284710388955863e-07,
+          "full_phase_final_gap_mean": 5.7349732514356186e-08,
+          "maximum_conserved_momentum_drift": 1.7385850342721554e-07,
+          "used_joint_bins": 415,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9875,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.007644035085696249
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2309517040713942,
+            0.8302174274246924
+          ],
+          "max_abs_rates": [
+            1.7940690333611538,
+            9.70192076451877
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.003414148910328816,
+          "late_full_phase_lambda_mean": -0.035492199104813216,
+          "full_phase_initial_gap_mean": 2.0458857496689753e-07,
+          "full_phase_final_gap_mean": 6.063675406919424e-08,
+          "maximum_conserved_momentum_drift": 7.96936152624994e-08,
+          "used_joint_bins": 375,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2061698891444531,
+            0.8021957927581647
+          ],
+          "max_abs_rates": [
+            1.7739839820376182,
+            11.31392441451491
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.003363795180546786,
+          "late_full_phase_lambda_mean": -0.011700762040677744,
+          "full_phase_initial_gap_mean": 2.0193122506501503e-07,
+          "full_phase_final_gap_mean": 7.616753980340569e-08,
+          "maximum_conserved_momentum_drift": 1.476768071162482e-07,
+          "used_joint_bins": 401,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2367853643645115,
+            0.7423893831973265
+          ],
+          "max_abs_rates": [
+            1.5328649763814253,
+            9.23177705532453
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.008053447286123642,
+          "late_full_phase_lambda_mean": -0.039929206803225814,
+          "full_phase_initial_gap_mean": 2.042151110457905e-07,
+          "full_phase_final_gap_mean": 5.4328971219243504e-08,
+          "maximum_conserved_momentum_drift": 5.976949229991035e-08,
+          "used_joint_bins": 366,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9875,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.008053447286123642
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2528535742033247,
+            0.8302174274246924
+          ],
+          "max_abs_rates": [
+            1.7940690333611538,
+            9.119337448475852
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.006073175947276251,
+          "late_full_phase_lambda_mean": -0.0205320588453066,
+          "full_phase_initial_gap_mean": 2.0530255553335216e-07,
+          "full_phase_final_gap_mean": 6.101161267415782e-08,
+          "maximum_conserved_momentum_drift": 8.438604248706127e-08,
+          "used_joint_bins": 368,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.21822944228245583,
+            0.8021957927581647
+          ],
+          "max_abs_rates": [
+            1.5975161837596454,
+            9.55207063911992
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004705107160489899,
+          "late_full_phase_lambda_mean": -0.011291681372917195,
+          "full_phase_initial_gap_mean": 2.0212808774544015e-07,
+          "full_phase_final_gap_mean": 8.038270348133589e-08,
+          "maximum_conserved_momentum_drift": 5.912692574439049e-08,
+          "used_joint_bins": 396,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.23675331268975322,
+            0.7719804966964664
+          ],
+          "max_abs_rates": [
+            1.498176931087852,
+            8.67022331846519
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002735945651650951,
+          "late_full_phase_lambda_mean": -0.031576459560961403,
+          "full_phase_initial_gap_mean": 2.0559666395150213e-07,
+          "full_phase_final_gap_mean": 6.213079289573838e-08,
+          "maximum_conserved_momentum_drift": 5.164159222470488e-08,
+          "used_joint_bins": 344,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.006073175947276251,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 2.983232890930137e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261202,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.17627914435009057,
+          0.987544716036279
+        ],
+        "max_abs_rates": [
+          2.1992491280886273,
+          14.45407662527826
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.99794921875,
+          0.99765625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.0114535473786334,
+        "late_full_phase_lambda_mean": -0.020395744682044123,
+        "full_phase_initial_gap_mean": 2.0206352328125223e-07,
+        "full_phase_final_gap_mean": 7.075577923912774e-08,
+        "maximum_conserved_momentum_drift": 3.4604988130571e-07,
+        "used_joint_bins": 591,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.15722240525540518,
+            1.023961034955211
+          ],
+          "max_abs_rates": [
+            2.718887342605574,
+            18.45890172604706
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0082139057024615,
+          "late_full_phase_lambda_mean": -0.012506979439497665,
+          "full_phase_initial_gap_mean": 2.0758384896759553e-07,
+          "full_phase_final_gap_mean": 6.659326522165717e-08,
+          "maximum_conserved_momentum_drift": 8.629016061689754e-07,
+          "used_joint_bins": 551,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.16275365154074964,
+            1.0189080870872125
+          ],
+          "max_abs_rates": [
+            2.418195370654119,
+            18.058380812867117
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007336854165889259,
+          "late_full_phase_lambda_mean": -0.023505625488822547,
+          "full_phase_initial_gap_mean": 2.0624819835913033e-07,
+          "full_phase_final_gap_mean": 8.926229554667948e-08,
+          "maximum_conserved_momentum_drift": 8.3534978467803e-07,
+          "used_joint_bins": 550,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.16011271571911195,
+            0.9921406080035614
+          ],
+          "max_abs_rates": [
+            2.593339942454774,
+            18.716673940107015
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010218320328723505,
+          "late_full_phase_lambda_mean": -0.04046487816638919,
+          "full_phase_initial_gap_mean": 2.079412603680184e-07,
+          "full_phase_final_gap_mean": 7.201734383922583e-08,
+          "maximum_conserved_momentum_drift": 1.784923010395012e-06,
+          "used_joint_bins": 533,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.010218320328723505
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.17705939121950715,
+            0.9853618670119912
+          ],
+          "max_abs_rates": [
+            2.551914671481084,
+            15.31430391662016
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007140143637202659,
+          "late_full_phase_lambda_mean": -0.024883200920843604,
+          "full_phase_initial_gap_mean": 2.109697902843329e-07,
+          "full_phase_final_gap_mean": 7.09901479763699e-08,
+          "maximum_conserved_momentum_drift": 5.987195833556669e-07,
+          "used_joint_bins": 503,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.16824894367128912,
+            0.9744176233266186
+          ],
+          "max_abs_rates": [
+            2.6062060497104484,
+            16.908270589828373
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.006179077779811371,
+          "late_full_phase_lambda_mean": -0.01683912308927782,
+          "full_phase_initial_gap_mean": 2.078603190510977e-07,
+          "full_phase_final_gap_mean": 8.887137771738317e-08,
+          "maximum_conserved_momentum_drift": 6.053492180302378e-07,
+          "used_joint_bins": 507,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.17424435115086387,
+            0.9094722521563852
+          ],
+          "max_abs_rates": [
+            2.15783866486528,
+            15.828775330653642
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.025387094530126657,
+          "late_full_phase_lambda_mean": -0.02878137818565745,
+          "full_phase_initial_gap_mean": 2.1056918406498502e-07,
+          "full_phase_final_gap_mean": 7.028551212550686e-08,
+          "maximum_conserved_momentum_drift": 8.122023760770425e-07,
+          "used_joint_bins": 469,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.025387094530126657
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1913072972798692,
+            1.010496746306664
+          ],
+          "max_abs_rates": [
+            2.4003316090974325,
+            15.703558903634805
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010780806932465348,
+          "late_full_phase_lambda_mean": -0.030079017666371593,
+          "full_phase_initial_gap_mean": 2.1231755212807093e-07,
+          "full_phase_final_gap_mean": 5.698611784939689e-08,
+          "maximum_conserved_momentum_drift": 6.539788914849964e-07,
+          "used_joint_bins": 494,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.17849618682449944,
+            0.9785535909454928
+          ],
+          "max_abs_rates": [
+            2.193836857842597,
+            14.202950017997829
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010337246173229,
+          "late_full_phase_lambda_mean": -0.01599933503948356,
+          "full_phase_initial_gap_mean": 2.0816211723278174e-07,
+          "full_phase_final_gap_mean": 1.0812499232683967e-07,
+          "maximum_conserved_momentum_drift": 3.268527361544038e-07,
+          "used_joint_bins": 490,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1953307840869955,
+            0.9817162656468783
+          ],
+          "max_abs_rates": [
+            2.40060071849043,
+            13.197502596977504
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.023998711875397597,
+          "late_full_phase_lambda_mean": -0.04310206831332535,
+          "full_phase_initial_gap_mean": 2.1290014730054686e-07,
+          "full_phase_final_gap_mean": 7.292498390735693e-08,
+          "maximum_conserved_momentum_drift": 3.284609162435004e-07,
+          "used_joint_bins": 454,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.023998711875397597
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.13720679701371621,
+            1.3256172108467357
+          ],
+          "max_abs_rates": [
+            3.4558845138360814,
+            25.708081501462093
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.029802168742179617,
+          "late_full_phase_lambda_mean": -0.019373030272237305,
+          "full_phase_initial_gap_mean": 2.149239599663126e-07,
+          "full_phase_final_gap_mean": 7.391898771540897e-08,
+          "maximum_conserved_momentum_drift": 5.202855371866377e-06,
+          "used_joint_bins": 702,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.12733590949321752,
+            1.2598436049256596
+          ],
+          "max_abs_rates": [
+            3.4237968523681066,
+            29.40052269220308
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010132786472931699,
+          "late_full_phase_lambda_mean": -0.007101562168365123,
+          "full_phase_initial_gap_mean": 2.137388009562689e-07,
+          "full_phase_final_gap_mean": 1.2868010716879604e-07,
+          "maximum_conserved_momentum_drift": 7.42131540687474e-06,
+          "used_joint_bins": 704,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 1,
+          "theta_range": [
+            0.14421082042610694,
+            1.2494627486131926
+          ],
+          "max_abs_rates": [
+            3.1900669121973535,
+            23.034686387248545
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.05698618695076803,
+          "late_full_phase_lambda_mean": -0.03450575960048664,
+          "full_phase_initial_gap_mean": 2.1509434834565445e-07,
+          "full_phase_final_gap_mean": 8.140892814192039e-08,
+          "maximum_conserved_momentum_drift": 2.9537974876037154e-06,
+          "used_joint_bins": 678,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.05698618695076803
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1389722564548899,
+            1.2339742020311766
+          ],
+          "max_abs_rates": [
+            3.3232265819384827,
+            23.582845564830016
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.015372800407887572,
+          "late_full_phase_lambda_mean": -0.029181906080921853,
+          "full_phase_initial_gap_mean": 2.1973108097898183e-07,
+          "full_phase_final_gap_mean": 9.346280127198468e-08,
+          "maximum_conserved_momentum_drift": 2.3078860266201318e-06,
+          "used_joint_bins": 645,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.13891803752224083,
+            1.2310784670338886
+          ],
+          "max_abs_rates": [
+            3.328977640346511,
+            24.727573774316575
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.009683054638839542,
+          "late_full_phase_lambda_mean": -0.04001521687834415,
+          "full_phase_initial_gap_mean": 2.157774973523051e-07,
+          "full_phase_final_gap_mean": 1.0295880084728297e-07,
+          "maximum_conserved_momentum_drift": 1.9529706703491634e-06,
+          "used_joint_bins": 666,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.12356824522184408,
+            1.11794184175693
+          ],
+          "max_abs_rates": [
+            3.3518264170146703,
+            31.060268931333155
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.026115109415550865,
+          "late_full_phase_lambda_mean": -0.005963775015861324,
+          "full_phase_initial_gap_mean": 2.193050379191297e-07,
+          "full_phase_final_gap_mean": 1.0383186354738825e-07,
+          "maximum_conserved_momentum_drift": 0.0038902348932317032,
+          "used_joint_bins": 622,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.026115109415550865
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.15816378220827215,
+            1.2212594148613745
+          ],
+          "max_abs_rates": [
+            3.3488625793714735,
+            21.44705218108163
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.03402599049856406,
+          "late_full_phase_lambda_mean": -0.028959461151071536,
+          "full_phase_initial_gap_mean": 2.218586729696139e-07,
+          "full_phase_final_gap_mean": 8.54544036149537e-08,
+          "maximum_conserved_momentum_drift": 2.1188304162311766e-06,
+          "used_joint_bins": 644,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.152833784424325,
+            1.1941373782998415
+          ],
+          "max_abs_rates": [
+            2.8748882638020627,
+            19.318144963275017
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.012659705639297325,
+          "late_full_phase_lambda_mean": -0.0162773219283611,
+          "full_phase_initial_gap_mean": 2.1618844644204035e-07,
+          "full_phase_final_gap_mean": 1.606795915382225e-07,
+          "maximum_conserved_momentum_drift": 1.2633412725393534e-06,
+          "used_joint_bins": 637,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1644842301722238,
+            1.1850638643823213
+          ],
+          "max_abs_rates": [
+            3.2123686735710475,
+            19.818942672975368
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.04145463835683695,
+          "late_full_phase_lambda_mean": -0.013874235603191284,
+          "full_phase_initial_gap_mean": 2.2271303455715483e-07,
+          "full_phase_final_gap_mean": 9.680338879419509e-08,
+          "maximum_conserved_momentum_drift": 2.6980043745794546e-06,
+          "used_joint_bins": 590,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.04145463835683695
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 1,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.11321024943025332,
+            1.6961515620362655
+          ],
+          "max_abs_rates": [
+            4.226421320264317,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004934706644114261,
+          "late_full_phase_lambda_mean": -0.048080799383048586,
+          "full_phase_initial_gap_mean": 2.242378923859773e-07,
+          "full_phase_final_gap_mean": 6.712261072225654e-08,
+          "maximum_conserved_momentum_drift": 0.13107014235171327,
+          "used_joint_bins": 876,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 1,
+          "fork_bound_hits": 1,
+          "theta_range": [
+            0.08508488627279506,
+            1.5738999098964486
+          ],
+          "max_abs_rates": [
+            4.38049119731834,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.025630638799312228,
+          "late_full_phase_lambda_mean": -0.003998906604100569,
+          "full_phase_initial_gap_mean": 2.2300156770608104e-07,
+          "full_phase_final_gap_mean": 1.7142230264952585e-07,
+          "maximum_conserved_momentum_drift": 0.2577700185146015,
+          "used_joint_bins": 852,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 2,
+          "fork_bound_hits": 2,
+          "theta_range": [
+            0.10377565501931499,
+            1.5146238737184343
+          ],
+          "max_abs_rates": [
+            3.723343207709649,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.014799073143566014,
+          "late_full_phase_lambda_mean": -0.022029060280387702,
+          "full_phase_initial_gap_mean": 2.2403760228235237e-07,
+          "full_phase_final_gap_mean": 8.139241022893581e-08,
+          "maximum_conserved_momentum_drift": 0.14838755141149879,
+          "used_joint_bins": 808,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.025630638799312228
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 1,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.10815591425919999,
+            1.4316990255666446
+          ],
+          "max_abs_rates": [
+            4.034536846632363,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.09711304934426279,
+          "late_full_phase_lambda_mean": -0.05740210617189518,
+          "full_phase_initial_gap_mean": 2.305572781883663e-07,
+          "full_phase_final_gap_mean": 1.0146904742853817e-07,
+          "maximum_conserved_momentum_drift": 0.0796751245038328,
+          "used_joint_bins": 772,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 2,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1042981929951757,
+            1.5477095084580879
+          ],
+          "max_abs_rates": [
+            4.261652322302455,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.024936456632061246,
+          "late_full_phase_lambda_mean": -0.01190852754799819,
+          "full_phase_initial_gap_mean": 2.2540269597690854e-07,
+          "full_phase_final_gap_mean": 1.220755384210582e-07,
+          "maximum_conserved_momentum_drift": 0.14520512135606783,
+          "used_joint_bins": 812,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 5,
+          "fork_bound_hits": 2,
+          "theta_range": [
+            0.05,
+            1.343055987851777
+          ],
+          "max_abs_rates": [
+            3.6474658063222503,
+            32.0
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.06415457351097266,
+          "late_full_phase_lambda_mean": -0.008124532295150429,
+          "full_phase_initial_gap_mean": 2.3010121864763814e-07,
+          "full_phase_final_gap_mean": 1.1531775053285112e-07,
+          "maximum_conserved_momentum_drift": 0.39580309790150986,
+          "used_joint_bins": 773,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.09711304934426279
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1332086133060657,
+            1.4603848101208337
+          ],
+          "max_abs_rates": [
+            4.161835635032972,
+            28.79233088398869
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.12743947556051774,
+          "late_full_phase_lambda_mean": -0.0315433141175799,
+          "full_phase_initial_gap_mean": 2.3358209182025984e-07,
+          "full_phase_final_gap_mean": 1.3147464701507048e-07,
+          "maximum_conserved_momentum_drift": 0.026770136852583892,
+          "used_joint_bins": 756,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 1,
+          "theta_range": [
+            0.13872542439120544,
+            1.4295353691354256
+          ],
+          "max_abs_rates": [
+            3.9572810393316766,
+            30.225209696997855
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.07356034548094617,
+          "late_full_phase_lambda_mean": -0.015159131241381976,
+          "full_phase_initial_gap_mean": 2.2592580929352482e-07,
+          "full_phase_final_gap_mean": 2.2228897609886995e-07,
+          "maximum_conserved_momentum_drift": 8.428114490754979e-06,
+          "used_joint_bins": 776,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.13183055795983548,
+            1.385296206951366
+          ],
+          "max_abs_rates": [
+            4.116270581050109,
+            27.533005140108788
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0348333514601048,
+          "late_full_phase_lambda_mean": -0.04012130253347979,
+          "full_phase_initial_gap_mean": 2.346837755195047e-07,
+          "full_phase_final_gap_mean": 8.882569853968682e-08,
+          "maximum_conserved_momentum_drift": 5.048501791227178e-06,
+          "used_joint_bins": 718,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.12743947556051774
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2975559420086723,
+            0.6807704320183572
+          ],
+          "max_abs_rates": [
+            0.8255653583737217,
+            5.464039410431856
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.875,
+          "each_action_changes_bins": [
+            1.0,
+            0.9375,
+            0.9375,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002183368651190941,
+          "late_full_phase_lambda_mean": -0.0075282870293076985,
+          "full_phase_initial_gap_mean": 1.9990571954438485e-07,
+          "full_phase_final_gap_mean": 5.765592935719479e-08,
+          "maximum_conserved_momentum_drift": 4.91372975641724e-09,
+          "used_joint_bins": 269,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.3020369101653244,
+            0.6985223888176625
+          ],
+          "max_abs_rates": [
+            0.9443249791945236,
+            5.651676508455515
+          ],
+          "four_distinct_10token_histories": 0.975,
+          "four_distinct_endpoint_bins": 0.775,
+          "each_action_changes_bins": [
+            1.0,
+            0.95,
+            0.9375,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0011727013632943845,
+          "late_full_phase_lambda_mean": -0.005693333203263646,
+          "full_phase_initial_gap_mean": 1.9766425240002074e-07,
+          "full_phase_final_gap_mean": 6.25535793615027e-08,
+          "maximum_conserved_momentum_drift": 5.706490835422073e-09,
+          "used_joint_bins": 287,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2953725359066222,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            1.0354243494246027,
+            5.559320959387848
+          ],
+          "four_distinct_10token_histories": 0.9875,
+          "four_distinct_endpoint_bins": 0.8375,
+          "each_action_changes_bins": [
+            1.0,
+            0.9375,
+            0.9375,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.001783335583648471,
+          "late_full_phase_lambda_mean": -0.0059602357594234455,
+          "full_phase_initial_gap_mean": 2.0003759566403444e-07,
+          "full_phase_final_gap_mean": 5.6332413536292e-08,
+          "maximum_conserved_momentum_drift": 4.952728338558643e-09,
+          "used_joint_bins": 275,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9375,
+      "minimum_four_distinct_histories": 0.975,
+      "minimum_four_distinct_endpoint_bins": 0.775,
+      "maximum_late_full_phase_lambda": -0.0011727013632943845
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2975559420086723,
+            0.6807704320183572
+          ],
+          "max_abs_rates": [
+            0.8562231739030804,
+            5.464039410431856
+          ],
+          "four_distinct_10token_histories": 0.975,
+          "four_distinct_endpoint_bins": 0.8125,
+          "each_action_changes_bins": [
+            1.0,
+            0.9375,
+            0.875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0002793272794750543,
+          "late_full_phase_lambda_mean": -0.007416623544992843,
+          "full_phase_initial_gap_mean": 2.0085329406085054e-07,
+          "full_phase_final_gap_mean": 5.777541059327943e-08,
+          "maximum_conserved_momentum_drift": 3.9536314222488045e-09,
+          "used_joint_bins": 268,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.28925532328865045,
+            0.6985223888176625
+          ],
+          "max_abs_rates": [
+            0.9443249791945236,
+            6.151920054954372
+          ],
+          "four_distinct_10token_histories": 0.9875,
+          "four_distinct_endpoint_bins": 0.7875,
+          "each_action_changes_bins": [
+            1.0,
+            0.875,
+            0.9,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0015377536453078941,
+          "late_full_phase_lambda_mean": -0.004977954280495023,
+          "full_phase_initial_gap_mean": 1.9824160525445514e-07,
+          "full_phase_final_gap_mean": 6.400651860904916e-08,
+          "maximum_conserved_momentum_drift": 1.070162392036167e-08,
+          "used_joint_bins": 286,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2973429504690396,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            1.0354243494246027,
+            5.559320959387848
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0022497677093983653,
+          "late_full_phase_lambda_mean": -0.006500183650227761,
+          "full_phase_initial_gap_mean": 2.005171865814742e-07,
+          "full_phase_final_gap_mean": 5.56217813647261e-08,
+          "maximum_conserved_momentum_drift": 4.952728338558643e-09,
+          "used_joint_bins": 277,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.875,
+      "minimum_four_distinct_histories": 0.975,
+      "minimum_four_distinct_endpoint_bins": 0.7875,
+      "maximum_late_full_phase_lambda": 0.0002793272794750543
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.1,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.29660030751849276,
+            0.6807704320183572
+          ],
+          "max_abs_rates": [
+            0.8562231739030804,
+            5.400017814921955
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.8625,
+          "each_action_changes_bins": [
+            1.0,
+            0.9625,
+            0.95,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.00028502595215295246,
+          "late_full_phase_lambda_mean": -0.007363115764952188,
+          "full_phase_initial_gap_mean": 2.0110921311828903e-07,
+          "full_phase_final_gap_mean": 5.7050319629075796e-08,
+          "maximum_conserved_momentum_drift": 3.499340262003159e-09,
+          "used_joint_bins": 269,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.29276918797576823,
+            0.6985223888176625
+          ],
+          "max_abs_rates": [
+            0.9443249791945236,
+            6.151920054954372
+          ],
+          "four_distinct_10token_histories": 0.975,
+          "four_distinct_endpoint_bins": 0.775,
+          "each_action_changes_bins": [
+            1.0,
+            0.9,
+            0.9,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0017607388992119202,
+          "late_full_phase_lambda_mean": -0.0050552703970680665,
+          "full_phase_initial_gap_mean": 1.9833814261793976e-07,
+          "full_phase_final_gap_mean": 6.42958459787146e-08,
+          "maximum_conserved_momentum_drift": 1.070162392036167e-08,
+          "used_joint_bins": 286,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2950100890374852,
+            0.6853789769008172
+          ],
+          "max_abs_rates": [
+            1.0354243494246027,
+            5.642282519831511
+          ],
+          "four_distinct_10token_histories": 0.9875,
+          "four_distinct_endpoint_bins": 0.9125,
+          "each_action_changes_bins": [
+            1.0,
+            0.95,
+            0.9,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002792679265925688,
+          "late_full_phase_lambda_mean": -0.006922647954336964,
+          "full_phase_initial_gap_mean": 2.0111056011447608e-07,
+          "full_phase_final_gap_mean": 5.532048545779817e-08,
+          "maximum_conserved_momentum_drift": 4.952728338558643e-09,
+          "used_joint_bins": 272,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9,
+      "minimum_four_distinct_histories": 0.975,
+      "minimum_four_distinct_endpoint_bins": 0.775,
+      "maximum_late_full_phase_lambda": 0.00028502595215295246
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.28666105809020037,
+            0.6899444569920773
+          ],
+          "max_abs_rates": [
+            1.012732074192954,
+            6.760795536385961
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.975,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0015071585937669822,
+          "late_full_phase_lambda_mean": -0.009506713415350723,
+          "full_phase_initial_gap_mean": 2.006339431343189e-07,
+          "full_phase_final_gap_mean": 5.565136736237221e-08,
+          "maximum_conserved_momentum_drift": 1.9227932690490945e-08,
+          "used_joint_bins": 278,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2910084271982679,
+            0.7077059693373183
+          ],
+          "max_abs_rates": [
+            1.0986958379763054,
+            6.242174794244367
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0009580962520747572,
+          "late_full_phase_lambda_mean": -0.0070093604994385,
+          "full_phase_initial_gap_mean": 1.9863463536689047e-07,
+          "full_phase_final_gap_mean": 6.210954045196534e-08,
+          "maximum_conserved_momentum_drift": 1.1931834187350887e-08,
+          "used_joint_bins": 310,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2695199202364467,
+            0.7050835207172573
+          ],
+          "max_abs_rates": [
+            1.194680039214327,
+            6.368929469925346
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0013555516797895183,
+          "late_full_phase_lambda_mean": -0.007630991672337325,
+          "full_phase_initial_gap_mean": 2.0087590124614586e-07,
+          "full_phase_final_gap_mean": 5.348222741504323e-08,
+          "maximum_conserved_momentum_drift": 1.1123078791364094e-08,
+          "used_joint_bins": 307,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.975,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.9875,
+      "maximum_late_full_phase_lambda": 0.0009580962520747572
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2793005634468347,
+            0.6899444569920773
+          ],
+          "max_abs_rates": [
+            1.0169948806990592,
+            6.228785221244169
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0014559752364444137,
+          "late_full_phase_lambda_mean": -0.009236270514329887,
+          "full_phase_initial_gap_mean": 2.0201633543707961e-07,
+          "full_phase_final_gap_mean": 5.590770761314258e-08,
+          "maximum_conserved_momentum_drift": 1.0910969960864492e-08,
+          "used_joint_bins": 281,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.26771640225299387,
+            0.7077059693373183
+          ],
+          "max_abs_rates": [
+            1.0986958379763054,
+            7.176524297356546
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.975,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.000655199308224226,
+          "late_full_phase_lambda_mean": -0.005408486169036237,
+          "full_phase_initial_gap_mean": 1.994351118113531e-07,
+          "full_phase_final_gap_mean": 6.457687021261413e-08,
+          "maximum_conserved_momentum_drift": 2.4761448780274975e-08,
+          "used_joint_bins": 314,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2804128920174778,
+            0.7050835207172573
+          ],
+          "max_abs_rates": [
+            1.194680039214327,
+            6.258779614202814
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.0018594746165484222,
+          "late_full_phase_lambda_mean": -0.009919355475826933,
+          "full_phase_initial_gap_mean": 2.016635441045789e-07,
+          "full_phase_final_gap_mean": 5.1761652429981173e-08,
+          "maximum_conserved_momentum_drift": 1.2123087311799452e-08,
+          "used_joint_bins": 301,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.975,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.9875,
+      "maximum_late_full_phase_lambda": 0.0014559752364444137
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.14,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2895448208944786,
+            0.6899444569920773
+          ],
+          "max_abs_rates": [
+            1.0169948806990592,
+            5.897175432613137
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0014365600791721857,
+          "late_full_phase_lambda_mean": -0.009385147565748013,
+          "full_phase_initial_gap_mean": 2.0243256771332434e-07,
+          "full_phase_final_gap_mean": 5.503421666180776e-08,
+          "maximum_conserved_momentum_drift": 7.977560834149244e-09,
+          "used_joint_bins": 276,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.27227769842292776,
+            0.7077059693373183
+          ],
+          "max_abs_rates": [
+            1.0986958379763054,
+            7.176524297356546
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 0.9875,
+          "each_action_changes_bins": [
+            1.0,
+            0.9875,
+            0.95,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00014858037542551751,
+          "late_full_phase_lambda_mean": -0.005710644916577881,
+          "full_phase_initial_gap_mean": 1.9957124837920197e-07,
+          "full_phase_final_gap_mean": 6.473667163044978e-08,
+          "maximum_conserved_momentum_drift": 2.4761448780274975e-08,
+          "used_joint_bins": 312,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2730537276534915,
+            0.7050835207172573
+          ],
+          "max_abs_rates": [
+            1.194680039214327,
+            6.558687757061973
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.975,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002352621310737573,
+          "late_full_phase_lambda_mean": -0.01054487023459002,
+          "full_phase_initial_gap_mean": 2.0255063388466844e-07,
+          "full_phase_final_gap_mean": 5.166662897669331e-08,
+          "maximum_conserved_momentum_drift": 1.299618268557623e-08,
+          "used_joint_bins": 289,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.95,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 0.9875,
+      "maximum_late_full_phase_lambda": 0.0014365600791721857
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2490726857798998,
+            0.7086701623221475
+          ],
+          "max_abs_rates": [
+            1.471944656697801,
+            9.471103478103146
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0008281572015307667,
+          "late_full_phase_lambda_mean": -0.01392737193021766,
+          "full_phase_initial_gap_mean": 2.025008393118323e-07,
+          "full_phase_final_gap_mean": 5.188724548078364e-08,
+          "maximum_conserved_momentum_drift": 8.727133171682055e-08,
+          "used_joint_bins": 352,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2619400888260059,
+            0.7534209421549231
+          ],
+          "max_abs_rates": [
+            1.3972231442763519,
+            7.293342873933985
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004793676626760148,
+          "late_full_phase_lambda_mean": -0.013204893595242722,
+          "full_phase_initial_gap_mean": 2.0080950183033152e-07,
+          "full_phase_final_gap_mean": 6.074077505636081e-08,
+          "maximum_conserved_momentum_drift": 2.921498576391457e-08,
+          "used_joint_bins": 368,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.23709778804703452,
+            0.7490120357095892
+          ],
+          "max_abs_rates": [
+            1.4192856570500616,
+            8.184743344226703
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00018993837705091437,
+          "late_full_phase_lambda_mean": -0.01532216174103919,
+          "full_phase_initial_gap_mean": 2.0284710388955863e-07,
+          "full_phase_final_gap_mean": 4.821568413677633e-08,
+          "maximum_conserved_momentum_drift": 3.701016815238489e-08,
+          "used_joint_bins": 361,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.004793676626760148,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 2.1902809496873506e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261201,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.20895384852078244,
+          0.8048083873471181
+        ],
+        "max_abs_rates": [
+          1.6412083674256108,
+          10.78314395779044
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.9984375,
+          0.99853515625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.00785077385739286,
+        "late_full_phase_lambda_mean": -0.009207912665424629,
+        "full_phase_initial_gap_mean": 2.020781671658338e-07,
+        "full_phase_final_gap_mean": 6.068432961213687e-08,
+        "maximum_conserved_momentum_drift": 1.2696285661695228e-07,
+        "used_joint_bins": 467,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24489729885740777,
+            0.7134778891081992
+          ],
+          "max_abs_rates": [
+            1.4153292610411912,
+            8.052972527438707
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0026252277527853978,
+          "late_full_phase_lambda_mean": -0.013220086540183846,
+          "full_phase_initial_gap_mean": 2.0458857496689753e-07,
+          "full_phase_final_gap_mean": 5.2525048609813414e-08,
+          "maximum_conserved_momentum_drift": 3.44571608468236e-08,
+          "used_joint_bins": 341,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.23806401226739168,
+            0.751006237145462
+          ],
+          "max_abs_rates": [
+            1.3953691171049365,
+            9.158469052373022
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004353727442702082,
+          "late_full_phase_lambda_mean": -0.006421632220699728,
+          "full_phase_initial_gap_mean": 2.0193122506501503e-07,
+          "full_phase_final_gap_mean": 6.522137763207887e-08,
+          "maximum_conserved_momentum_drift": 7.843613225588797e-08,
+          "used_joint_bins": 367,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24415212286450982,
+            0.7490710212446566
+          ],
+          "max_abs_rates": [
+            1.4569474371681683,
+            8.243771416053725
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            0.9875,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.000689643678317366,
+          "late_full_phase_lambda_mean": -0.02768206853158863,
+          "full_phase_initial_gap_mean": 2.042151110457905e-07,
+          "full_phase_final_gap_mean": 4.475259398258055e-08,
+          "maximum_conserved_momentum_drift": 4.650958607133049e-08,
+          "used_joint_bins": 350,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 0.9875,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.004353727442702082
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.26250661523962004,
+            0.711734418148841
+          ],
+          "max_abs_rates": [
+            1.3526161773224752,
+            7.626332452272409
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002551168937301185,
+          "late_full_phase_lambda_mean": -0.01417923921148653,
+          "full_phase_initial_gap_mean": 2.0530255553335216e-07,
+          "full_phase_final_gap_mean": 5.17189200138912e-08,
+          "maximum_conserved_momentum_drift": 3.1566801172999703e-08,
+          "used_joint_bins": 338,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2398989213051799,
+            0.731402577967828
+          ],
+          "max_abs_rates": [
+            1.4087803343620628,
+            9.158469052373022
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0030380437318850116,
+          "late_full_phase_lambda_mean": -0.007434978553967875,
+          "full_phase_initial_gap_mean": 2.0212808774544015e-07,
+          "full_phase_final_gap_mean": 6.491391674887981e-08,
+          "maximum_conserved_momentum_drift": 7.843613225588797e-08,
+          "used_joint_bins": 372,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24524672047776683,
+            0.7490120357095892
+          ],
+          "max_abs_rates": [
+            1.454676332257379,
+            8.23461788056673
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002013452186072432,
+          "late_full_phase_lambda_mean": -0.02663022784327846,
+          "full_phase_initial_gap_mean": 2.0559666395150213e-07,
+          "full_phase_final_gap_mean": 4.555126810253561e-08,
+          "maximum_conserved_momentum_drift": 5.040488815222233e-08,
+          "used_joint_bins": 332,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.0030380437318850116,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 1.6042711398530856e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261200,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.2162721659249952,
+          0.7953930550782934
+        ],
+        "max_abs_rates": [
+          1.637321435872796,
+          10.832602923846629
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.9982421875,
+          0.997900390625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.009081075378924792,
+        "late_full_phase_lambda_mean": -0.011713821701719852,
+        "full_phase_initial_gap_mean": 2.0232511183663407e-07,
+        "full_phase_final_gap_mean": 5.723683334939415e-08,
+        "maximum_conserved_momentum_drift": 1.3230062834157508e-07,
+        "used_joint_bins": 466,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1874133495036013,
+            0.9114988480506023
+          ],
+          "max_abs_rates": [
+            2.375974830247117,
+            16.578434467578596
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0027562352025870354,
+          "late_full_phase_lambda_mean": -0.038888383574038746,
+          "full_phase_initial_gap_mean": 2.0758384896759553e-07,
+          "full_phase_final_gap_mean": 4.483897149570304e-08,
+          "maximum_conserved_momentum_drift": 8.435649370142073e-07,
+          "used_joint_bins": 459,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.22137338924796843,
+            0.8829905364527229
+          ],
+          "max_abs_rates": [
+            2.062901719401244,
+            11.121706054677365
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010635452159731697,
+          "late_full_phase_lambda_mean": -0.011584422531643141,
+          "full_phase_initial_gap_mean": 2.0624819835913033e-07,
+          "full_phase_final_gap_mean": 5.8560655362533155e-08,
+          "maximum_conserved_momentum_drift": 1.9022043995509108e-07,
+          "used_joint_bins": 461,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.19926753678939718,
+            0.8463585558248826
+          ],
+          "max_abs_rates": [
+            2.1255678931602917,
+            12.14079957111156
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002067386436516437,
+          "late_full_phase_lambda_mean": -0.06039440880165752,
+          "full_phase_initial_gap_mean": 2.079412603680184e-07,
+          "full_phase_final_gap_mean": 4.1118781783297085e-08,
+          "maximum_conserved_momentum_drift": 2.1541687106330087e-07,
+          "used_joint_bins": 464,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.010635452159731697
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.20766678648203957,
+            0.8605012981909583
+          ],
+          "max_abs_rates": [
+            2.120959987451408,
+            11.623170166446362
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004742616742152347,
+          "late_full_phase_lambda_mean": -0.023119260618086338,
+          "full_phase_initial_gap_mean": 2.109697902843329e-07,
+          "full_phase_final_gap_mean": 4.708623925725738e-08,
+          "maximum_conserved_momentum_drift": 2.1181020992688815e-07,
+          "used_joint_bins": 447,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.19481980864742063,
+            0.8750481579313555
+          ],
+          "max_abs_rates": [
+            2.0116025367805914,
+            12.800225508778635
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.009087697885015436,
+          "late_full_phase_lambda_mean": -0.01510893513567058,
+          "full_phase_initial_gap_mean": 2.078603190510977e-07,
+          "full_phase_final_gap_mean": 6.319228032449288e-08,
+          "maximum_conserved_momentum_drift": 3.062437670120488e-07,
+          "used_joint_bins": 467,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1916765382995466,
+            0.8683583726712588
+          ],
+          "max_abs_rates": [
+            2.1473286595696455,
+            13.108464886433215
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.005608985604342158,
+          "late_full_phase_lambda_mean": -0.0482665421342276,
+          "full_phase_initial_gap_mean": 2.1056918406498502e-07,
+          "full_phase_final_gap_mean": 4.212887147814118e-08,
+          "maximum_conserved_momentum_drift": 2.8822567399444665e-07,
+          "used_joint_bins": 439,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.009087697885015436
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2216427178992082,
+            0.8520222917045616
+          ],
+          "max_abs_rates": [
+            2.020492404659585,
+            11.068186645816342
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004571069431373241,
+          "late_full_phase_lambda_mean": -0.03175752234429567,
+          "full_phase_initial_gap_mean": 2.1231755212807093e-07,
+          "full_phase_final_gap_mean": 4.6817323362696665e-08,
+          "maximum_conserved_momentum_drift": 1.5547313481079073e-07,
+          "used_joint_bins": 449,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1934889442456712,
+            0.8532199323526662
+          ],
+          "max_abs_rates": [
+            2.0844907539973394,
+            12.800225508778635
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007495939224116023,
+          "late_full_phase_lambda_mean": -0.022826919220436236,
+          "full_phase_initial_gap_mean": 2.0816211723278174e-07,
+          "full_phase_final_gap_mean": 6.228096645781109e-08,
+          "maximum_conserved_momentum_drift": 3.062437670120488e-07,
+          "used_joint_bins": 459,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2104936599601447,
+            0.8176371958492139
+          ],
+          "max_abs_rates": [
+            2.1477247554861507,
+            12.318031739745843
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00026800374653570115,
+          "late_full_phase_lambda_mean": -0.033512625132505976,
+          "full_phase_initial_gap_mean": 2.1290014730054686e-07,
+          "full_phase_final_gap_mean": 4.191666428874539e-08,
+          "maximum_conserved_momentum_drift": 2.7442651662212825e-07,
+          "used_joint_bins": 423,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.007495939224116023,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 6.234311354419416e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261203,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.1643243036382186,
+          0.9698268546118127
+        ],
+        "max_abs_rates": [
+          2.616948789897693,
+          19.37322249083925
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.015585489329131038,
+        "late_full_phase_lambda_mean": -0.026335071102119446,
+        "full_phase_initial_gap_mean": 2.07803679484728e-07,
+        "full_phase_final_gap_mean": 5.1913770562979823e-08,
+        "maximum_conserved_momentum_drift": 1.4064616200570867e-06,
+        "used_joint_bins": 613,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1628862906829763,
+            1.1118205741493714
+          ],
+          "max_abs_rates": [
+            3.460009088589015,
+            21.884155240489708
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0025046068630009397,
+          "late_full_phase_lambda_mean": -0.03504488252191372,
+          "full_phase_initial_gap_mean": 2.149239599663126e-07,
+          "full_phase_final_gap_mean": 5.013743620225519e-08,
+          "maximum_conserved_momentum_drift": 1.703482837345227e-06,
+          "used_joint_bins": 576,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.18927470961098028,
+            1.0234340685751107
+          ],
+          "max_abs_rates": [
+            2.6261970217896424,
+            16.120410980703074
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.01358014589221991,
+          "late_full_phase_lambda_mean": -0.02069493207567135,
+          "full_phase_initial_gap_mean": 2.137388009562689e-07,
+          "full_phase_final_gap_mean": 5.60810286772668e-08,
+          "maximum_conserved_momentum_drift": 8.43304932662825e-07,
+          "used_joint_bins": 568,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.17130268049335284,
+            0.9848932351645471
+          ],
+          "max_abs_rates": [
+            2.821538898295274,
+            17.09268497003784
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0015919125666880357,
+          "late_full_phase_lambda_mean": -0.046305416450905995,
+          "full_phase_initial_gap_mean": 2.1509434834565445e-07,
+          "full_phase_final_gap_mean": 4.591314331875695e-08,
+          "maximum_conserved_momentum_drift": 8.54519316084712e-07,
+          "used_joint_bins": 561,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.01358014589221991
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.17713615326946305,
+            1.0366676503209005
+          ],
+          "max_abs_rates": [
+            2.8191106479880226,
+            17.008074994182532
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.010401882202667079,
+          "late_full_phase_lambda_mean": -0.04345441133467117,
+          "full_phase_initial_gap_mean": 2.1973108097898183e-07,
+          "full_phase_final_gap_mean": 5.185580356926159e-08,
+          "maximum_conserved_momentum_drift": 9.195476031731431e-07,
+          "used_joint_bins": 553,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1576037923378517,
+            1.006536376066254
+          ],
+          "max_abs_rates": [
+            2.692120759847417,
+            18.175456988493597
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.012371986894805042,
+          "late_full_phase_lambda_mean": -0.02600723165892461,
+          "full_phase_initial_gap_mean": 2.157774973523051e-07,
+          "full_phase_final_gap_mean": 5.954622560103272e-08,
+          "maximum_conserved_momentum_drift": 1.0250816751544711e-06,
+          "used_joint_bins": 572,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1565401808136136,
+            0.9828304871696584
+          ],
+          "max_abs_rates": [
+            2.726748798241703,
+            19.573309013271682
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.006863344408211632,
+          "late_full_phase_lambda_mean": -0.025230900488655287,
+          "full_phase_initial_gap_mean": 2.193050379191297e-07,
+          "full_phase_final_gap_mean": 5.072021528647769e-08,
+          "maximum_conserved_momentum_drift": 1.3825638283115893e-06,
+          "used_joint_bins": 538,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.012371986894805042
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.4,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1815642609285896,
+            1.0146748199822322
+          ],
+          "max_abs_rates": [
+            2.6547954396264712,
+            15.405687168025295
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.01024666920031243,
+          "late_full_phase_lambda_mean": -0.06274679265640094,
+          "full_phase_initial_gap_mean": 2.218586729696139e-07,
+          "full_phase_final_gap_mean": 4.7427416384227835e-08,
+          "maximum_conserved_momentum_drift": 6.723756919013724e-07,
+          "used_joint_bins": 555,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.16472312604503783,
+            0.9852083967383747
+          ],
+          "max_abs_rates": [
+            2.703098045602949,
+            16.65106143265655
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.009606634279859451,
+          "late_full_phase_lambda_mean": -0.02967613826427729,
+          "full_phase_initial_gap_mean": 2.1618844644204035e-07,
+          "full_phase_final_gap_mean": 6.01861067927413e-08,
+          "maximum_conserved_momentum_drift": 7.131963668527419e-07,
+          "used_joint_bins": 551,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1738454979708565,
+            0.9504122168400713
+          ],
+          "max_abs_rates": [
+            2.729084187226842,
+            16.807573545529333
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002215608778434156,
+          "late_full_phase_lambda_mean": -0.046923277831762665,
+          "full_phase_initial_gap_mean": 2.2271303455715483e-07,
+          "full_phase_final_gap_mean": 3.9058672911697726e-08,
+          "maximum_conserved_momentum_drift": 8.576727783538018e-07,
+          "used_joint_bins": 521,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.01024666920031243
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.15118634080907806,
+            1.266418416646295
+          ],
+          "max_abs_rates": [
+            4.070383806482735,
+            23.394150320557948
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.015763148549351264,
+          "late_full_phase_lambda_mean": -0.04325545846037411,
+          "full_phase_initial_gap_mean": 2.242378923859773e-07,
+          "full_phase_final_gap_mean": 6.046004353116585e-08,
+          "maximum_conserved_momentum_drift": 0.0017219185924890468,
+          "used_joint_bins": 675,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 1,
+          "theta_range": [
+            0.1609676715609198,
+            1.1758602444690063
+          ],
+          "max_abs_rates": [
+            3.4589183430207924,
+            20.555407851422295
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.01337625178144703,
+          "late_full_phase_lambda_mean": -0.028564718835245258,
+          "full_phase_initial_gap_mean": 2.2300156770608104e-07,
+          "full_phase_final_gap_mean": 6.698735394843743e-08,
+          "maximum_conserved_momentum_drift": 1.676644116321846e-06,
+          "used_joint_bins": 671,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.14359822967708769,
+            1.144445662175032
+          ],
+          "max_abs_rates": [
+            3.40762734755722,
+            25.382984371845268
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007640691665095672,
+          "late_full_phase_lambda_mean": -0.06018070974359154,
+          "full_phase_initial_gap_mean": 2.2403760228235237e-07,
+          "full_phase_final_gap_mean": 5.4018497083216207e-08,
+          "maximum_conserved_momentum_drift": 4.512889049679281e-06,
+          "used_joint_bins": 662,
+          "fork_count": 80
+        }
+      ],
+      "pass": false,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.015763148549351264
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.85
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.15023960304916215,
+            1.1976009401756333
+          ],
+          "max_abs_rates": [
+            3.4177472801226747,
+            23.57356872111383
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.03605041126888483,
+          "late_full_phase_lambda_mean": -0.05283844729691496,
+          "full_phase_initial_gap_mean": 2.305572781883663e-07,
+          "full_phase_final_gap_mean": 8.026787401939079e-08,
+          "maximum_conserved_momentum_drift": 2.86651375180913e-06,
+          "used_joint_bins": 674,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.13317088323359344,
+            1.1486620608311662
+          ],
+          "max_abs_rates": [
+            3.3245423924121287,
+            25.396398038148988
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.021554601133528455,
+          "late_full_phase_lambda_mean": -0.022045624563914654,
+          "full_phase_initial_gap_mean": 2.2540269597690854e-07,
+          "full_phase_final_gap_mean": 5.9260411028581894e-08,
+          "maximum_conserved_momentum_drift": 3.04506038484309e-06,
+          "used_joint_bins": 679,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1477510603635558,
+            1.1310245267969081
+          ],
+          "max_abs_rates": [
+            3.3031040068247446,
+            21.95163492655152
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.009520996621829335,
+          "late_full_phase_lambda_mean": -0.03179191129372483,
+          "full_phase_initial_gap_mean": 2.3010121864763814e-07,
+          "full_phase_final_gap_mean": 5.502628007903104e-08,
+          "maximum_conserved_momentum_drift": 1.3116534728352391e-06,
+          "used_joint_bins": 628,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.03605041126888483
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.5,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.15741157754035787,
+            1.1744233177223677
+          ],
+          "max_abs_rates": [
+            3.20850254015022,
+            20.921569654631057
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.036436406675175316,
+          "late_full_phase_lambda_mean": -0.05468775859340503,
+          "full_phase_initial_gap_mean": 2.3358209182025984e-07,
+          "full_phase_final_gap_mean": 6.304237931739088e-08,
+          "maximum_conserved_momentum_drift": 2.2850246520489392e-06,
+          "used_joint_bins": 660,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.14804713822733442,
+            1.1178998302108296
+          ],
+          "max_abs_rates": [
+            3.2092872362744393,
+            20.57763967584645
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.00949203130009595,
+          "late_full_phase_lambda_mean": -0.04717490223912577,
+          "full_phase_initial_gap_mean": 2.2592580929352482e-07,
+          "full_phase_final_gap_mean": 5.913918644441166e-08,
+          "maximum_conserved_momentum_drift": 1.4831966155259835e-06,
+          "used_joint_bins": 645,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.14849491229036568,
+            1.070328162255516
+          ],
+          "max_abs_rates": [
+            3.2477435159575516,
+            23.74783472976336
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.005948245769959465,
+          "late_full_phase_lambda_mean": -0.06229002454375154,
+          "full_phase_initial_gap_mean": 2.346837755195047e-07,
+          "full_phase_final_gap_mean": 3.3295184864418775e-08,
+          "maximum_conserved_momentum_drift": 3.2701813541535785e-06,
+          "used_joint_bins": 619,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.036436406675175316
+    }
+  ],
+  "selected": [
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.26250661523962004,
+            0.711734418148841
+          ],
+          "max_abs_rates": [
+            1.3526161773224752,
+            7.626332452272409
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002551168937301185,
+          "late_full_phase_lambda_mean": -0.01417923921148653,
+          "full_phase_initial_gap_mean": 2.0530255553335216e-07,
+          "full_phase_final_gap_mean": 5.17189200138912e-08,
+          "maximum_conserved_momentum_drift": 3.1566801172999703e-08,
+          "used_joint_bins": 338,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2398989213051799,
+            0.731402577967828
+          ],
+          "max_abs_rates": [
+            1.4087803343620628,
+            9.158469052373022
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0030380437318850116,
+          "late_full_phase_lambda_mean": -0.007434978553967875,
+          "full_phase_initial_gap_mean": 2.0212808774544015e-07,
+          "full_phase_final_gap_mean": 6.491391674887981e-08,
+          "maximum_conserved_momentum_drift": 7.843613225588797e-08,
+          "used_joint_bins": 372,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.24524672047776683,
+            0.7490120357095892
+          ],
+          "max_abs_rates": [
+            1.454676332257379,
+            8.23461788056673
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.002013452186072432,
+          "late_full_phase_lambda_mean": -0.02663022784327846,
+          "full_phase_initial_gap_mean": 2.0559666395150213e-07,
+          "full_phase_final_gap_mean": 4.555126810253561e-08,
+          "maximum_conserved_momentum_drift": 5.040488815222233e-08,
+          "used_joint_bins": 332,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.0030380437318850116,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 1.6042711398530856e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261200,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.2162721659249952,
+          0.7953930550782934
+        ],
+        "max_abs_rates": [
+          1.637321435872796,
+          10.832602923846629
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.9982421875,
+          0.997900390625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.009081075378924792,
+        "late_full_phase_lambda_mean": -0.011713821701719852,
+        "full_phase_initial_gap_mean": 2.0232511183663407e-07,
+        "full_phase_final_gap_mean": 5.723683334939415e-08,
+        "maximum_conserved_momentum_drift": 1.3230062834157508e-07,
+        "used_joint_bins": 466,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.7
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2490726857798998,
+            0.7086701623221475
+          ],
+          "max_abs_rates": [
+            1.471944656697801,
+            9.471103478103146
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.0008281572015307667,
+          "late_full_phase_lambda_mean": -0.01392737193021766,
+          "full_phase_initial_gap_mean": 2.025008393118323e-07,
+          "full_phase_final_gap_mean": 5.188724548078364e-08,
+          "maximum_conserved_momentum_drift": 8.727133171682055e-08,
+          "used_joint_bins": 352,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2619400888260059,
+            0.7534209421549231
+          ],
+          "max_abs_rates": [
+            1.3972231442763519,
+            7.293342873933985
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004793676626760148,
+          "late_full_phase_lambda_mean": -0.013204893595242722,
+          "full_phase_initial_gap_mean": 2.0080950183033152e-07,
+          "full_phase_final_gap_mean": 6.074077505636081e-08,
+          "maximum_conserved_momentum_drift": 2.921498576391457e-08,
+          "used_joint_bins": 368,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.23709778804703452,
+            0.7490120357095892
+          ],
+          "max_abs_rates": [
+            1.4192856570500616,
+            8.184743344226703
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00018993837705091437,
+          "late_full_phase_lambda_mean": -0.01532216174103919,
+          "full_phase_initial_gap_mean": 2.0284710388955863e-07,
+          "full_phase_final_gap_mean": 4.821568413677633e-08,
+          "maximum_conserved_momentum_drift": 3.701016815238489e-08,
+          "used_joint_bins": 361,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.004793676626760148,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 2.1902809496873506e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261201,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.20895384852078244,
+          0.8048083873471181
+        ],
+        "max_abs_rates": [
+          1.6412083674256108,
+          10.78314395779044
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.9984375,
+          0.99853515625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.00785077385739286,
+        "late_full_phase_lambda_mean": -0.009207912665424629,
+        "full_phase_initial_gap_mean": 2.020781671658338e-07,
+        "full_phase_final_gap_mean": 6.068432961213687e-08,
+        "maximum_conserved_momentum_drift": 1.2696285661695228e-07,
+        "used_joint_bins": 467,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 10,
+        "gamma": 0.7,
+        "delta_v": 0.2,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2528535742033247,
+            0.8302174274246924
+          ],
+          "max_abs_rates": [
+            1.7940690333611538,
+            9.119337448475852
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.006073175947276251,
+          "late_full_phase_lambda_mean": -0.0205320588453066,
+          "full_phase_initial_gap_mean": 2.0530255553335216e-07,
+          "full_phase_final_gap_mean": 6.101161267415782e-08,
+          "maximum_conserved_momentum_drift": 8.438604248706127e-08,
+          "used_joint_bins": 368,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.21822944228245583,
+            0.8021957927581647
+          ],
+          "max_abs_rates": [
+            1.5975161837596454,
+            9.55207063911992
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004705107160489899,
+          "late_full_phase_lambda_mean": -0.011291681372917195,
+          "full_phase_initial_gap_mean": 2.0212808774544015e-07,
+          "full_phase_final_gap_mean": 8.038270348133589e-08,
+          "maximum_conserved_momentum_drift": 5.912692574439049e-08,
+          "used_joint_bins": 396,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.23675331268975322,
+            0.7719804966964664
+          ],
+          "max_abs_rates": [
+            1.498176931087852,
+            8.67022331846519
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.002735945651650951,
+          "late_full_phase_lambda_mean": -0.031576459560961403,
+          "full_phase_initial_gap_mean": 2.0559666395150213e-07,
+          "full_phase_final_gap_mean": 6.213079289573838e-08,
+          "maximum_conserved_momentum_drift": 5.164159222470488e-08,
+          "used_joint_bins": 344,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.006073175947276251,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 2.983232890930137e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261202,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.17627914435009057,
+          0.987544716036279
+        ],
+        "max_abs_rates": [
+          2.1992491280886273,
+          14.45407662527826
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.99794921875,
+          0.99765625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.0114535473786334,
+        "late_full_phase_lambda_mean": -0.020395744682044123,
+        "full_phase_initial_gap_mean": 2.0206352328125223e-07,
+        "full_phase_final_gap_mean": 7.075577923912774e-08,
+        "maximum_conserved_momentum_drift": 3.4604988130571e-07,
+        "used_joint_bins": 591,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    },
+    {
+      "config": {
+        "n": 20,
+        "gamma": 0.7,
+        "delta_v": 0.3,
+        "alpha": 0.95
+      },
+      "seed_metrics": [
+        {
+          "seed": 20261005,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2216427178992082,
+            0.8520222917045616
+          ],
+          "max_abs_rates": [
+            2.020492404659585,
+            11.068186645816342
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.004571069431373241,
+          "late_full_phase_lambda_mean": -0.03175752234429567,
+          "full_phase_initial_gap_mean": 2.1231755212807093e-07,
+          "full_phase_final_gap_mean": 4.6817323362696665e-08,
+          "maximum_conserved_momentum_drift": 1.5547313481079073e-07,
+          "used_joint_bins": 449,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261006,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.1934889442456712,
+            0.8532199323526662
+          ],
+          "max_abs_rates": [
+            2.0844907539973394,
+            12.800225508778635
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": 0.007495939224116023,
+          "late_full_phase_lambda_mean": -0.022826919220436236,
+          "full_phase_initial_gap_mean": 2.0816211723278174e-07,
+          "full_phase_final_gap_mean": 6.228096645781109e-08,
+          "maximum_conserved_momentum_drift": 3.062437670120488e-07,
+          "used_joint_bins": 459,
+          "fork_count": 80
+        },
+        {
+          "seed": 20261007,
+          "finite": true,
+          "physical_bound_hits": 0,
+          "fork_bound_hits": 0,
+          "theta_range": [
+            0.2104936599601447,
+            0.8176371958492139
+          ],
+          "max_abs_rates": [
+            2.1477247554861507,
+            12.318031739745843
+          ],
+          "four_distinct_10token_histories": 1.0,
+          "four_distinct_endpoint_bins": 1.0,
+          "each_action_changes_bins": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "late_full_phase_lambda_max": -0.00026800374653570115,
+          "late_full_phase_lambda_mean": -0.033512625132505976,
+          "full_phase_initial_gap_mean": 2.1290014730054686e-07,
+          "full_phase_final_gap_mean": 4.191666428874539e-08,
+          "maximum_conserved_momentum_drift": 2.7442651662212825e-07,
+          "used_joint_bins": 423,
+          "fork_count": 80
+        }
+      ],
+      "pass": true,
+      "minimum_each_action_changes_bins": 1.0,
+      "minimum_four_distinct_histories": 1.0,
+      "minimum_four_distinct_endpoint_bins": 1.0,
+      "maximum_late_full_phase_lambda": 0.007495939224116023,
+      "reference": {
+        "integration_dt": 0.0025,
+        "min_joint_token_agreement": 1.0,
+        "max_full_phase_error": 6.234311354419416e-07,
+        "states": 24000
+      },
+      "stress_seed": {
+        "seed": 20261203,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.1643243036382186,
+          0.9698268546118127
+        ],
+        "max_abs_rates": [
+          2.616948789897693,
+          19.37322249083925
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.015585489329131038,
+        "late_full_phase_lambda_mean": -0.026335071102119446,
+        "full_phase_initial_gap_mean": 2.07803679484728e-07,
+        "full_phase_final_gap_mean": 5.1913770562979823e-08,
+        "maximum_conserved_momentum_drift": 1.4064616200570867e-06,
+        "used_joint_bins": 613,
+        "fork_count": 20480
+      },
+      "stress_seed_pass": true
+    }
+  ],
+  "scientific_acceptance": "physics preflight only; trained performance unknown",
+  "stability_protocol": "full phase-space twin on equal conserved angular momentum; late 5-20s slope; no pole/rate contact; neutral azimuth is not spatial contraction",
+  "elapsed_seconds": 141.4592598840827
+}

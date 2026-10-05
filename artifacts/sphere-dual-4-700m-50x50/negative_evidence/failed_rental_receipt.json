@@ -1,0 +1,19 @@
+{
+  "instance_id": 54345701,
+  "offer_id": 52756395,
+  "label": "sphere-dual-four-50x50-700m-20261005-cbcae66",
+  "created_at": 1791217237.4882638,
+  "source_revision": "cbcae66b6bade7d907a514a1f1d459e24bc78e9f",
+  "image": "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime",
+  "disk_gb": 25,
+  "estimated_hourly_rate": 0.16342592592592592,
+  "guard_hourly_rate": 0.2,
+  "max_total_dollars": 5.0,
+  "transfer_reserve": 0.75,
+  "max_rental_hours": 21.25,
+  "models": 4,
+  "requested_tokens_each": 700000000,
+  "actual_tokens_each": 699904000,
+  "source_archive_sha256": "dbe4ceb9cad35f9834c05d3d0b47489f56bb5cf3245eb169b0f7b5f7bc8f254b",
+  "persistent_volumes_requested": false
+}

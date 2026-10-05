@@ -1,0 +1,194 @@
+{
+  "exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38660675,
+    "sha256": "2967e7e34606d558d1c9f562bd1c727f1e166713869eec5ff2626581488bf9bc",
+    "encoding": "raw",
+    "parts": {
+      "large-parts/exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip/000.part": "fded90e2e871059ed20014074fe1d96902719b847b0b400a2be6fef8aeddef28",
+      "large-parts/exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip/001.part": "a5a52136fa8ad8e0f259958756ead153d12e94883d906b6287d31d99ac91fa9b",
+      "large-parts/exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip/002.part": "4db8497cea05fdf38d0e762cb83bdb5230e99f292cb24f2929e8b2a81ab044a6",
+      "large-parts/exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip/003.part": "202591c5bb5b721aeac900117fb25dd81e54054c03a82d2b1c5ae88fef4a0ddc",
+      "large-parts/exports/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10.zip/004.part": "51bdd09e6682733c5a024d72ac3568cb46f8cc8216a86b8ed5a02dd42b9d494c"
+    }
+  },
+  "exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38459877,
+    "sha256": "5e74562c5877b495b1cefd2e479bc04c1cc7d04384a9d1863d6cd99700f69a02",
+    "encoding": "raw",
+    "parts": {
+      "large-parts/exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/000.part": "8ba467d88a93bf08a746ff0cfe27e70575a97cb5b312248e532f62e735aba37d",
+      "large-parts/exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/001.part": "8abbe8f87b867b1ee7c6e1b47933bcebd68b54130f88f8b0d40f1e4df08cde8c",
+      "large-parts/exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/002.part": "531268b007a53f08a6a157372832b3c2ff6303bebb2d15563d7597bbab581c90",
+      "large-parts/exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/003.part": "9dff0ae68863d071a2fa9ca36a3a4104126bb48a81796d05050ce2e0c8772de7",
+      "large-parts/exports/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/004.part": "993d8dd91ad12642aafed4b9bcf5183d8534043d9d326198f334355804a02455"
+    }
+  },
+  "exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38783803,
+    "sha256": "4c28b9ecea01ae9dee644b7710c8992896082b33ba1335cf028fbe7464e0e668",
+    "encoding": "raw",
+    "parts": {
+      "large-parts/exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/000.part": "d1d7c31533c760f4d6d8d705f0ffbbc4f29615bf9e951f3ab370f81ac2ce8eaa",
+      "large-parts/exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/001.part": "9533b75f21a20211cd03d32f73310efdb1fb03c1074062929461ff1815fae793",
+      "large-parts/exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/002.part": "d4abcfbf9decb7a1ed334b10fe687d7c0745d993dbab38de465554ad04b89e07",
+      "large-parts/exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/003.part": "bd60611633655d69541976dfb8dbf8842b168dda4c9b22c887c2b75ac98dd52f",
+      "large-parts/exports/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/004.part": "6fe10257fd776e32655db04bb3703898944a25a854643a37a4097830f511aa1a"
+    }
+  },
+  "exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38625021,
+    "sha256": "2164895c71e3ae4ee0d28d4abf99c052570b9834d9a98da9e6794f6e49b47418",
+    "encoding": "raw",
+    "parts": {
+      "large-parts/exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/000.part": "5d8fd19cbeb172927a77876b1ceccf8d866cb107f621eba1b4658cc1b878e1eb",
+      "large-parts/exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/001.part": "955d41b820ec968688fb4f49e96ffd6cb44447a34b070a476d0db625c87eb9f3",
+      "large-parts/exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/002.part": "1dc2087a20f515cde8e298c492932cbbe5f09daaba9d80520e658e81a2f9b93c",
+      "large-parts/exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/003.part": "9f329c482a5f78b515a62318c1f31975fa4bbed42ca72645be134780a31575a9",
+      "large-parts/exports/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10.zip/004.part": "b4a3ef6fb3392330180e7de9fc67ee993e5b046fd94187727f42997a40219b95"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901076,
+    "sha256": "967016389fd335f8e1a888676d81e3b813e3c55585d0f27a5bca70504915ba5c",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/000.part": "6bc6108d5241669b109118fc4cc9d91092bc943c92afcd3500bcde0e6379e016",
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/001.part": "886870368c1feb116d3a5d18b528130b07c467889ece5fbc4ebb28d77caf4713"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901077,
+    "sha256": "4a5f727d28be0338fcbe6647891139ac378a53e56e40a3d141a84b67389a46cb",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/000.part": "69ff6891e274e7cd4700cb82a7beeee87f58ccb6111514acc5a1b6939877442e",
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/001.part": "62f72eb1dafc9e5a8a53a4ac72461339ba57d964de566c8bd338bc4489a42f06"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901076,
+    "sha256": "1c11c0ebb4f77f0f99fd64d3bea78f0d89c6d3337379108991dcb7feaf148618",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/000.part": "3d27e6d2adbc72df686c659b130d7516f7b75a8d4d68417f72e7948fe9d32bde",
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/001.part": "7100dafcffe47cd3e158f295b1efef632cd9045872de1574cf4a67d535be5d56"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901077,
+    "sha256": "00d144bf38c4e1e4c5689c533ba647790d8808b1e193255b524873f771965122",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/000.part": "303fcfe2b1446f63cd624210d53d86bd20aef651dec4d011f47b1a45f67fedb0",
+      "large-parts/joint3d/sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/001.part": "ccba5e0119a8d5d5476f4b4e4f0c9532401d7334d1b4365c778ade8b3a74c605"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901075,
+    "sha256": "a37e51a9d92981db932eb0c89dccfa3ce23cab2411b635268a424f67d2847034",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/000.part": "f6098b7f2d733c0433f53bcd6460ee5c17e79fab6414b83e009f3d07465aa948",
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/001.part": "6219fa3fcb4131dab4366cbbb9d602478b45f4593d1a9ea75f016eb9603cc90e"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901076,
+    "sha256": "d92a27c63af24dcc923637ddca3734ac352f28d37a9f0afd6a0838a8c89fe17c",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/000.part": "72c455e8d26f49ebb21d2cc7e8aa47991f278836d7f6f7ea9aae0f3933fd620c",
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/001.part": "bd74dec1eca21a7caaae360f378ba7900e77eebd83b829901e3fcea6e260d390"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901075,
+    "sha256": "deef42748fc07cfe381c3bb3642ff3ecf63e17ddf0dd63a2e94e638bb0086ca5",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/000.part": "7c28ad2cec634fa18dbd55fbb8f354fec81276aae8e8d5a3374d7f92bda2634f",
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/001.part": "b6bdd4a131de6ac23cefd8ec1ca00abd893011ba2d88db334305cf70ef2f1d8d"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901076,
+    "sha256": "571e1abd36c2321b612dce73ba5c9adeef400c5a31747b7075bb3ecbce148c29",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/000.part": "f4612431d9dfefbc619080bb297bc6379a10c1cc73cc4adfab6ba213d0c4531a",
+      "large-parts/joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/001.part": "49d71bc9d3a60c6c134745812c0a356c0bc7b282ef0c564a0761eafb70b5f523"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901075,
+    "sha256": "187d1fdb63683e737f8e6719e697797917883ed94598ca91fc5afd3447f090eb",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/000.part": "553d5b9e81b55c9537c31da0fdea7657f2d06ab9ed0e0d2683f7be64ea23da63",
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-436.html/001.part": "c801b53c4310bf11b5300b2423845537d5adb01de707e9081bc7935712620852"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901076,
+    "sha256": "35bf5f7da735838dca1e9b4a47f47ed9d4daef4f053482efa0b4267245badba6",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/000.part": "e1077edecd8edb8e0e7da47c2a947144ae058b33df7005e306abbcfb70a7192e",
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1340.html/001.part": "5936e7666e5dee4f2327d652b55900911ce94d2737acbc11e8f2c882538672c6"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901075,
+    "sha256": "8c15ee26778d9be5e256d01bdfcbbd168012154590e7bd811762f73741da5989",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/000.part": "1f4d2d83037053abeb65a207d808aa0547e1205f5936bcf5f1063635932c3c0f",
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-910.html/001.part": "97cd6785054117ba78a7a0ef1b0afb987b8287ef0defb4a7a4998d9290ffb8ff"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901076,
+    "sha256": "74337e60d1623fe40d4bb6998e9a12898859fc099b8eb90ac5e9228c7e401408",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/000.part": "126312eb6159f6c95bce26fe9ec8141c5fa9793af14005b3adc743db0ddc8626",
+      "large-parts/joint3d/sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10/path-1659.html/001.part": "c83ce94c884615b9e1a689aef180b8d136de1e11d4e8f6f7e056d9764b81b40a"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901076,
+    "sha256": "4efe3df69fb7712935a5c545c49e6f100d32c91fd6bd5cf043130cafcfa9bc93",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html/000.part": "04e91493f9b3d92c1a5303258a9ddc32b1813688a7f526f3a97db192be7c7ce2",
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html/001.part": "dcff59861d663173b709869afbf580bf41c8d5721cd93076ee8152ffdb510522"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901077,
+    "sha256": "22448e4257b8a5ad75f46ba033ac90d025bfbb2e168edb06d4a6d631fa913a40",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html/000.part": "7633c1a4ec888ff4edb0147e45ad253aa2f47c41a8895f7f7b132eeb72fd192a",
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html/001.part": "49bed47098c1feeb3904708442d16b08c4e3ffdcfb9a6d4e352b34bc6113ac8d"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901076,
+    "sha256": "b7ab628fa4ac4c8495f9d937658eb11415703c68741e1d4f9f7bab312f411db2",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html/000.part": "325569ace89a24bf3e94ede0994105224156ee5b7b6ec6487c44baa7951ec8ae",
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html/001.part": "f14aa88a17e9a86bb9013e08f004fb3efe892dd5e5821b2ba87af994a95a1bfc"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901077,
+    "sha256": "5edc2ac0f01e6b7ad71d0f6ec649f7584295b03ccd24001d1e63a8bbdb382ee3",
+    "encoding": "gzip",
+    "parts": {
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html/000.part": "b78386bf3290b786d411a80924ab60f3f847f0dd4439e285bc1ef13d49c8d90d",
+      "large-parts/joint3d/sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html/001.part": "637e6bc8044cc64e595636c1fe26037010c1eb605c6f192e2d3fa0b37de99d8d"
+    }
+  }
+}

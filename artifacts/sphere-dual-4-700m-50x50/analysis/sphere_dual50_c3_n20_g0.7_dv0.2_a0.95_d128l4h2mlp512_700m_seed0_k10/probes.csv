@@ -1,0 +1,17 @@
+model_name,model_type,mode,target,control,alpha,validation_r2,feature_dim,train_rows_per_feature,test_r2
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,single_layer_single_token,belief,matched,10.0,0.2962706485011306,128,230.25,0.3036241790445763
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,single_layer_single_token,physics,matched,10.0,0.8631175185411308,128,230.25,0.8610113260656195
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,all_block_layers_single_token,belief,matched,1.0,0.4149073898150688,512,57.5625,0.4230860319586203
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,all_block_layers_single_token,belief,shuffled_fit_trajectories,10000.0,-0.0041155812389454816,512,57.5625,-0.0050845601007034336
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,all_block_layers_single_token,physics,matched,1.0,0.9528474823623749,512,57.5625,0.9522407158283539
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,all_block_layers_single_token,physics,shuffled_fit_trajectories,10000.0,0.11900452931222594,512,57.5625,0.11391961307275511
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,embedding_and_all_layers_single_token,belief,matched,1.0,0.4185417242187971,640,46.05,0.42501314205038193
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,trained,embedding_and_all_layers_single_token,physics,matched,1.0,0.9542516296481965,640,46.05,0.9539617693656595
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,single_layer_single_token,belief,matched,1000.0,0.049950170473694516,128,230.25,0.0502473558086006
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,single_layer_single_token,physics,matched,1000.0,0.11299068153037412,128,230.25,0.11341345820877918
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,all_block_layers_single_token,belief,matched,1.0,0.09501390223976311,512,57.5625,0.10132628998870832
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,all_block_layers_single_token,belief,shuffled_fit_trajectories,10000.0,-0.002369605261895724,512,57.5625,-0.003042002799588578
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,all_block_layers_single_token,physics,matched,1.0,0.2954134975453262,512,57.5625,0.29574334249420553
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,all_block_layers_single_token,physics,shuffled_fit_trajectories,100.0,0.09428462709050212,512,57.5625,0.09186890348541871
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,embedding_and_all_layers_single_token,belief,matched,10.0,0.10542437203193464,640,46.05,0.11291509639510708
+sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10,random_init,embedding_and_all_layers_single_token,physics,matched,1.0,0.31618455026402836,640,46.05,0.3220789717521851

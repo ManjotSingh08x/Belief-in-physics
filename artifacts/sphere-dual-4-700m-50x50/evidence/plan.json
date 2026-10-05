@@ -1,0 +1,282 @@
+{
+  "hypothesis_id": "H-SPHERE-JOINT-50",
+  "total": 4,
+  "max_total_dollars": 5.0,
+  "training_seed": 0,
+  "screen_sha256": "8f958410368db74b7285812a443010bf7c2f5433efd68eff979e61ae8df34fc9",
+  "jobs": [
+    {
+      "index": 0,
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.3,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.95,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "7544571c861e06a6457bb46e0e92249c83b9b5deff36b690498a6d404ba34aaa",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 1,
+      "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.2,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.35,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.85,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "98f52391a27e97e392d0b1ca1873f17facb00e67d4b9c02cabda609e42323e88",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 2,
+      "name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.2,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.35,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.95,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "b31d1ef1f61dad0ac443e3ff35207a74f342e0d00cb5989f9e7670362e6de52f",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 3,
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.2,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.95,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "09ce6a555a2bf1714db06a539ac2068bd730eb710c93961973f217b26d485c94",
+      "actual_tokens": 699904000
+    }
+  ],
+  "acceptance_state": "screened; untrained"
+}

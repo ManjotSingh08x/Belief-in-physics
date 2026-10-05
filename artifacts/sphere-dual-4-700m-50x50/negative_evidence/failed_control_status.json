@@ -1,0 +1,14 @@
+{
+  "instance_id": 54345701,
+  "deadline": 1791293737.4882638,
+  "phase": "gpu_released",
+  "max_total_dollars": 5,
+  "models_expected": 4,
+  "controller_pid": 2095615,
+  "updated_at": 1791217610.855201,
+  "failure": "RuntimeError",
+  "failure_message": "GPU SSH unavailable",
+  "reason": "failure",
+  "destroyed_verified": true,
+  "destroyed_at": 1791217610.855198
+}

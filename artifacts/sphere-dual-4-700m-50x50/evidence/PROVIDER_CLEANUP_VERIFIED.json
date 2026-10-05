@@ -1,0 +1,10 @@
+{
+  "verified_at": 1791235777.172517,
+  "instance_id": 54348163,
+  "provider_absent": true,
+  "associated_volumes": 0,
+  "total_visible_volumes": 0,
+  "billing_resource_released": true,
+  "release_reason": "four_full_models_transferred_verified; recovered HTTP308 with canonical trailing-slash DELETE endpoint",
+  "unrelated_instances_untouched": true
+}

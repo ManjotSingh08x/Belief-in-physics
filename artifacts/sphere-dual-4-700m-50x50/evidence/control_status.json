@@ -1,0 +1,25 @@
+{
+  "instance_id": 54348163,
+  "deadline": 1791293025.304481,
+  "phase": "gpu_released",
+  "max_total_dollars": 5,
+  "models_expected": 4,
+  "controller_pid": 2371037,
+  "updated_at": 1791235773.8789144,
+  "provider_status": "running",
+  "setup_attempt": 1,
+  "source_archive_sha256": "28c7b4183b4d66996a01cb514f99796e1cb0378d464802154219e473a2a1f427",
+  "launcher_pid": 1049,
+  "verified_full_models": 4,
+  "ready_names": [
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10"
+  ],
+  "campaign_guard_spend": 1.8065533233218725,
+  "reason": "four_models_transferred_and_verified",
+  "teardown_error": "HTTPError",
+  "destroyed_verified": true,
+  "destroyed_at": 1791235773.878912
+}

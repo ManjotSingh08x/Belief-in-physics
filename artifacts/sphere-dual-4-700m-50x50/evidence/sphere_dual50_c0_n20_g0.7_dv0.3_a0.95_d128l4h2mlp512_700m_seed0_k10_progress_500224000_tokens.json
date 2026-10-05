@@ -1,0 +1,12 @@
+{
+  "source_revision": "98d5b417fc3a162cd61f45a371e0209783261ab9",
+  "configuration_sha256": "7544571c861e06a6457bb46e0e92249c83b9b5deff36b690498a6d404ba34aaa",
+  "tokens_seen": 500224000,
+  "updates": 977,
+  "elapsed_seconds": 10707.028304338455,
+  "requested_tokens": 700000000,
+  "acceptance_state": "partial_training_checkpoint",
+  "checkpoint_sha256": "8c0a98dab3f350223eead3946ab758e85a8f6b20c1da3bde974fca05b6b2a03a",
+  "random_checkpoint_filename": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt",
+  "random_checkpoint_sha256": "0607de3584013d79da3c6bf68bd2ae9f53ee0075e6d7dfa95dca4f68b231ab2e"
+}

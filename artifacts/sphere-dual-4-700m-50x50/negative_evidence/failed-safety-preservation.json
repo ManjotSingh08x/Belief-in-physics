@@ -1,0 +1,29 @@
+{
+  "reason": "rare unbounded-Gaussian starts failed4096 trajectory physical conservation/clip gate",
+  "models_complete": 0,
+  "gpu_staging_sha256_agreement": true,
+  "member_sha256": {
+    "LAUNCH_PID": "5e74cb2ad4e2c9e2d3f59a1e6c8a5d4999df48e5dd69871d2798e0a146b91ee9",
+    "benchmark_0.json": "40067ba8a1866e4c77bd44663bb71d2a3ee43173e1f267abb9ca07c8cca694cc",
+    "train_2.log": "b07baef1c3e02d681133a403506c5c76cdf3ae35c30f9fc4216bb2043f551968",
+    "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "9f2410fabc7a8e183e839c5ff74f28db22e6e2e742ae44eb470977846fd90929",
+    "benchmark_1.json": "e87b0bda07b287e38eddfec5074b2fd5d9a19d19eb02331a46c2a78d7455a720",
+    "train_1.log": "e0de903a67b0d0c8065ba12ca64e66bef0ca253991c9ae0655ad0be0bc098c8d",
+    "sphere_dual50_c0_n10_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "58ffa5b9473d9ed0a77d75f215afc6464a6e2b4f44cade068cdecbfde7a10eeb",
+    "TRAIN_PIDS.json": "7923ebe8e4ba9f211115230d1277b9ced8945a2cba5a42ddce9268fe86e30fe6",
+    "benchmark_0.log": "1619a4351c32f1ad9af23aea91524e498c4ec1719fdf47c184c442a6955781ee",
+    "benchmark_aggregate.json": "bb0be8437e9db6909a35e29cabeba2d424f348b67b9d9fa357ae8389b51abf05",
+    "benchmark_3.log": "1619a4351c32f1ad9af23aea91524e498c4ec1719fdf47c184c442a6955781ee",
+    "benchmark_1.log": "1619a4351c32f1ad9af23aea91524e498c4ec1719fdf47c184c442a6955781ee",
+    "train_3.log": "c53df568c47377d17deaaa08b2a89f787ed419be5bb851b98c538e654f2fd9f8",
+    "sphere_dual50_c1_n20_g0.35_dv0.2_a0.7_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "83143fef02daca54a2043b78523226134eb6450f1d549a8f4312dab86123d770",
+    "benchmark_2.log": "1619a4351c32f1ad9af23aea91524e498c4ec1719fdf47c184c442a6955781ee",
+    "GPU_FAILURE.json": "93fbd1a65e524f275772179244ff395ba2bd46c153ab237300a89d9de63c2418",
+    "benchmark_3.json": "e4d2d2a117aa3c0ebaf7342f4b2a0dcc6662db3a3664358deccc2e7426b24477",
+    "train_0.log": "4d212885d8a18a8c853578b5c2565f764b60d5f2f09cd91ddaeb8e11224dfa5a",
+    "launch.log": "698265c08acc2a7df13c7eea3ae60ce9219259c3b2790e89e3c8bf56459eaa19",
+    "benchmark_2.json": "726f922476045ed2977ae1fe8771a06686cb7bf96469dce574827743e4b441f5",
+    "sphere_dual50_c3_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "1456a96139d54280d1e097e6b4f5fc73513ebf314489147d1c89b1cf4d4266be"
+  },
+  "instance_id": 54348163
+}

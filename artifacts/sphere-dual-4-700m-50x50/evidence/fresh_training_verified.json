@@ -1,0 +1,171 @@
+{
+  "verified_at": 1791235843.9027913,
+  "full_models": 4,
+  "full_model_verification": [
+    {
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "actual_tokens": 699904000,
+      "configuration_sha256": "7544571c861e06a6457bb46e0e92249c83b9b5deff36b690498a6d404ba34aaa",
+      "checkpoint_sha256": "41de75cabf2c20f59c73752905eee8099fd63836063ff22759d49c0cc87bd96e",
+      "final_loss": {
+        "step": 1366,
+        "train_loss": 2.0249595642089844,
+        "eval_loss": 2.027474880218506
+      },
+      "finite_weights": true,
+      "acceptance": "training complete; scientific analysis pending"
+    },
+    {
+      "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "actual_tokens": 699904000,
+      "configuration_sha256": "98f52391a27e97e392d0b1ca1873f17facb00e67d4b9c02cabda609e42323e88",
+      "checkpoint_sha256": "c45d6213f24666d4d228c517a754fe1973fb1808169f67dd8c1408256f503869",
+      "final_loss": {
+        "step": 1366,
+        "train_loss": 2.0266878604888916,
+        "eval_loss": 2.036048173904419
+      },
+      "finite_weights": true,
+      "acceptance": "training complete; scientific analysis pending"
+    },
+    {
+      "name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "actual_tokens": 699904000,
+      "configuration_sha256": "b31d1ef1f61dad0ac443e3ff35207a74f342e0d00cb5989f9e7670362e6de52f",
+      "checkpoint_sha256": "0c96d3b8de3b176fcd74ee6026fc2300b1f60e01f59a3dc5d56ee874f18a123f",
+      "final_loss": {
+        "step": 1366,
+        "train_loss": 1.9186804294586182,
+        "eval_loss": 1.92416512966156
+      },
+      "finite_weights": true,
+      "acceptance": "training complete; scientific analysis pending"
+    },
+    {
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10",
+      "actual_tokens": 699904000,
+      "configuration_sha256": "09ce6a555a2bf1714db06a539ac2068bd730eb710c93961973f217b26d485c94",
+      "checkpoint_sha256": "2bfc5c4d9b1f4db975aff9c16bb270a6161e31feef8476a7d0fce6abb2fba0fa",
+      "final_loss": {
+        "step": 1366,
+        "train_loss": 1.6713931560516357,
+        "eval_loss": 1.6798052787780762
+      },
+      "finite_weights": true,
+      "acceptance": "training complete; scientific analysis pending"
+    }
+  ],
+  "partial_snapshots": 8,
+  "source_archive_sha256": "28c7b4183b4d66996a01cb514f99796e1cb0378d464802154219e473a2a1f427",
+  "controller_state": "gpu_released",
+  "gpu_release": {
+    "verified_at": 1791235777.172517,
+    "instance_id": 54348163,
+    "provider_absent": true,
+    "associated_volumes": 0,
+    "total_visible_volumes": 0,
+    "billing_resource_released": true,
+    "release_reason": "four_full_models_transferred_verified; recovered HTTP308 with canonical trailing-slash DELETE endpoint",
+    "unrelated_instances_untouched": true
+  },
+  "random_sha256": {
+    "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "9f2410fabc7a8e183e839c5ff74f28db22e6e2e742ae44eb470977846fd90929",
+    "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "879667f4d8e903069b4db96747f5b60c113021c9c2ed14717555bdf7626edefe",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "0607de3584013d79da3c6bf68bd2ae9f53ee0075e6d7dfa95dca4f68b231ab2e",
+    "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "6dcec1cd80fb388f1f1531f1ebae2eefc68c0ff41801a685c3a13a5d0909ac2e"
+  },
+  "partial_snapshot_verification": [
+    {
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_250368000_tokens.pt",
+      "input_tokens": 250368000,
+      "sha256": "807d42ac8bd244118f23801650aabf4ae2ba6e447f42e48eb01f0285f76c4b94",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_250368000_tokens.pt",
+      "input_tokens": 250368000,
+      "sha256": "184f70e3f34dc1ea90ecdce7f94e0306cb7168fd245b4358304c6204a9d0b401",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_250368000_tokens.pt",
+      "input_tokens": 250368000,
+      "sha256": "a7556d8964fcc58b2e38d72c9a706ff9ca321cedb0dfa6e47e3f669fb3f584e6",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_250368000_tokens.pt",
+      "input_tokens": 250368000,
+      "sha256": "277f65b2ccdf1a581da7c681ea7f2c269feb3fb1953f1eee91f582ae74b66800",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_500224000_tokens.pt",
+      "input_tokens": 500224000,
+      "sha256": "def390bed00f45cf647e80c4d176dfea2a314876344e6445a6098787a2fb2663",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_500224000_tokens.pt",
+      "input_tokens": 500224000,
+      "sha256": "8c0a98dab3f350223eead3946ab758e85a8f6b20c1da3bde974fca05b6b2a03a",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c1_n20_g0.35_dv0.2_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_500224000_tokens.pt",
+      "input_tokens": 500224000,
+      "sha256": "37bb63ffe158414d5401e03883595b51cd2acd309b137a15f1d3d977fd7edfe4",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    },
+    {
+      "name": "sphere_dual50_c2_n20_g0.35_dv0.2_a0.95_d128l4h2mlp512_700m_seed0_k10_progress_500224000_tokens.pt",
+      "input_tokens": 500224000,
+      "sha256": "b290fc7774c70a3318c820306b4478c76600bd6d3990eb390983dfde9b7e9027",
+      "finite_weights": true,
+      "model_shape_verified": true,
+      "acceptance": "partial only"
+    }
+  ],
+  "progress": [
+    {
+      "index": 0,
+      "observed_step": 1367,
+      "tokens_at_observed_step": 699904000,
+      "last_printed_loss": 2.027474880218506
+    },
+    {
+      "index": 1,
+      "observed_step": 1367,
+      "tokens_at_observed_step": 699904000,
+      "last_printed_loss": 2.036048173904419
+    },
+    {
+      "index": 2,
+      "observed_step": 1367,
+      "tokens_at_observed_step": 699904000,
+      "last_printed_loss": 1.92416512966156
+    },
+    {
+      "index": 3,
+      "observed_step": 1367,
+      "tokens_at_observed_step": 699904000,
+      "last_printed_loss": 1.6798052787780762
+    }
+  ],
+  "guard_spend_with_reserves": 1.8193652461634742,
+  "scientific_acceptance": "pending held-out analysis"
+}

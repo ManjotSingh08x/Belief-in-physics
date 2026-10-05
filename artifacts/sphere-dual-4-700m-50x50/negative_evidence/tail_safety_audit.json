@@ -1,0 +1,140 @@
+{
+  "rows": [
+    {
+      "index": 0,
+      "seed": 20261200,
+      "trajectories": 4096,
+      "result": {
+        "seed": 20261200,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.06107812207093964,
+          1.2123024908242441
+        ],
+        "max_abs_rates": [
+          2.9376518529812126,
+          31.9104001910086
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 0.999951171875,
+        "each_action_changes_bins": [
+          1.0,
+          0.999462890625,
+          0.99951171875,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.05330167192935611,
+        "late_full_phase_lambda_mean": -0.045250355464963476,
+        "full_phase_initial_gap_mean": 2.0213373545140789e-07,
+        "full_phase_final_gap_mean": 1.0134411443072093e-07,
+        "maximum_conserved_momentum_drift": 0.07859381674460082,
+        "used_joint_bins": 845,
+        "fork_count": 20480
+      }
+    },
+    {
+      "index": 1,
+      "seed": 20261201,
+      "trajectories": 4096,
+      "result": {
+        "seed": 20261201,
+        "finite": true,
+        "physical_bound_hits": 2,
+        "fork_bound_hits": 2,
+        "theta_range": [
+          0.05,
+          1.0571408503639077
+        ],
+        "max_abs_rates": [
+          2.6648255854305893,
+          32.0
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.999365234375,
+          0.99931640625,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.035702995452841634,
+        "late_full_phase_lambda_mean": -0.04643877339177943,
+        "full_phase_initial_gap_mean": 2.0202921911957264e-07,
+        "full_phase_final_gap_mean": 7.775006482801585e-08,
+        "maximum_conserved_momentum_drift": 0.005386096888581618,
+        "used_joint_bins": 766,
+        "fork_count": 20480
+      }
+    },
+    {
+      "index": 2,
+      "seed": 20261202,
+      "trajectories": 4096,
+      "result": {
+        "seed": 20261202,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 0,
+        "theta_range": [
+          0.06459057753617617,
+          1.0839712852097856
+        ],
+        "max_abs_rates": [
+          2.5563667299989823,
+          22.735311964131867
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.999365234375,
+          0.999267578125,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.03482796389024254,
+        "late_full_phase_lambda_mean": -0.05046488763460458,
+        "full_phase_initial_gap_mean": 2.019484007863007e-07,
+        "full_phase_final_gap_mean": 7.108760515609298e-08,
+        "maximum_conserved_momentum_drift": 1.3885565480764583e-06,
+        "used_joint_bins": 757,
+        "fork_count": 20480
+      }
+    },
+    {
+      "index": 3,
+      "seed": 20261203,
+      "trajectories": 4096,
+      "result": {
+        "seed": 20261203,
+        "finite": true,
+        "physical_bound_hits": 0,
+        "fork_bound_hits": 1,
+        "theta_range": [
+          0.061532378906763815,
+          1.0900892078497768
+        ],
+        "max_abs_rates": [
+          2.4147518230454614,
+          23.99575855148134
+        ],
+        "four_distinct_10token_histories": 1.0,
+        "four_distinct_endpoint_bins": 1.0,
+        "each_action_changes_bins": [
+          1.0,
+          0.999365234375,
+          0.99912109375,
+          1.0
+        ],
+        "late_full_phase_lambda_max": 0.032389841002631085,
+        "late_full_phase_lambda_mean": -0.0500422168897571,
+        "full_phase_initial_gap_mean": 2.0238832219211809e-07,
+        "full_phase_final_gap_mean": 7.330704209385409e-08,
+        "maximum_conserved_momentum_drift": 1.3939323967593342e-06,
+        "used_joint_bins": 748,
+        "fork_count": 20480
+      }
+    }
+  ]
+}
