@@ -1,0 +1,26 @@
+{
+  "experiment_id": "sphere-k10-four-ridge-check-20261005",
+  "source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k10",
+  "configuration_sha256": "67c444c07fc5e50be50ed982d06ec82e453fb3eba9f4c28f9ff73c320e2b3b08",
+  "training_seed": 0,
+  "n": 20,
+  "k": 10,
+  "index_convention": "zero-based target j, observed source j-10",
+  "native_context": 310,
+  "decoded_probe_context": 320,
+  "score_contexts_differ": true,
+  "mood_input_sha256": "e7130b4f20e2eedeb458746873d9644e6443c38cc91c048e38a2cd3bfa1f666e",
+  "token_input_sha256": "3bfcea5a12a52d265b3bb6b0ccf11e114a554795fdd36835cd66e7187458c08c",
+  "script_sha256": "52a9b7ea8eb3b78f9a2fbcab879e238cd38f04c5403f66c779233b6b5e6f8bb3",
+  "reference_token_agreement": 1.0,
+  "reference_max_theta_error": 1.4147361282468296e-08,
+  "scores": {
+    "crossing_positions_per_path": 240,
+    "crossing_four_distinct_bins_fraction": 0.9552083333333333,
+    "native_probability_on_physical_branches_crossing_mean": 0.10779037326574326,
+    "oracle_crossing_action_probability_min": 0.11142335016731779,
+    "oracle_crossing_action_probability_max": 0.6657299494980466
+  },
+  "interpretation": "Oracle knows exact physical state and hidden action history; hybrid uses known state plus projected linear mood readout; native probabilities untouched"
+}
