@@ -1,0 +1,65 @@
+{
+  "source_npz_sha256": "3bfcea5a12a52d265b3bb6b0ccf11e114a554795fdd36835cd66e7187458c08c",
+  "source_recipe_sha256": "75f0a21557cd15d1e4ba62bdc9d49b5e46d7c0ca5d6c0faedf9e28d10715e3e7",
+  "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k10",
+  "configuration_sha256": "67c444c07fc5e50be50ed982d06ec82e453fb3eba9f4c28f9ff73c320e2b3b08",
+  "k": 10,
+  "inference_context": 310,
+  "trajectory_tokens": 500,
+  "selection": "descending probability; ascending token ID on ties",
+  "probabilities_renormalized": false,
+  "semantics": "positionwise ranks, not four coherent physical branches",
+  "initial_states": [
+    [
+      0.5466464097960465,
+      -0.12306617438822443,
+      0.07468929896242729,
+      2.0550646781907735
+    ],
+    [
+      0.5195419198475661,
+      0.0937450157694597,
+      0.16269352418980382,
+      2.0392598167968523
+    ],
+    [
+      0.6178089844446786,
+      0.02729503111327425,
+      -0.026315723485605798,
+      2.0883294149414695
+    ],
+    [
+      0.5705310024463356,
+      -0.10521050232148532,
+      0.06440478378175023,
+      2.0814709300381224
+    ]
+  ],
+  "scores": [
+    {
+      "path": 1,
+      "mean_top4_mass": 0.877363920211792,
+      "top4_accuracy": 0.04693877551020408,
+      "mean_nll_nats": 12.231711387634277
+    },
+    {
+      "path": 2,
+      "mean_top4_mass": 0.8798171281814575,
+      "top4_accuracy": 0.004081632653061225,
+      "mean_nll_nats": 13.634859085083008
+    },
+    {
+      "path": 3,
+      "mean_top4_mass": 0.907238245010376,
+      "top4_accuracy": 0.07959183673469387,
+      "mean_nll_nats": 10.551315307617188
+    },
+    {
+      "path": 4,
+      "mean_top4_mass": 0.860090970993042,
+      "top4_accuracy": 0.15306122448979592,
+      "mean_nll_nats": 9.685640335083008
+    }
+  ]
+}
