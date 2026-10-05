@@ -39,6 +39,7 @@ CONFIGS = ["dt0.2_gamma1_dv1.2_n10"]
 DATA_SEEDS = [42, 137]
 N_DATA = 64
 ALPHA = 1.0
+VAR_THRESHOLD = 0.9
 TRAIN_FRAC = 0.8
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -50,45 +51,39 @@ proc = build_process_from_config(cfg, OUTPUT_DIR)
 tr_m, rnd_m = load_trained_and_random(OUTPUT_DIR / cfg, 128, "kn2", 0, DEVICE)
 datasets = {s: generate_data(proc, n=N_DATA, seed=s) for s in DATA_SEEDS}
 
-# 2. Test A
-null_res = {"all_layers_single_token": {cfg: {"trained": [], "random": []}}}
-for m_type, model in [("trained", tr_m), ("random", rnd_m)]:
-    for s in DATA_SEEDS:
-        res = test_nullspace(model, datasets[s], proc, "all_layers_single_token", ALPHA, TRAIN_FRAC, DEVICE, s)
-        null_res["all_layers_single_token"][cfg][m_type].append(res)
-
-fig, _ = plot_multi_config(null_res["all_layers_single_token"], plot_nullspace, 2, max_cols=2, title="Smoke Test A")
+# 2. Test A  (PCA+ridge, k from trained model; random baseline in the same call)
+null_res = {cfg: [test_nullspace(tr_m, datasets[s], proc, "all_layers_single_token", ALPHA, TRAIN_FRAC,
+                                 DEVICE, s, random_model=rnd_m, var_threshold=VAR_THRESHOLD)
+                  for s in DATA_SEEDS]}
+print("Test A k / k_null:", [(r["k"], r["k_null"]) for r in null_res[cfg]])
+fig, _ = plot_multi_config(null_res, plot_nullspace, 2, max_cols=2, title="Smoke Test A")
 fig.savefig(SMOKE_OUT_DIR / "test_a_nullspace.png", dpi=120, bbox_inches="tight")
 plt.close(fig)
 
 # 3. Test B
-layer_res = {cfg: {"trained": {"last_token": []}, "random": {"last_token": []}}}
-for m_type, model in [("trained", tr_m), ("random", rnd_m)]:
-    for s in DATA_SEEDS:
-        res = test_layer_emergence(model, datasets[s], proc, "last_token", ALPHA, TRAIN_FRAC, DEVICE, s)
-        layer_res[cfg][m_type]["last_token"].append(res)
-
+layer_res = {cfg: {"last_token": [test_layer_emergence(tr_m, datasets[s], proc, "last_token", ALPHA, TRAIN_FRAC,
+                                                       DEVICE, s, random_model=rnd_m, var_threshold=VAR_THRESHOLD)
+                                  for s in DATA_SEEDS]}}
+print("Test B k per layer:", [d["k"] for d in layer_res[cfg]["last_token"][0]])
 fig, _ = plot_multi_config(layer_res, plot_layer_emergence, 2, max_cols=2, title="Smoke Test B")
 fig.savefig(SMOKE_OUT_DIR / "test_b_layer_emergence.png", dpi=120, bbox_inches="tight")
 plt.close(fig)
 
 # 4. Test C
-pca_res = {cfg: {"trained": {"all_layers_single_token": []}, "random": {"all_layers_single_token": []}}}
-for m_type, model in [("trained", tr_m), ("random", rnd_m)]:
-    for s in DATA_SEEDS:
-        res = test_pca_alignment(model, datasets[s], proc, "all_layers_single_token", ALPHA, TRAIN_FRAC, DEVICE, s, max_pcs=10)
-        pca_res[cfg][m_type]["all_layers_single_token"].append(res)
-
+pca_res = {cfg: {"all_layers_single_token": [test_pca_alignment(tr_m, datasets[s], proc, "all_layers_single_token",
+                                                                ALPHA, TRAIN_FRAC, DEVICE, s, max_pcs=10,
+                                                                random_model=rnd_m, var_threshold=VAR_THRESHOLD)
+                                             for s in DATA_SEEDS]}}
+print("Test C k_threshold:", [r["k_threshold"] for r in pca_res[cfg]["all_layers_single_token"]])
 fig, _ = plot_multi_config(pca_res, plot_pca_alignment, 1, max_cols=1, title="Smoke Test C")
 fig.savefig(SMOKE_OUT_DIR / "test_c_pca_alignment.png", dpi=120, bbox_inches="tight")
 plt.close(fig)
 
 # 5. Test D
-temp_res = {cfg: []}
-for s in DATA_SEEDS:
-    res = test_temporal_selectivity(tr_m, datasets[s], proc, ALPHA, TRAIN_FRAC, DEVICE, s)
-    temp_res[cfg].append(res)
-
+temp_res = {cfg: [test_temporal_selectivity(tr_m, datasets[s], proc, ALPHA, TRAIN_FRAC, DEVICE, s,
+                                            random_model=rnd_m, var_threshold=VAR_THRESHOLD)
+                  for s in DATA_SEEDS]}
+print("Test D k per position:", temp_res[cfg][0]["k"])
 fig, _ = plot_multi_config(temp_res, plot_temporal_selectivity, 2, max_cols=2, title="Smoke Test D")
 fig.savefig(SMOKE_OUT_DIR / "test_d_temporal_selectivity.png", dpi=120, bbox_inches="tight")
 plt.close(fig)

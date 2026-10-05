@@ -29,7 +29,6 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import cKDTree
-from sklearn.utils.extmath import randomized_svd
 import torch
 
 # Ensure repository root is on sys.path
@@ -318,6 +317,134 @@ def gpu_ridge_r2(
     return result
 
 
+def gpu_pca(X: np.ndarray, device: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Full-spectrum PCA on GPU: one covariance matmul + one eigh.
+
+    Returns (mean (1, d), eigenvalues (d,) descending, eigenvectors (d, d) with
+    columns sorted to match the eigenvalues).
+    """
+    # ponytail: eigh of the d x d covariance is O(d^3); fine up to d ~ 1e4 (we use <= 6400)
+    Xt = torch.tensor(X, dtype=torch.float32, device=device)
+    mean = Xt.mean(0, keepdim=True)
+    Xt -= mean
+    cov = (Xt.T @ Xt) / max(Xt.shape[0] - 1, 1)
+    evals, evecs = torch.linalg.eigh(cov)
+    out = (
+        mean.cpu().numpy(),
+        evals.flip(0).clamp(min=0).cpu().numpy(),
+        evecs.flip(1).cpu().numpy(),
+    )
+    del Xt, cov, evals, evecs
+    return out
+
+
+def _project(X: np.ndarray, mean: np.ndarray, V: np.ndarray, device: str) -> np.ndarray:
+    """(X - mean) @ V on GPU."""
+    Xt = torch.tensor(X, dtype=torch.float32, device=device)
+    Z = (Xt - torch.tensor(mean, device=device)) @ torch.tensor(V, device=device)
+    out = Z.cpu().numpy()
+    del Xt, Z
+    return out
+
+
+def _pca_probe(
+    X_tr: np.ndarray,
+    X_te: np.ndarray,
+    targets: dict[str, tuple[np.ndarray, np.ndarray]],
+    alpha: float,
+    device: str,
+    var_threshold: float,
+    k: int | None,
+) -> dict[str, Any]:
+    mean, evals, V = gpu_pca(X_tr, device)
+    cum = np.cumsum(evals) / max(float(evals.sum()), 1e-12)
+    if k is None:
+        k = min(int(np.searchsorted(cum, var_threshold)) + 1, len(evals))
+    Vk = V[:, :k]
+    Z_tr = _project(X_tr, mean, Vk, device)
+    Z_te = _project(X_te, mean, Vk, device)
+    r2, W, y_mean = {}, {}, {}
+    for name, (y_tr, y_te) in targets.items():
+        r2[name] = gpu_ridge_r2(Z_tr, y_tr, Z_te, y_te, alpha, device)
+        W[name] = gpu_ridge_fit(Z_tr, y_tr, alpha, device)
+        y_mean[name] = y_tr.mean(axis=0, keepdims=True)
+    return {
+        "k": int(k),
+        "var_explained": float(cum[k - 1]),
+        "r2": r2,
+        # predict with: ((X - mean) @ V) @ W[name] + y_mean[name]
+        "probe": {"mean": mean, "V": Vk, "W": W, "y_mean": y_mean},
+    }
+
+
+def pca_ridge_probe(
+    X_tr: np.ndarray,
+    X_te: np.ndarray,
+    targets: dict[str, tuple[np.ndarray, np.ndarray]],
+    alpha: float,
+    device: str,
+    var_threshold: float = 0.8,
+    k: int | None = None,
+    X_rand_tr: np.ndarray | None = None,
+    X_rand_te: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """GPU PCA -> keep top-k components -> ridge probe, trained model + optional random baseline.
+
+    k is the smallest number of components whose eigenvalues sum to >= var_threshold of
+    the total variance of the *trained* features (unless `k` is given). The random
+    baseline gets its own PCA basis (fit on its own features) truncated to the same k.
+
+    Args:
+        X_tr, X_te: trained-model features (n, d), train / test rows.
+        targets: {name: (y_train, y_test)}; one ridge probe per name on the same PCA.
+        X_rand_tr, X_rand_te: random-baseline features (same rows), optional.
+
+    Returns:
+        {"k", "var_explained", "r2": {name: R²}, "probe": {...},
+         "random": same dict for the baseline (var_explained is its own at that k) or None}
+    """
+    res = _pca_probe(X_tr, X_te, targets, alpha, device, var_threshold, k)
+    res["random"] = (
+        None if X_rand_tr is None
+        else _pca_probe(X_rand_tr, X_rand_te, targets, alpha, device, var_threshold, res["k"])
+    )
+    return res
+
+
+def _split_probe(
+    X: np.ndarray,
+    Xr: np.ndarray | None,
+    ys: dict[str, np.ndarray],
+    tr: np.ndarray,
+    te: np.ndarray,
+    alpha: float,
+    device: str,
+    var_threshold: float,
+) -> dict[str, Any]:
+    """pca_ridge_probe on row-index splits of full feature / target arrays."""
+    return pca_ridge_probe(
+        X[tr], X[te], {n: (y[tr], y[te]) for n, y in ys.items()},
+        alpha, device, var_threshold,
+        X_rand_tr=None if Xr is None else Xr[tr],
+        X_rand_te=None if Xr is None else Xr[te],
+    )
+
+
+def _split_idx(n_seq: int, per_seq: int, train_frac: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Sequence-level split expanded to row indices (per_seq rows per sequence)."""
+    tr_s, te_s = sequence_split(n_seq, train_frac, seed)
+    rows = np.arange(per_seq)
+    return (tr_s[:, None] * per_seq + rows).reshape(-1), (te_s[:, None] * per_seq + rows).reshape(-1)
+
+
+def _rnd(res: dict[str, Any], key: str, name: str | None = None) -> float:
+    """Random-baseline value from a pca_ridge_probe result (nan when no baseline)."""
+    r = res["random"]
+    if r is None:
+        return float("nan")
+    return r[key] if name is None else r["r2"][name]
+
+
 def extract_features(
     model: TinyTransformer,
     tokens: np.ndarray,
@@ -415,49 +542,50 @@ def test_nullspace(
     device: str,
     split_seed: int,
     batch_size: int = 64,
+    random_model: TinyTransformer | None = None,
+    var_threshold: float = 0.8,
 ) -> dict[str, Any]:
     """Test A: Null-Space Probing — Belief Beyond Physics.
 
-    Fits physics probe W_phys on residual features X. Projects X onto the null
-    space of W_phys (removing the 2D physics subspace). Then probes the null
-    space for belief. If null_belief_r2 > 0, belief is encoded orthogonally.
+    PCA+ridge (k from the trained model at `var_threshold`) gives the physics probe.
+    Its direction in feature space (V @ W_phys) is projected out of X, then belief is
+    probed in the remainder with a fresh PCA+ridge (own k). Random baseline: same
+    procedure with its own physics direction, truncated to the trained model's k.
     """
     X = extract_features(model, data["tokens"], proc, mode, device, batch_size=batch_size)
+    Xr = None if random_model is None else extract_features(
+        random_model, data["tokens"], proc, mode, device, batch_size=batch_size)
     y_bel, y_phys = extract_targets(data, proc, mode)
 
-    N_seq = data["tokens"].shape[0]
-    train_seq, test_seq = sequence_split(N_seq, train_frac, split_seed)
+    per_seq = proc.seq_len if mode == "all_tokens_flat" else proc.m
+    tr, te = _split_idx(data["tokens"].shape[0], per_seq, train_frac, split_seed)
 
-    if mode in ("all_layers_single_token", "all_layers_cycle", "single_layer_all_tokens"):
-        m = proc.m
-        tr = (train_seq[:, None] * m + np.arange(m)).reshape(-1)
-        te = (test_seq[:, None] * m + np.arange(m)).reshape(-1)
-    else:
-        seq_len = proc.seq_len
-        tr = (train_seq[:, None] * seq_len + np.arange(seq_len)).reshape(-1)
-        te = (test_seq[:, None] * seq_len + np.arange(seq_len)).reshape(-1)
+    full = _split_probe(X, Xr, {"belief": y_bel, "physics": y_phys}, tr, te, alpha, device, var_threshold)
 
-    # 1. Full probes
-    full_belief_r2 = gpu_ridge_r2(X[tr], y_bel[tr], X[te], y_bel[te], alpha, device)
-    physics_r2 = gpu_ridge_r2(X[tr], y_phys[tr], X[te], y_phys[te], alpha, device)
+    def remove_physics(Xa: np.ndarray, probe: dict[str, Any]) -> np.ndarray:
+        Q, _ = np.linalg.qr(probe["V"] @ probe["W"]["physics"])  # (d, 2) orthonormal
+        return Xa - (Xa @ Q) @ Q.T
 
-    # 2. Fit physics subspace on training set
-    W_phys = gpu_ridge_fit(X[tr], y_phys[tr], alpha, device, fit_intercept=True)
-    # Orthonormal basis Q for physics subspace (dim d_features x 2)
-    Q, _ = np.linalg.qr(W_phys)
-
-    # 3. Project X onto the null space: X_null = X - X @ Q @ Q.T
-    X_null = X - (X @ Q) @ Q.T
-
-    # 4. Probe null space for belief
-    null_belief_r2 = gpu_ridge_r2(X_null[tr], y_bel[tr], X_null[te], y_bel[te], alpha, device)
+    Xn = remove_physics(X, full["probe"])
+    Xnr = None if Xr is None else remove_physics(Xr, full["random"]["probe"])
+    null = _split_probe(Xn, Xnr, {"belief": y_bel}, tr, te, alpha, device, var_threshold)
 
     return {
-        "full_belief_r2": full_belief_r2,
-        "null_belief_r2": null_belief_r2,
-        "physics_r2": physics_r2,
+        "full_belief_r2": full["r2"]["belief"],
+        "null_belief_r2": null["r2"]["belief"],
+        "physics_r2": full["r2"]["physics"],
+        "full_belief_r2_random": _rnd(full, "r2", "belief"),
+        "null_belief_r2_random": _rnd(null, "r2", "belief"),
+        "physics_r2_random": _rnd(full, "r2", "physics"),
+        "k": full["k"],
+        "k_null": null["k"],
+        "var_explained": full["var_explained"],
+        "var_explained_null": null["var_explained"],
+        "var_explained_random": _rnd(full, "var_explained"),
+        "var_explained_null_random": _rnd(null, "var_explained"),
+        "var_threshold": var_threshold,
         "feature_dim": X.shape[1],
-        "null_feature_dim": X.shape[1] - Q.shape[1],
+        "null_feature_dim": X.shape[1] - 2,
         "n_train": len(tr),
         "n_test": len(te),
         "mode": mode,
@@ -474,81 +602,50 @@ def test_layer_emergence(
     device: str,
     split_seed: int,
     batch_size: int = 64,
+    random_model: TinyTransformer | None = None,
+    var_threshold: float = 0.8,
 ) -> list[dict[str, Any]]:
-    """Test B: Layer-wise Emergence Curves.
+    """Test B: Layer-wise Emergence Curves (PCA+ridge probe per layer, trained vs random).
 
-    Evaluates R² separately for each layer (embedding + layers 1..n_layers)
-    plus all-layers concatenated, across 3 variations:
-      - "all_tokens"
-      - "cycle_concat"
-      - "last_token"
+    Evaluates R² for each layer (embedding + layers 1..n_layers) plus all layers
+    concatenated, for one variation: "all_tokens" | "cycle_concat" | "last_token".
+    Each entry carries the chosen k (trained-model PCA at `var_threshold`).
     """
     n_layers = model.config.n_layers
-    layers_to_test = list(range(n_layers + 1))  # 0=emb, 1..n_layers
-
-    # Map variation to feature extraction mode
-    if variation == "all_tokens":
-        mode_for_layer = "all_tokens_flat"
-        target_mode = "all_tokens_flat"
-    elif variation == "cycle_concat":
-        mode_for_layer = "all_layers_cycle"
-        target_mode = "all_layers_cycle"
-    elif variation == "last_token":
-        mode_for_layer = "all_layers_single_token"
-        target_mode = "all_layers_single_token"
-    else:
+    modes = {
+        "all_tokens": "all_tokens_flat",
+        "cycle_concat": "all_layers_cycle",
+        "last_token": "all_layers_single_token",
+    }
+    if variation not in modes:
         raise ValueError(f"Unknown variation: {variation}")
+    mode = modes[variation]
 
-    y_bel, y_phys = extract_targets(data, proc, target_mode)
-
-    N_seq = data["tokens"].shape[0]
-    train_seq, test_seq = sequence_split(N_seq, train_frac, split_seed)
-    if target_mode == "all_tokens_flat":
-        seq_len = proc.seq_len
-        tr = (train_seq[:, None] * seq_len + np.arange(seq_len)).reshape(-1)
-        te = (test_seq[:, None] * seq_len + np.arange(seq_len)).reshape(-1)
-    else:
-        m = proc.m
-        tr = (train_seq[:, None] * m + np.arange(m)).reshape(-1)
-        te = (test_seq[:, None] * m + np.arange(m)).reshape(-1)
+    y_bel, y_phys = extract_targets(data, proc, mode)
+    per_seq = proc.seq_len if mode == "all_tokens_flat" else proc.m
+    tr, te = _split_idx(data["tokens"].shape[0], per_seq, train_frac, split_seed)
 
     results = []
-
-    # Individual layers
-    for lyr in layers_to_test:
-        X_lyr = extract_features(
-            model, data["tokens"], proc, mode_for_layer, device,
-            batch_size=batch_size, layer=lyr,
-        )
-        b_r2 = gpu_ridge_r2(X_lyr[tr], y_bel[tr], X_lyr[te], y_bel[te], alpha, device)
-        p_r2 = gpu_ridge_r2(X_lyr[tr], y_phys[tr], X_lyr[te], y_phys[te], alpha, device)
-        name = "emb" if lyr == 0 else f"L{lyr}"
+    for lyr in [*range(n_layers + 1), None]:  # None = all layers concatenated
+        feats = lambda mdl: extract_features(
+            mdl, data["tokens"], proc, mode, device, batch_size=batch_size, layer=lyr)
+        X = feats(model)
+        Xr = None if random_model is None else feats(random_model)
+        res = _split_probe(X, Xr, {"belief": y_bel, "physics": y_phys}, tr, te, alpha, device, var_threshold)
         results.append({
-            "layer": name,
-            "layer_idx": lyr,
-            "belief_r2": b_r2,
-            "physics_r2": p_r2,
+            "layer": "all" if lyr is None else ("emb" if lyr == 0 else f"L{lyr}"),
+            "layer_idx": n_layers + 1 if lyr is None else lyr,
+            "belief_r2": res["r2"]["belief"],
+            "physics_r2": res["r2"]["physics"],
+            "belief_r2_random": _rnd(res, "r2", "belief"),
+            "physics_r2_random": _rnd(res, "r2", "physics"),
+            "k": res["k"],
+            "var_explained": res["var_explained"],
+            "var_explained_random": _rnd(res, "var_explained"),
             "variation": variation,
         })
-        del X_lyr
-
-    # All layers concatenated
-    X_all = extract_features(
-        model, data["tokens"], proc, mode_for_layer, device,
-        batch_size=batch_size, layer=None,
-    )
-    b_r2_all = gpu_ridge_r2(X_all[tr], y_bel[tr], X_all[te], y_bel[te], alpha, device)
-    p_r2_all = gpu_ridge_r2(X_all[tr], y_phys[tr], X_all[te], y_phys[te], alpha, device)
-    results.append({
-        "layer": "all",
-        "layer_idx": n_layers + 1,
-        "belief_r2": b_r2_all,
-        "physics_r2": p_r2_all,
-        "variation": variation,
-    })
-    del X_all
+        del X, Xr
     gc.collect()
-
     return results
 
 
@@ -564,80 +661,60 @@ def test_pca_alignment(
     max_pcs: int = 50,
     pc_steps: list[int] | None = None,
     batch_size: int = 64,
+    random_model: TinyTransformer | None = None,
+    var_threshold: float = 0.8,
 ) -> dict[str, Any]:
     """Test C: PCA Alignment — Does Training Concentrate Belief?
 
-    Projects residual representations onto the top k principal components
-    and measures cumulative R² as a function of k.
+    Cumulative probe R² vs number of top PCs for trained and random models (each in
+    its own PCA basis). `k_threshold` is the smallest k reaching `var_threshold` of
+    the trained model's variance; it is always included in the evaluated PC counts.
     """
-    layer_arg = None
-    mode = feature_config
-    if feature_config == "single_layer_all_tokens":
-        layer_arg = model.config.n_layers  # default to last layer
+    layer_arg = model.config.n_layers if feature_config == "single_layer_all_tokens" else None
+    feats = lambda mdl: extract_features(
+        mdl, data["tokens"], proc, feature_config, device, batch_size=batch_size, layer=layer_arg)
+    y_bel, y_phys = extract_targets(data, proc, feature_config)
+    tr, te = _split_idx(data["tokens"].shape[0], proc.m, train_frac, split_seed)
 
-    X = extract_features(
-        model, data["tokens"], proc, mode, device,
-        batch_size=batch_size, layer=layer_arg,
-    )
-    y_bel, y_phys = extract_targets(data, proc, mode)
+    def pca_of(mdl):
+        X = feats(mdl)
+        mean, evals, V = gpu_pca(X[tr], device)
+        return X, mean, np.cumsum(evals) / max(float(evals.sum()), 1e-12), V
 
-    N_seq = data["tokens"].shape[0]
-    m = proc.m
-    train_seq, test_seq = sequence_split(N_seq, train_frac, split_seed)
-    tr = (train_seq[:, None] * m + np.arange(m)).reshape(-1)
-    te = (test_seq[:, None] * m + np.arange(m)).reshape(-1)
+    X, mean, cum, V = pca_of(model)
+    k_thr = min(int(np.searchsorted(cum, var_threshold)) + 1, len(cum))
+    n_comp = min(max_pcs, len(cum), len(tr))
+    steps = [1, 2, 3, 5, 10, 15, 20, 30, 40, 50, 75, 100] if pc_steps is None else pc_steps
+    ks = sorted({k for k in steps if k <= n_comp} | {n_comp, k_thr})
+    k_max = ks[-1]
 
-    # Center training data
-    X_mean = X[tr].mean(axis=0, keepdims=True)
-    X_c_tr = X[tr] - X_mean
-    X_c_te = X[te] - X_mean
+    def curves(Xa, mean_a, V_a, cum_a):
+        Z_tr = _project(Xa[tr], mean_a, V_a[:, :k_max], device)
+        Z_te = _project(Xa[te], mean_a, V_a[:, :k_max], device)
+        bel = [gpu_ridge_r2(Z_tr[:, :k], y_bel[tr], Z_te[:, :k], y_bel[te], alpha, device) for k in ks]
+        phys = [gpu_ridge_r2(Z_tr[:, :k], y_phys[tr], Z_te[:, :k], y_phys[te], alpha, device) for k in ks]
+        return bel, phys, [float(cum_a[k - 1]) for k in ks]
 
-    d_feat = X.shape[1]
-    n_comp = min(max_pcs, d_feat, len(tr))
-
-    # Randomized SVD for speed and memory efficiency
-    _, S, Vt = randomized_svd(
-        X_c_tr,
-        n_components=n_comp,
-        n_iter=4,
-        random_state=split_seed,
-    )
-
-    if pc_steps is None:
-        raw_steps = [1, 2, 3, 5, 10, 15, 20, 30, 40, 50, 75, 100]
-    else:
-        raw_steps = pc_steps
-    valid_steps = [k for k in raw_steps if k <= n_comp]
-    if n_comp not in valid_steps:
-        valid_steps.append(n_comp)
-    valid_steps = sorted(list(set(valid_steps)))
-
-    total_var = float(np.sum(X_c_tr ** 2))
-    cum_var = np.cumsum(S ** 2) / (total_var + 1e-10)
-
-    bel_r2_list = []
-    phys_r2_list = []
-    var_exp_list = []
-
-    for k in valid_steps:
-        Vk = Vt[:k].T  # (d_feat, k)
-        X_tr_proj = X_c_tr @ Vk
-        X_te_proj = X_c_te @ Vk
-
-        b_r2 = gpu_ridge_r2(X_tr_proj, y_bel[tr], X_te_proj, y_bel[te], alpha, device)
-        p_r2 = gpu_ridge_r2(X_tr_proj, y_phys[tr], X_te_proj, y_phys[te], alpha, device)
-        bel_r2_list.append(b_r2)
-        phys_r2_list.append(p_r2)
-        var_exp_list.append(float(cum_var[k - 1]))
-
-    return {
-        "n_pcs": valid_steps,
-        "belief_r2": bel_r2_list,
-        "physics_r2": phys_r2_list,
-        "explained_variance_ratio": var_exp_list,
-        "total_feature_dim": d_feat,
+    bel, phys, var = curves(X, mean, V, cum)
+    out = {
+        "n_pcs": ks,
+        "belief_r2": bel,
+        "physics_r2": phys,
+        "explained_variance_ratio": var,
+        "k_threshold": k_thr,
+        "var_threshold": var_threshold,
+        "total_feature_dim": X.shape[1],
         "feature_config": feature_config,
     }
+    del X, mean, cum, V
+    if random_model is not None:
+        Xr, mean_r, cum_r, V_r = pca_of(random_model)
+        b_r, p_r, v_r = curves(Xr, mean_r, V_r, cum_r)
+        out.update({"belief_r2_random": b_r, "physics_r2_random": p_r,
+                    "explained_variance_ratio_random": v_r})
+        del Xr
+    gc.collect()
+    return out
 
 
 def test_temporal_selectivity(
@@ -649,45 +726,51 @@ def test_temporal_selectivity(
     device: str,
     split_seed: int,
     batch_size: int = 64,
+    random_model: TinyTransformer | None = None,
+    var_threshold: float = 0.8,
 ) -> dict[str, Any]:
-    """Test D: Temporal Selectivity (Within-Cycle Gradient).
+    """Test D: Temporal Selectivity (Within-Cycle Gradient), PCA+ridge probe per position.
 
-    Evaluates belief and physics decodability across token positions
-    t = 0, 1, ..., n_steps - 1 within each cycle.
+    All layers concatenated, one probe per within-cycle position t = 0..n_steps-1.
+    `k[t]` is chosen on the trained model at `var_threshold` and reused for the baseline.
     """
-    streams = residual_streams_batched(model, data["tokens"], device, batch_size=batch_size)
-    concat = np.concatenate(streams, axis=-1)  # (N, seq_len, L*d_model)
-    N_seq, seq_len, d_feat = concat.shape
     n_steps, m = proc.n_steps, proc.m
+    N_seq = data["tokens"].shape[0]
+    tr, te = _split_idx(N_seq, m, train_frac, split_seed)
 
-    train_seq, test_seq = sequence_split(N_seq, train_frac, split_seed)
-    tr = (train_seq[:, None] * m + np.arange(m)).reshape(-1)
-    te = (test_seq[:, None] * m + np.arange(m)).reshape(-1)
+    def all_layers(mdl):
+        streams = residual_streams_batched(mdl, data["tokens"], device, batch_size=batch_size)
+        concat = np.concatenate(streams, axis=-1)
+        del streams
+        return concat  # (N, seq_len, L*d)
 
-    positions = list(range(n_steps))
-    belief_r2s = []
-    physics_r2s = []
+    concat = all_layers(model)
+    concat_r = None if random_model is None else all_layers(random_model)
+    d_feat = concat.shape[-1]
 
-    for t in positions:
-        # Step t across all m cycles
-        pos_t = np.arange(t, seq_len, n_steps)
-        X_t = concat[:, pos_t, :].reshape(N_seq * m, d_feat).astype(np.float32)
-        y_bel_t = data["belief_coords"][:, pos_t, :].reshape(N_seq * m, 3).astype(np.float32)
-        y_phys_t = data["physics_state"][:, pos_t, :].reshape(N_seq * m, 2).astype(np.float32)
+    out: dict[str, Any] = {"positions": list(range(n_steps)), "belief_r2": [], "physics_r2": [],
+                           "belief_r2_random": [], "physics_r2_random": [],
+                           "k": [], "var_explained": [], "var_explained_random": []}
+    for t in range(n_steps):
+        pos_t = np.arange(t, proc.seq_len, n_steps)
+        rows = lambda c: c[:, pos_t, :].reshape(N_seq * m, d_feat).astype(np.float32)
+        ys = {
+            "belief": data["belief_coords"][:, pos_t, :].reshape(N_seq * m, 3).astype(np.float32),
+            "physics": data["physics_state"][:, pos_t, :].reshape(N_seq * m, 2).astype(np.float32),
+        }
+        res = _split_probe(rows(concat), None if concat_r is None else rows(concat_r),
+                           ys, tr, te, alpha, device, var_threshold)
+        out["belief_r2"].append(res["r2"]["belief"])
+        out["physics_r2"].append(res["r2"]["physics"])
+        out["belief_r2_random"].append(_rnd(res, "r2", "belief"))
+        out["physics_r2_random"].append(_rnd(res, "r2", "physics"))
+        out["k"].append(res["k"])
+        out["var_explained"].append(res["var_explained"])
+        out["var_explained_random"].append(_rnd(res, "var_explained"))
 
-        b_r2 = gpu_ridge_r2(X_t[tr], y_bel_t[tr], X_t[te], y_bel_t[te], alpha, device)
-        p_r2 = gpu_ridge_r2(X_t[tr], y_phys_t[tr], X_t[te], y_phys_t[te], alpha, device)
-        belief_r2s.append(b_r2)
-        physics_r2s.append(p_r2)
-
-    del streams, concat
+    del concat, concat_r
     gc.collect()
-
-    return {
-        "positions": positions,
-        "belief_r2": belief_r2s,
-        "physics_r2": physics_r2s,
-    }
+    return out
 
 
 def test_matched_physics(
@@ -960,138 +1043,123 @@ def plot_multi_config(
     return fig, axes_grid
 
 
+def _band(ax, x, runs, key, label, color, ls="-", marker="o"):
+    """Mean line + std band over seed runs for one metric (skips if the metric is all-NaN)."""
+    arr = np.array([r[key] for r in runs], dtype=float)
+    if np.isnan(arr).all():
+        return
+    mean, std = np.nanmean(arr, axis=0), np.nanstd(arr, axis=0)
+    ax.plot(x, mean, marker=marker, label=label, color=color, linestyle=ls, linewidth=1.8)
+    ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.18)
+
+
 def plot_nullspace(
     axes: np.ndarray,
     config_name: str,
-    results_by_seed: dict[str, list[dict[str, Any]]],
+    results_by_seed: list[dict[str, Any]],
     config_idx: int,
 ) -> None:
-    """Grouped bar chart for Test A (Trained vs Random model null-space probing).
+    """Grouped bar chart for Test A: trained (axes[0]) vs random baseline (axes[1]).
 
-    results_by_seed should contain:
-      {"trained": [result_dict_seed1, ...], "random": [result_dict_seed1, ...]}
+    results_by_seed: list of test_nullspace results (one per seed). Titles show the
+    chosen k (full / null) and variance explained.
     """
-    trained_res = results_by_seed["trained"]
-    random_res = results_by_seed["random"]
-
     categories = ["Full Belief R²", "Null Belief R²\n(Orthogonal)", "Physics R²"]
-    metrics = ["full_belief_r2", "null_belief_r2", "physics_r2"]
     bar_colors = ["#3498db", "#9b59b6", "#e67e22"]
-
-    for ax_idx, (model_type, r_list) in enumerate([("Trained Model", trained_res), ("Random Baseline", random_res)]):
-        ax = axes[ax_idx]
-        means = [np.mean([r[m] for r in r_list]) for m in metrics]
-        stds = [np.std([r[m] for r in r_list]) for m in metrics]
-
-        x = np.arange(len(categories))
-        bars = ax.bar(x, means, yerr=stds, capsize=5, color=bar_colors, alpha=0.85, edgecolor="black", width=0.55)
-
+    k = np.mean([r["k"] for r in results_by_seed])
+    k_null = np.mean([r["k_null"] for r in results_by_seed])
+    panels = [
+        ("Trained Model", "", "var_explained", "var_explained_null"),
+        ("Random Baseline", "_random", "var_explained_random", "var_explained_null_random"),
+    ]
+    for ax, (name, sfx, v_key, vn_key) in zip(axes, panels):
+        vals = np.array([[r[f"full_belief_r2{sfx}"], r[f"null_belief_r2{sfx}"], r[f"physics_r2{sfx}"]]
+                         for r in results_by_seed], dtype=float)
+        means, stds = np.nanmean(vals, axis=0), np.nanstd(vals, axis=0)
+        x = np.arange(3)
+        bars = ax.bar(x, np.nan_to_num(means), yerr=np.nan_to_num(stds), capsize=5,
+                      color=bar_colors, alpha=0.85, edgecolor="black", width=0.55)
         for bar, mean_val in zip(bars, means):
-            y_pos = max(mean_val, 0) + 0.03
-            ax.text(bar.get_x() + bar.get_width() / 2, y_pos, f"{mean_val:.2f}", ha="center", va="bottom", fontsize=8)
-
+            ax.text(bar.get_x() + bar.get_width() / 2, max(np.nan_to_num(mean_val), 0) + 0.03,
+                    f"{mean_val:.2f}", ha="center", va="bottom", fontsize=8)
+        ve = np.nanmean([r[v_key] for r in results_by_seed])
+        ven = np.nanmean([r[vn_key] for r in results_by_seed])
         ax.set_xticks(x)
         ax.set_xticklabels(categories, fontsize=8)
         ax.set_ylim(-0.1, 1.05)
         ax.axhline(0, color="gray", linestyle="--", linewidth=0.8)
         ax.set_ylabel("Probe $R^2$")
-        ax.set_title(f"{config_name}\n[{model_type}]", fontsize=10, fontweight="semibold")
+        ax.set_title(f"{config_name} [{name}]\nk={k:.0f} (var {ve:.2f}) | null k={k_null:.0f} (var {ven:.2f})",
+                     fontsize=9, fontweight="semibold")
         ax.grid(axis="y", linestyle=":", alpha=0.6)
 
 
 def plot_layer_emergence(
     axes: np.ndarray,
     config_name: str,
-    results_by_seed: dict[str, dict[str, list[list[dict[str, Any]]]]],
+    results_by_seed: dict[str, list[list[dict[str, Any]]]],
     config_idx: int,
 ) -> None:
-    """Line plots for Test B: Emergence across layers for 3 variations (Trained vs Random).
+    """Line plots for Test B: belief R² per layer, trained (axes[0]) vs random (axes[1]).
 
-    results_by_seed contains:
-      {"trained": {var: [seeds...]}, "random": {var: [seeds...]}}
+    results_by_seed: {variation: [test_layer_emergence result per seed]}. X tick labels
+    carry the chosen k of the last-token variation (first present variation).
     """
     variations = ["last_token", "cycle_concat", "all_tokens"]
     var_labels = {"last_token": "Last Token", "cycle_concat": "Cycle Concat", "all_tokens": "All Tokens"}
     var_colors = {"last_token": "#2980b9", "cycle_concat": "#27ae60", "all_tokens": "#8e44ad"}
+    present = [v for v in variations if v in results_by_seed]
+    first = results_by_seed[present[0]]
+    ks = np.mean([[d["k"] for d in run] for run in first], axis=0)
+    labels = [f"{d['layer']}\nk={k:.0f}" for d, k in zip(first[0], ks)]
+    x = np.arange(len(labels))
 
-    for ax_idx, model_type in enumerate(["trained", "random"]):
-        ax = axes[ax_idx]
-        var_data = results_by_seed[model_type]
-
-        for var in variations:
-            if var not in var_data:
-                continue
-            seed_runs = var_data[var]  # list of lists
-            # Layer names from first run
-            layer_names = [d["layer"] for d in seed_runs[0]]
-            x = np.arange(len(layer_names))
-
-            # Matrix of shape (n_seeds, n_layers)
-            b_r2s = np.array([[d["belief_r2"] for d in run] for run in seed_runs])
-            mean_b = b_r2s.mean(axis=0)
-            std_b = b_r2s.std(axis=0)
-
-            c = var_colors[var]
-            ax.plot(x, mean_b, marker="o", label=f"Belief ({var_labels[var]})", color=c, linewidth=1.8)
-            ax.fill_between(x, mean_b - std_b, mean_b + std_b, color=c, alpha=0.18)
-
+    for ax, (name, key) in zip(axes, [("Trained Model", "belief_r2"), ("Random Baseline", "belief_r2_random")]):
+        for var in present:
+            _band(ax, x, [{key: [d[key] for d in run]} for run in results_by_seed[var]],
+                  key, f"Belief ({var_labels[var]})", var_colors[var])
         ax.set_xticks(x)
-        ax.set_xticklabels(layer_names, fontsize=9)
+        ax.set_xticklabels(labels, fontsize=8)
         ax.set_ylabel("Probe $R^2$")
         ax.set_ylim(-0.1, 1.05)
         ax.grid(True, linestyle=":", alpha=0.6)
-        ax.set_title(f"{config_name}\n[{model_type.capitalize()} Model]", fontsize=10, fontweight="semibold")
-        if ax_idx == 0:
-            ax.legend(fontsize=7, loc="upper left")
+        ax.set_title(f"{config_name}\n[{name}] ({present[0]} k shown)", fontsize=9, fontweight="semibold")
+        ax.legend(fontsize=7, loc="upper left")
 
 
 def plot_pca_alignment(
     axes: np.ndarray,
     config_name: str,
-    results_by_seed: dict[str, dict[str, list[dict[str, Any]]]],
+    results_by_seed: dict[str, list[dict[str, Any]]],
     config_idx: int,
 ) -> None:
-    """Line plots for Test C: Cumulative R² vs # PCs across feature configs."""
+    """Line plots for Test C: belief R² vs # PCs, trained vs random, one axis per feature config.
+
+    results_by_seed: {feature_config: [test_pca_alignment result per seed]}. The dotted
+    vertical line marks k_threshold (trained model PCs reaching the variance threshold).
+    """
     configs = ["all_layers_cycle", "all_layers_single_token", "single_layer_all_tokens"]
     titles = {
         "all_layers_cycle": "All Layers + Cycle Concat",
         "all_layers_single_token": "All Layers + Single Token",
         "single_layer_all_tokens": "Single Layer + Cycle Concat",
     }
-
-    present = [c for c in configs if c in results_by_seed.get("trained", {})]
-    target_configs = present if present else configs
-
-    for ax_idx, feat_cfg in enumerate(target_configs[:len(axes)]):
+    present = [c for c in configs if c in results_by_seed]
+    for ax_idx, feat_cfg in enumerate(present[:len(axes)]):
         ax = axes[ax_idx]
-        tr_runs = results_by_seed.get("trained", {}).get(feat_cfg, [])
-        rnd_runs = results_by_seed.get("random", {}).get(feat_cfg, [])
-
-        if not tr_runs:
-            continue
-
-        pcs = tr_runs[0]["n_pcs"]
-
-        # Trained model
-        tr_bel = np.array([r["belief_r2"] for r in tr_runs])
-        tr_mean, tr_std = tr_bel.mean(axis=0), tr_bel.std(axis=0)
-        ax.plot(pcs, tr_mean, marker="o", label="Trained Belief", color="#2980b9", linewidth=1.8)
-        ax.fill_between(pcs, tr_mean - tr_std, tr_mean + tr_std, color="#2980b9", alpha=0.2)
-
-        # Random model
-        if rnd_runs:
-            rnd_bel = np.array([r["belief_r2"] for r in rnd_runs])
-            rnd_mean, rnd_std = rnd_bel.mean(axis=0), rnd_bel.std(axis=0)
-            ax.plot(pcs, rnd_mean, marker="s", label="Random Belief", color="#7f8c8d", linestyle="--", linewidth=1.5)
-            ax.fill_between(pcs, rnd_mean - rnd_std, rnd_mean + rnd_std, color="#7f8c8d", alpha=0.15)
-
+        runs = results_by_seed[feat_cfg]
+        pcs = runs[0]["n_pcs"]
+        _band(ax, pcs, runs, "belief_r2", "Trained Belief", "#2980b9")
+        _band(ax, pcs, runs, "belief_r2_random", "Random Belief", "#7f8c8d", ls="--", marker="s")
+        k_thr = np.mean([r["k_threshold"] for r in runs])
+        ax.axvline(k_thr, color="#c0392b", linestyle=":", linewidth=1.2,
+                   label=f"k@{runs[0]['var_threshold']:.0%} var = {k_thr:.0f}")
         ax.set_xlabel("Number of PCs", fontsize=8)
         ax.set_ylabel("Belief Probe $R^2$", fontsize=8)
         ax.set_ylim(-0.05, 1.05)
         ax.set_title(f"{config_name}\n{titles.get(feat_cfg, feat_cfg)}", fontsize=9, fontweight="semibold")
         ax.grid(True, linestyle=":", alpha=0.6)
-        if ax_idx == 0:
-            ax.legend(fontsize=7, loc="lower right")
+        ax.legend(fontsize=7, loc="lower right")
 
 
 def plot_temporal_selectivity(
@@ -1100,33 +1168,23 @@ def plot_temporal_selectivity(
     results_by_seed: list[dict[str, Any]],
     config_idx: int,
 ) -> None:
-    """Plots for Test D: Decodability within cycle (Belief on Left, Physics on Right)."""
+    """Plots for Test D: belief (axes[0]) and physics (axes[1]) R² by within-cycle position.
+
+    Trained solid, random dashed (if present). Titles show the range of chosen k.
+    """
     positions = results_by_seed[0]["positions"]
-    bel_r2s = np.array([r["belief_r2"] for r in results_by_seed])
-    phys_r2s = np.array([r["physics_r2"] for r in results_by_seed])
-
-    # Belief
-    ax0 = axes[0]
-    b_mean, b_std = bel_r2s.mean(axis=0), bel_r2s.std(axis=0)
-    ax0.plot(positions, b_mean, marker="o", color="#8e44ad", linewidth=2.0, label="Belief $R^2$")
-    ax0.fill_between(positions, b_mean - b_std, b_mean + b_std, color="#8e44ad", alpha=0.2)
-    ax0.set_xlabel("Position within Cycle (0=Kick, 9=Perturb)", fontsize=8)
-    ax0.set_ylabel("Belief $R^2$")
-    ax0.set_ylim(-0.05, 1.05)
-    ax0.set_title(f"{config_name}\nBelief Decodability", fontsize=10, fontweight="semibold")
-    ax0.grid(True, linestyle=":", alpha=0.6)
-
-    # Physics
-    if len(axes) > 1:
-        ax1 = axes[1]
-        p_mean, p_std = phys_r2s.mean(axis=0), phys_r2s.std(axis=0)
-        ax1.plot(positions, p_mean, marker="s", color="#d35400", linewidth=2.0, label="Physics $R^2$")
-        ax1.fill_between(positions, p_mean - p_std, p_mean + p_std, color="#d35400", alpha=0.2)
-        ax1.set_xlabel("Position within Cycle (0=Kick, 9=Perturb)", fontsize=8)
-        ax1.set_ylabel("Physics $R^2$")
-        ax1.set_ylim(-0.05, 1.05)
-        ax1.set_title(f"{config_name}\nPhysics Decodability", fontsize=10, fontweight="semibold")
-        ax1.grid(True, linestyle=":", alpha=0.6)
+    k_all = np.array([r["k"] for r in results_by_seed])
+    k_txt = f"k={k_all.min():.0f}..{k_all.max():.0f}"
+    for ax, (what, color, marker) in zip(axes, [("belief", "#8e44ad", "o"), ("physics", "#d35400", "s")]):
+        _band(ax, positions, results_by_seed, f"{what}_r2", f"{what.capitalize()} (trained)", color, marker=marker)
+        _band(ax, positions, results_by_seed, f"{what}_r2_random", f"{what.capitalize()} (random)",
+              "#7f8c8d", ls="--", marker="x")
+        ax.set_xlabel("Position within Cycle (0=Kick, 9=Perturb)", fontsize=8)
+        ax.set_ylabel(f"{what.capitalize()} $R^2$")
+        ax.set_ylim(-0.05, 1.05)
+        ax.set_title(f"{config_name}\n{what.capitalize()} Decodability ({k_txt})", fontsize=9, fontweight="semibold")
+        ax.grid(True, linestyle=":", alpha=0.6)
+        ax.legend(fontsize=7, loc="lower right")
 
 
 def plot_matched_physics(

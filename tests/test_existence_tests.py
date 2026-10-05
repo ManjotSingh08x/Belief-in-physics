@@ -83,46 +83,62 @@ def test_c4_feature_and_target_extraction(setup_env):
 
 
 def test_c5_test_nullspace(setup_env):
-    proc = setup_env["proc"]
-    tr_m = setup_env["tr_m"]
-    rnd_m = setup_env["rnd_m"]
-    data = setup_env["data"]
+    proc, tr_m, rnd_m, data = (setup_env[k] for k in ("proc", "tr_m", "rnd_m", "data"))
 
-    res_tr = et.test_nullspace(tr_m, data, proc, "all_layers_single_token", 1.0, 0.8, DEVICE, 42)
-    res_rnd = et.test_nullspace(rnd_m, data, proc, "all_layers_single_token", 1.0, 0.8, DEVICE, 42)
-    assert res_tr["null_belief_r2"] > res_rnd["null_belief_r2"]
-    assert res_tr["null_feature_dim"] == res_tr["feature_dim"] - 2
+    res = et.test_nullspace(tr_m, data, proc, "all_layers_single_token", 1.0, 0.8, DEVICE, 42,
+                            random_model=rnd_m, var_threshold=0.9)
+    assert res["null_belief_r2"] > res["null_belief_r2_random"]
+    assert res["null_feature_dim"] == res["feature_dim"] - 2
+    assert 1 <= res["k"] <= res["feature_dim"] and res["var_explained"] >= 0.9
+    assert not np.isnan(res["full_belief_r2_random"])
 
 
 def test_c6_test_layer_emergence(setup_env):
-    proc = setup_env["proc"]
-    tr_m = setup_env["tr_m"]
-    data = setup_env["data"]
+    proc, tr_m, rnd_m, data = (setup_env[k] for k in ("proc", "tr_m", "rnd_m", "data"))
 
-    res = et.test_layer_emergence(tr_m, data, proc, "last_token", 1.0, 0.8, DEVICE, 42)
+    res = et.test_layer_emergence(tr_m, data, proc, "last_token", 1.0, 0.8, DEVICE, 42, random_model=rnd_m)
     assert len(res) == 6
     assert [r["layer"] for r in res] == ["emb", "L1", "L2", "L3", "L4", "all"]
+    assert all(r["k"] >= 1 and not np.isnan(r["belief_r2_random"]) for r in res)
 
 
 def test_c7_test_pca_alignment(setup_env):
-    proc = setup_env["proc"]
-    tr_m = setup_env["tr_m"]
-    data = setup_env["data"]
+    proc, tr_m, rnd_m, data = (setup_env[k] for k in ("proc", "tr_m", "rnd_m", "data"))
 
-    res = et.test_pca_alignment(tr_m, data, proc, "all_layers_single_token", 1.0, 0.8, DEVICE, 42, max_pcs=10)
-    assert len(res["n_pcs"]) == len(res["belief_r2"])
+    res = et.test_pca_alignment(tr_m, data, proc, "all_layers_single_token", 1.0, 0.8, DEVICE, 42,
+                                max_pcs=10, random_model=rnd_m)
+    assert len(res["n_pcs"]) == len(res["belief_r2"]) == len(res["belief_r2_random"])
+    assert res["k_threshold"] in res["n_pcs"]
     assert res["belief_r2"][-1] >= res["belief_r2"][0]
 
 
 def test_c8_test_temporal_selectivity(setup_env):
-    proc = setup_env["proc"]
-    tr_m = setup_env["tr_m"]
-    data = setup_env["data"]
+    proc, tr_m, rnd_m, data = (setup_env[k] for k in ("proc", "tr_m", "rnd_m", "data"))
 
-    res = et.test_temporal_selectivity(tr_m, data, proc, 1.0, 0.8, DEVICE, 42)
-    assert len(res["positions"]) == 10
-    assert len(res["belief_r2"]) == 10
-    assert len(res["physics_r2"]) == 10
+    res = et.test_temporal_selectivity(tr_m, data, proc, 1.0, 0.8, DEVICE, 42, random_model=rnd_m)
+    assert len(res["positions"]) == len(res["belief_r2"]) == len(res["physics_r2"]) == 10
+    assert len(res["k"]) == len(res["belief_r2_random"]) == 10
+
+
+def test_c12_pca_ridge_probe():
+    rng = np.random.default_rng(0)
+    z = rng.normal(size=(600, 3)).astype(np.float32)
+    mix = rng.normal(size=(3, 40)).astype(np.float32)
+    X = z @ mix + 0.01 * rng.normal(size=(600, 40)).astype(np.float32)  # rank-3 signal
+    Xr = rng.normal(size=(600, 40)).astype(np.float32)                  # no structure
+    y = z[:, :2] @ np.array([[1.0, 2.0], [-1.0, 0.5]], dtype=np.float32)
+
+    res = et.pca_ridge_probe(X[:450], X[450:], {"t": (y[:450], y[450:])}, 1.0, DEVICE, 0.99,
+                             X_rand_tr=Xr[:450], X_rand_te=Xr[450:])
+    assert res["k"] == 3 and res["var_explained"] >= 0.99      # k from trained data only
+    assert res["r2"]["t"] > 0.99
+    assert res["random"]["k"] == 3                              # same k applied to baseline
+    assert res["random"]["r2"]["t"] < 0.2
+    assert res["probe"]["V"].shape == (40, 3) and res["probe"]["W"]["t"].shape == (3, 2)
+    # returned probe reproduces the reported R²
+    pred = ((X[450:] - res["probe"]["mean"]) @ res["probe"]["V"]) @ res["probe"]["W"]["t"] + res["probe"]["y_mean"]["t"]
+    assert 1 - ((y[450:] - pred) ** 2).sum() / ((y[450:] - y[450:].mean(0)) ** 2).sum() > 0.99
+    assert et.pca_ridge_probe(X[:450], X[450:], {"t": (y[:450], y[450:])}, 1.0, DEVICE)["random"] is None
 
 
 def test_c9_test_matched_physics(setup_env):
