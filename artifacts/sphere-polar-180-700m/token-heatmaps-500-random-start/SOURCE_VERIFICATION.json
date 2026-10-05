@@ -1,0 +1,16 @@
+{
+  "runtime_source_files_verified": 26,
+  "all_match_immutable_source_snapshot": true,
+  "python_version": "3.13.5",
+  "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "snapshot_manifest_relative_path": "../results/SOURCE_SNAPSHOT.json",
+  "nonruntime_snapshot_files_not_staged": [
+    "pyproject.toml"
+  ],
+  "remote_probability_and_NLL_verification": "passed",
+  "primary_cpu_memory_peak_mib": 536.6,
+  "memory_limit_gib": 12,
+  "swap_limit_bytes": 0,
+  "training_launched": false,
+  "gpu_rental_created": false
+}

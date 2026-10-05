@@ -1,0 +1,583 @@
+{
+  "experiment_id": "sphere-token-500-random-start-eval-20261005",
+  "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+  "script_sha256": "4ead6baad8908d84b1f7bcd8e931c750e076350385cbaa970c352b05c636ad91",
+  "chain_seed": 20261005,
+  "initial_seed": 20261006,
+  "initial_distribution": "Independent Gaussian jitter around (0.6,0,0,2), using existing bounded InitialStateConfig sampler",
+  "initial_coordinate_order": [
+    "theta",
+    "psi",
+    "dtheta",
+    "dpsi"
+  ],
+  "jitter_std": 0.1,
+  "trajectory_tokens": 500,
+  "paths_per_initial_mode": 4,
+  "inference_protocol": "Causal prefix then sliding context of n_ctx-k tokens; positions reset in each window. Last k untrained source positions are avoided.",
+  "interpretation": "Frozen models trained on 16-tick fixed-start sequences. Long/random-start evaluation is outside their original training protocol, not newly randomized or 500-context training.",
+  "probability_semantics": "Native softmax over 181 observation tokens at t+k; no fitted belief probe or probability projection",
+  "uniform_baseline_nll": 5.198497031265826,
+  "cpu_host": "stg-entity-server",
+  "environment": {
+    "torch": "2.14.0+cpu",
+    "numpy": "2.5.3"
+  },
+  "results": [
+    {
+      "label": "long_context_k10",
+      "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k10",
+      "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+      "configuration_sha256": "67c444c07fc5e50be50ed982d06ec82e453fb3eba9f4c28f9ff73c320e2b3b08",
+      "original_experiment": {
+        "name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16",
+        "physics": {
+          "dt": 0.04,
+          "integration_dt": 0.005,
+          "delta_v": 0.14,
+          "obs_bins": 181,
+          "g": 9.8,
+          "length": 1.0,
+          "gamma": 0.35,
+          "rate_max": 32.0,
+          "theta0": 0.6,
+          "psi_dot0": 2.0,
+          "system_name": "sphere"
+        },
+        "hmm": {
+          "n_states": 4,
+          "alpha": 0.95,
+          "stay": 0.7
+        },
+        "initial_state": {
+          "mode": "fixed",
+          "jitter_std": 0.1
+        },
+        "seed": 20260931,
+        "n_trajectories": 256,
+        "m": 16,
+        "n": 20
+      },
+      "architecture": {
+        "vocab_size": 181,
+        "n_ctx": 320,
+        "n_layers": 4,
+        "n_heads": 2,
+        "d_model": 128,
+        "d_mlp": 512,
+        "seed": 0
+      },
+      "trajectory_tokens": 500,
+      "hmm_ticks": 25,
+      "k_lookahead": 10,
+      "inference_context": 310,
+      "fixed_and_random_starts_share_identical_HMM_letters": true,
+      "initial_states": {
+        "fixed": [
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ]
+        ],
+        "random": [
+          [
+            0.5466464097960465,
+            -0.12306617438822443,
+            0.07468929896242729,
+            2.0550646781907735
+          ],
+          [
+            0.5195419198475661,
+            0.0937450157694597,
+            0.16269352418980382,
+            2.0392598167968523
+          ],
+          [
+            0.6178089844446786,
+            0.02729503111327425,
+            -0.026315723485605798,
+            2.0883294149414695
+          ],
+          [
+            0.5705310024463356,
+            -0.10521050232148532,
+            0.06440478378175023,
+            2.0814709300381224
+          ]
+        ]
+      },
+      "physics_checks": {
+        "fixed": {
+          "observation_range": [
+            0.31707255270721274,
+            0.6778627123506716
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 3.3531385279506054e-08
+        },
+        "random": {
+          "observation_range": [
+            0.30316211262936504,
+            0.6440363669082093
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 3.442929397134975e-08
+        }
+      },
+      "scores": {
+        "trained": {
+          "weight_sha256": "5d5f7c322b8eba39373d665458afb3c12a9d44f694569c74cdf345104fedc114",
+          "fixed": {
+            "mean_nll_nats": 3.590263843536377,
+            "mean_nll_first_window": 1.10479736328125,
+            "mean_nll_sliding_window": 7.87078857421875,
+            "path_nll_nats": [
+              3.0978665351867676,
+              4.041796684265137,
+              3.384878158569336,
+              3.8365132808685303
+            ],
+            "top1_accuracy": 0.5040816326530613
+          },
+          "random": {
+            "mean_nll_nats": 11.52588176727295,
+            "mean_nll_first_window": 9.935942649841309,
+            "mean_nll_sliding_window": 14.264111518859863,
+            "path_nll_nats": [
+              12.231711387634277,
+              13.634859085083008,
+              10.551315307617188,
+              9.685640335083008
+            ],
+            "top1_accuracy": 0.012755102040816327
+          }
+        },
+        "random_init": {
+          "weight_sha256": "8d0593f18d21b6a038237aba34d7ca855fe7ffc6c32a634f071d80d602fa769f",
+          "fixed": {
+            "mean_nll_nats": 5.449728965759277,
+            "mean_nll_first_window": 5.433526039123535,
+            "mean_nll_sliding_window": 5.477635860443115,
+            "path_nll_nats": [
+              5.460446357727051,
+              5.457849502563477,
+              5.446990489959717,
+              5.43363094329834
+            ],
+            "top1_accuracy": 0.002551020408163265
+          },
+          "random": {
+            "mean_nll_nats": 5.414734840393066,
+            "mean_nll_first_window": 5.422213554382324,
+            "mean_nll_sliding_window": 5.401854515075684,
+            "path_nll_nats": [
+              5.433198928833008,
+              5.400477886199951,
+              5.425941467285156,
+              5.399320602416992
+            ],
+            "top1_accuracy": 0.004591836734693878
+          }
+        }
+      }
+    },
+    {
+      "label": "long_context_k21",
+      "model_name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k21",
+      "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+      "configuration_sha256": "4dfba5a2d8dedc70ab171640a62665784636c4f4ce8ce082ed0273351ec67407",
+      "original_experiment": {
+        "name": "sphere_polar_c11_n_up_gamma_constant_d0p14_a0p95_m16",
+        "physics": {
+          "dt": 0.04,
+          "integration_dt": 0.005,
+          "delta_v": 0.14,
+          "obs_bins": 181,
+          "g": 9.8,
+          "length": 1.0,
+          "gamma": 0.35,
+          "rate_max": 32.0,
+          "theta0": 0.6,
+          "psi_dot0": 2.0,
+          "system_name": "sphere"
+        },
+        "hmm": {
+          "n_states": 4,
+          "alpha": 0.95,
+          "stay": 0.7
+        },
+        "initial_state": {
+          "mode": "fixed",
+          "jitter_std": 0.1
+        },
+        "seed": 20260931,
+        "n_trajectories": 256,
+        "m": 16,
+        "n": 20
+      },
+      "architecture": {
+        "vocab_size": 181,
+        "n_ctx": 320,
+        "n_layers": 4,
+        "n_heads": 2,
+        "d_model": 128,
+        "d_mlp": 512,
+        "seed": 0
+      },
+      "trajectory_tokens": 500,
+      "hmm_ticks": 25,
+      "k_lookahead": 21,
+      "inference_context": 299,
+      "fixed_and_random_starts_share_identical_HMM_letters": true,
+      "initial_states": {
+        "fixed": [
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ]
+        ],
+        "random": [
+          [
+            0.5466464097960465,
+            -0.12306617438822443,
+            0.07468929896242729,
+            2.0550646781907735
+          ],
+          [
+            0.5195419198475661,
+            0.0937450157694597,
+            0.16269352418980382,
+            2.0392598167968523
+          ],
+          [
+            0.6178089844446786,
+            0.02729503111327425,
+            -0.026315723485605798,
+            2.0883294149414695
+          ],
+          [
+            0.5705310024463356,
+            -0.10521050232148532,
+            0.06440478378175023,
+            2.0814709300381224
+          ]
+        ]
+      },
+      "physics_checks": {
+        "fixed": {
+          "observation_range": [
+            0.31707255270721274,
+            0.6778627123506716
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 3.3531385279506054e-08
+        },
+        "random": {
+          "observation_range": [
+            0.30316211262936504,
+            0.6440363669082093
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 3.442929397134975e-08
+        }
+      },
+      "scores": {
+        "trained": {
+          "weight_sha256": "2b34c5f945a32bd950c7ace884293cecbd705f502aa3c5506e7936ac0aa35767",
+          "fixed": {
+            "mean_nll_nats": 2.4559948444366455,
+            "mean_nll_first_window": 1.8847562074661255,
+            "mean_nll_sliding_window": 3.4048855304718018,
+            "path_nll_nats": [
+              2.5275726318359375,
+              2.6443798542022705,
+              1.8983558416366577,
+              2.753671169281006
+            ],
+            "top1_accuracy": 0.3465553235908142
+          },
+          "random": {
+            "mean_nll_nats": 3.760348081588745,
+            "mean_nll_first_window": 3.820979595184326,
+            "mean_nll_sliding_window": 3.6596319675445557,
+            "path_nll_nats": [
+              3.926050901412964,
+              3.9404308795928955,
+              3.616741180419922,
+              3.558168888092041
+            ],
+            "top1_accuracy": 0.08663883089770355
+          }
+        },
+        "random_init": {
+          "weight_sha256": "6633f4f995df1ec27177fb15b48fa637f50338317e37b41a5b1a7c18bd407bd8",
+          "fixed": {
+            "mean_nll_nats": 5.381401538848877,
+            "mean_nll_first_window": 5.384224891662598,
+            "mean_nll_sliding_window": 5.376710414886475,
+            "path_nll_nats": [
+              5.442728042602539,
+              5.33305549621582,
+              5.390265464782715,
+              5.359555721282959
+            ],
+            "top1_accuracy": 0.005219206680584551
+          },
+          "random": {
+            "mean_nll_nats": 5.405665397644043,
+            "mean_nll_first_window": 5.41965389251709,
+            "mean_nll_sliding_window": 5.382428169250488,
+            "path_nll_nats": [
+              5.459575653076172,
+              5.370296478271484,
+              5.3759765625,
+              5.416811943054199
+            ],
+            "top1_accuracy": 0.005219206680584551
+          }
+        }
+      }
+    },
+    {
+      "label": "belief_winner_k2",
+      "model_name": "sphere_polar_c08_n_down_gamma_up_d0p14_a0p95_m16_d128l4h2mlp512_700m_seed0_k2",
+      "training_source_revision": "dc80726a8c987e8c3a9171299dac00d03a074311",
+      "configuration_sha256": "38209682116323e93292f9555f5a7c82e56ca456bcd6097a7118ccdf27020264",
+      "original_experiment": {
+        "name": "sphere_polar_c08_n_down_gamma_up_d0p14_a0p95_m16",
+        "physics": {
+          "dt": 0.04,
+          "integration_dt": 0.005,
+          "delta_v": 0.14,
+          "obs_bins": 181,
+          "g": 9.8,
+          "length": 1.0,
+          "gamma": 0.7,
+          "rate_max": 32.0,
+          "theta0": 0.6,
+          "psi_dot0": 2.0,
+          "system_name": "sphere"
+        },
+        "hmm": {
+          "n_states": 4,
+          "alpha": 0.95,
+          "stay": 0.7
+        },
+        "initial_state": {
+          "mode": "fixed",
+          "jitter_std": 0.1
+        },
+        "seed": 20260928,
+        "n_trajectories": 256,
+        "m": 16,
+        "n": 5
+      },
+      "architecture": {
+        "vocab_size": 181,
+        "n_ctx": 80,
+        "n_layers": 4,
+        "n_heads": 2,
+        "d_model": 128,
+        "d_mlp": 512,
+        "seed": 0
+      },
+      "trajectory_tokens": 500,
+      "hmm_ticks": 100,
+      "k_lookahead": 2,
+      "inference_context": 78,
+      "fixed_and_random_starts_share_identical_HMM_letters": true,
+      "initial_states": {
+        "fixed": [
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ],
+          [
+            0.6,
+            0.0,
+            0.0,
+            2.0
+          ]
+        ],
+        "random": [
+          [
+            0.5466464097960465,
+            -0.12306617438822443,
+            0.07468929896242729,
+            2.0550646781907735
+          ],
+          [
+            0.5195419198475661,
+            0.0937450157694597,
+            0.16269352418980382,
+            2.0392598167968523
+          ],
+          [
+            0.6178089844446786,
+            0.02729503111327425,
+            -0.026315723485605798,
+            2.0883294149414695
+          ],
+          [
+            0.5705310024463356,
+            -0.10521050232148532,
+            0.06440478378175023,
+            2.0814709300381224
+          ]
+        ]
+      },
+      "physics_checks": {
+        "fixed": {
+          "observation_range": [
+            0.26898071444393207,
+            0.7950101391950605
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 7.39428539509035e-08
+        },
+        "random": {
+          "observation_range": [
+            0.2399925931549725,
+            0.7743196439067275
+          ],
+          "observation_bin_clipping_fraction": 0.0,
+          "sampled_polar_boundary_contacts": 0,
+          "sampled_rate_limit_contacts": 0,
+          "finer_integration_dt": 0.0025,
+          "reference_token_agreement": 1.0,
+          "reference_max_polar_error_rad": 9.624602059776777e-08
+        }
+      },
+      "scores": {
+        "trained": {
+          "weight_sha256": "3ba8af8f08686fe20052695e3114a0d0ccd79bf2f47eb32dd0c635842987f9ff",
+          "fixed": {
+            "mean_nll_nats": 4.972421169281006,
+            "mean_nll_first_window": 0.7068852186203003,
+            "mean_nll_sliding_window": 5.764591693878174,
+            "path_nll_nats": [
+              4.207518577575684,
+              5.5257182121276855,
+              5.091933250427246,
+              5.064513683319092
+            ],
+            "top1_accuracy": 0.34086345381526106
+          },
+          "random": {
+            "mean_nll_nats": 7.540927886962891,
+            "mean_nll_first_window": 5.4777092933654785,
+            "mean_nll_sliding_window": 7.924098014831543,
+            "path_nll_nats": [
+              7.413102626800537,
+              9.802132606506348,
+              6.662370681762695,
+              6.286108016967773
+            ],
+            "top1_accuracy": 0.16917670682730923
+          }
+        },
+        "random_init": {
+          "weight_sha256": "fb383311e655361b4fd7ba474652dd62ac57d4189293e593918f1eb1f11c600d",
+          "fixed": {
+            "mean_nll_nats": 5.337209224700928,
+            "mean_nll_first_window": 5.363853454589844,
+            "mean_nll_sliding_window": 5.332261562347412,
+            "path_nll_nats": [
+              5.3625569343566895,
+              5.36203670501709,
+              5.320688247680664,
+              5.303555488586426
+            ],
+            "top1_accuracy": 0.006024096385542169
+          },
+          "random": {
+            "mean_nll_nats": 5.3251423835754395,
+            "mean_nll_first_window": 5.338895320892334,
+            "mean_nll_sliding_window": 5.322587490081787,
+            "path_nll_nats": [
+              5.3077473640441895,
+              5.370800018310547,
+              5.345031261444092,
+              5.2769904136657715
+            ],
+            "top1_accuracy": 0.010040160642570281
+          }
+        }
+      }
+    }
+  ]
+}
