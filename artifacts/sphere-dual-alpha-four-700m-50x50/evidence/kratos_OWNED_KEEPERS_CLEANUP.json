@@ -1,0 +1,31 @@
+{
+  "checked_at": 1791309722.586241,
+  "owned_keepers_stop_requested": true,
+  "records": [
+    {
+      "pid": 80369,
+      "unit": "sphere-alpha-login-a-20261006.scope",
+      "identity_verified": true
+    },
+    {
+      "pid": 80370,
+      "unit": "sphere-alpha-login-b-20261006.scope",
+      "identity_verified": true
+    },
+    {
+      "unit": "sphere-alpha-login-b-20261006.scope",
+      "stop_exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "unit": "sphere-alpha-login-a-20261006.scope",
+      "stop_exit_code": 0,
+      "stderr": ""
+    }
+  ],
+  "caffeinate_stop_requested": true,
+  "gpu_worker_completion_evidence": "GPU_COMPLETION_VERIFIED.json",
+  "remote_owned_units_inactive_verified": true,
+  "mac_owned_processes_gone_verified": true,
+  "verified_at": 1791309796.813667
+}

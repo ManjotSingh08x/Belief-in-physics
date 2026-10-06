@@ -1,0 +1,27 @@
+{
+  "disk_gb": 25,
+  "guard_hourly_rate": 0.445,
+  "max_total_dollars": 2.0,
+  "transfer_reserve": 0.35,
+  "prior_rental_reserve": 0.05,
+  "max_rental_hours": 3.5955056179775275,
+  "instance_id": 54400240,
+  "offer_id": 50992860,
+  "label": "sphere-dual-alpha-four-700m-20261006-3e35d58",
+  "created_at": 1791244657.4600132,
+  "source_revision": "3e35d5863b4944d4352ee124d0cc62ee1ff338eb",
+  "source_archive_sha256": "c30d0c414ca517cee152c64894f3d62573f6daa98571553904b18589635b5853",
+  "image": "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime",
+  "estimated_hourly_rate": 0.4300925925925926,
+  "models": 4,
+  "requested_tokens_each": 700000000,
+  "actual_tokens_each": 699904000,
+  "persistent_volumes_requested": false,
+  "alpha_values": [
+    0.5,
+    0.65,
+    0.75,
+    0.85
+  ],
+  "selection_basis": "highest live provider dlperf per dollar among 103 qualifying single-GPU offers; exact four-worker throughput not yet measured"
+}

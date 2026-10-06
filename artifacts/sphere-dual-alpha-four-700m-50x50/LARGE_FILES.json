@@ -1,0 +1,205 @@
+{
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901075,
+    "sha256": "95669cb8ff2680f2206fdfd87ea2f72b54635fb5b2a5584b353c74bb8c799a0f",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0000": "b14e4b1cc97b5f5eeca05b07dd89e659cd24c38b188e5fdfa73973956f995a56",
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0001": "7a31174071242a549c5c1b690ed66082e0375306c5beff65bed88e2697c3d3d3"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901075,
+    "sha256": "6f2ad22b4a448f1a73b6307346cbaf0c061d560904c9accbc0cbe3733630fb17",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0000": "2f17011bfbeac98d94b6a86783293551f798e6a330ccb58bd3e399e37ec30956",
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0001": "edecd123f01f23946c53c91cb8da4d5d6c5c9a1189d9a40ff18fbb5b3f378b93"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901074,
+    "sha256": "33d2b3273633df3a8f7308add489666eabc3b418dcb4c068e0a0e660c18b5a8d",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0000": "132ac37ecc469014accecf3214c1a7ea0a2e6de8b470e8521a4bcdb5fbf40327",
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0001": "0dc500e6306637ef05ac3363d3973ad7b434f08c787e1df80cfc67221d49b205"
+    }
+  },
+  "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901074,
+    "sha256": "577bcf55ee91035329f93d91e544990a6606a09dc8a05a0912b5bfa02f6a3df9",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0000": "dd8829359c173f5d62777e17ffbdc497242e8e5f6888a0c166abe34cf565cb70",
+      "joint3d/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0001": "1fa92b8759530e78551963f3666ed8cb1ec0662a0653d8d402be9fe706100301"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901076,
+    "sha256": "e0fbb0270e7f7ed9e9458b4b8be2b0ec1d35932c253735321fad9593d6f3122c",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0000": "ff6472dc04936f5703f1bf53d83f6e230e0e4f37dc63fd137ca556cb8b4beb9c",
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0001": "0260fabdff4126a1c9001145bd3a0bfbbbc1d640f7c6b01dde0baa3f4af96a6e"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901076,
+    "sha256": "e166c6d28f5df66566677a3dfbdeebcd392ef92cdd707bb12caedde31bd6bf77",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0000": "d8fbe86fd0c6acbd3715f80811725b24c689e100ce07a7c8d3070d0802c8b7f5",
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0001": "889dd0dfac866a94dd8f1ca0a435b66a6765ac2c641211b19d4b7ee269c39024"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901075,
+    "sha256": "bc34103ebbbe25f35b9a46030e81464e726306cefc146b441403f3ce4502f9bc",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0000": "6343c61eac853304f9897124761ef9e645ea2acff5b2f7c1c3bf0c14df4d1485",
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0001": "bde275617fd2ce5a46c9089251953c85d33d5e856dbd2d9757e0948be7f953a0"
+    }
+  },
+  "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901075,
+    "sha256": "f446b7ae3109eb22a578848f51706afe3bce582f0bacf23b2540882a166bb8b6",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0000": "99016c96b053f5dc6c6476e515199b3891add233e9dc4cfcefd4d382d6c975c2",
+      "joint3d/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0001": "517b4e004d7eb72802491ac69796b0a05e449d9e17adcd98ef0f6baa1bc2b809"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901076,
+    "sha256": "dcf20117acd0b5f7b37165e37923fa9dcb3591902ea455fa90f7049b54faed0a",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0000": "5725ebd2718221fde080a6f37221e236454d0b9f9b0fa3c260b4a8f101f5678d",
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0001": "ef905371298a4128a03624f504412f07e9a17b034d0a3d331b7a0fc97f5fb0b6"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901076,
+    "sha256": "c310dcceb437a433c20677e968c0c0a617c4bb6ccbbc2f9cba43deb2029436d0",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0000": "eefeff2fd396bff3d9c5b72bd7a34af69561cc504e13cd3675aa80eb1b011cfd",
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0001": "b6c96c105c24fd7e9ea4c3d100ca374e5f33ea32d3f56ab193842d9bf8169921"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901075,
+    "sha256": "3dcd18eae9c3509ae991e1dd2612c08bd7e7d86122fe7b765ae27f2c2bf2c449",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0000": "af50ea3eb2715564c74a79dd427bd283e09eee9b6bd4e8f1916b2e8e5d27d551",
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0001": "899d5100937ca1a6f99ea586a3c11c188b4d12dfa58a996ee34e79ed8b304a0d"
+    }
+  },
+  "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901075,
+    "sha256": "817d3de5922ff7a48d275f1ec9ee052f517a4acceb2727f832a7ab614e4d7411",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0000": "8f798ed9822bb7bc7b2bc9505c4752edeb50ef7b68a542f778e42bce2bc4c489",
+      "joint3d/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0001": "8b14a34040064e743b9757b0c672b0c35db43233eaf531663ac59cd98ccd1669"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html": {
+    "bytes": 17901076,
+    "sha256": "6e1cf0fbd0a0472dd31d4f896aa0e9fe691c356b7793ad4b61a2d767266aae8a",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0000": "bf9ce92f1b842aaa42272ecaded2854780a91bab16acf3f2546f46b787c7dfea",
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1340.html.part0001": "3efc378967345aa7a4342804af6496a121f72b83f6ec4d9adbb9588ed2a67011"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html": {
+    "bytes": 17901076,
+    "sha256": "413351c2b18ace692506aa25e2847a8b0c9cd07bf1a6fca900312c300c677659",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0000": "5d9429d1b07fd7496df28038c7a725ffaa267ad02cebe944da9a35cc0bf266ae",
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-1659.html.part0001": "5bb014ead2ae4fede122e76ed95bc9eb56775df62605b8423fe9b91a2d16a43f"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html": {
+    "bytes": 17901075,
+    "sha256": "e29cc2b5993d3278982195c14e485d29cde1f1de899925117ae5da9e69f2ffde",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0000": "e13b6bc91c176a19f7c9a93b19450cf5f5b2307cc17611ed5a0bea9ec1a16ab6",
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-436.html.part0001": "d8f98a0007ee3f0167ebe48fcd692705027c5d50ba48ee157d5ee75b909f0347"
+    }
+  },
+  "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html": {
+    "bytes": 17901075,
+    "sha256": "c0c4334e198103a052445f88d396cede092e53af9b31bbcf4f5739b8a468f74d",
+    "encoding": "gzip",
+    "parts": {
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0000": "a931957f32e825a11c4208ba4923ecad80efd2c430c4b1f3ff3696348c537608",
+      "joint3d/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10/path-910.html.part0001": "9e4283bab7cc3a701e4fab541a91a9af1287fa2dce9c400e1cb64ca99fc6d1d8"
+    }
+  },
+  "reproduction/training-source.tar.gz": {
+    "bytes": 26510301,
+    "sha256": "1177588a13e4efec9afa3e23b8fda3332acb6aa7c87c0edb7d6f026c8875bbf0",
+    "encoding": "raw",
+    "parts": {
+      "reproduction/training-source.tar.gz.part0000": "0f2a85a8c780219291e17e7230dacc526ad1069976c979b1f9af4987d0a09e33",
+      "reproduction/training-source.tar.gz.part0001": "6399a122165d3a2d4464c581a444e4a580a3e052726b337ea461f8fc16371178",
+      "reproduction/training-source.tar.gz.part0002": "ebf7c0a2943864ee0a6f067921a5370da9a6ac457877b5b124b72fedb9be33bf",
+      "reproduction/training-source.tar.gz.part0003": "2850dba601d1e087626df08cb2cbded35122f5ad38a1df19ef9a3af009688ae8"
+    }
+  },
+  "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38835965,
+    "sha256": "af87a0e6994fac9cbd8bd5567fe7aa601a805a3edabf91b3af4201c8c0abc97e",
+    "encoding": "raw",
+    "parts": {
+      "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip.part0000": "a10be5157482559501ffa5dfebc1f3710d606b86b55909ab140e8efa5a63d393",
+      "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip.part0001": "7bf6afbcc9ada5d0de905c229e7729a3f5d7a882c8e01f7cf5dd1a372635ca30",
+      "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip.part0002": "ca8ef5262127829853cb5488fd4b1bf98fb87d913fc3901f16ff7b5ec6e742a3",
+      "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip.part0003": "8297afd438784460a3faafa15d5c07a271bf256880a1bbb26718be05c4eee668",
+      "analysis/sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.zip.part0004": "61f176d5bfaee45a95bb5a9b3c6afb162d47f4ab2ff4ee1ce7b38bbf8885d45e"
+    }
+  },
+  "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38838085,
+    "sha256": "8b879e7ac2a255b8525bcf9226297dc3501dbc66250b01861fbbc46d462e4395",
+    "encoding": "raw",
+    "parts": {
+      "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip.part0000": "2183e244dd79851d664175c8b061493ee989d4ee28e9efe5a6a7427b814cb9d8",
+      "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip.part0001": "7a5d849b1b70d01550764a6882b97f539838dc60be3bd7783d1fd3806de4d53e",
+      "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip.part0002": "56ab932f4648fe0bc52a5e5ae0704e0a42920eafe35bb6a872812230f5d5ec90",
+      "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip.part0003": "578b113198b77181d1b4f14c957226a509dd7e0d1d72e58cf2c37d564e96f15e",
+      "analysis/sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.zip.part0004": "08678bc562b5218be765b2f73fe4c870a8638e0c06ba5acb486a9f91e9c4b742"
+    }
+  },
+  "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38824428,
+    "sha256": "9860f8f5e2dd06c1934970201bebb4d45cc2d01cfef3bdb962626dd416bb93ab",
+    "encoding": "raw",
+    "parts": {
+      "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip.part0000": "45f0adc419ed7e74c458f43d1a5bed4bc5a531544fe7f9c73203d8686eeb6a07",
+      "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip.part0001": "6ed2083cc00832729d6ea871d6388d93cc8c5ceee0ce5c731218a37904ae4f24",
+      "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip.part0002": "19357bb94ac2f0a3d365153c2f60dc4d421d5267592024db71bfd756fbd096d5",
+      "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip.part0003": "33d4420e52109169b0ba795667a00ed60be9bd8c99035fcb29340df78a91f4d7",
+      "analysis/sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.zip.part0004": "31c83728d695c05b2a83211769e4800df5ece3695974087bf9825ddf17deea9e"
+    }
+  },
+  "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip": {
+    "bytes": 38805854,
+    "sha256": "d3e33a223b28177d518e07f0cced0d9f9f3ce47519cc233c19447735e79077b3",
+    "encoding": "raw",
+    "parts": {
+      "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip.part0000": "70517fcbb4fd81a524c6ed33fb158de169b55859deeefc7824931c19f318516f",
+      "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip.part0001": "64ca5209b6c4ac8580c889c60cd038fba6a47bc64aa24d6e27fdf8660e81ab42",
+      "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip.part0002": "769ac419d180190c57f48e61bdb07da98d3d0f24ad89a74f61171587d99af5c4",
+      "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip.part0003": "c7b90bbb91e864eaedd92f81711475f63c704a2dce0a21ffb5146f1d6049a00c",
+      "analysis/sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.zip.part0004": "4a39bb41e5dde96700dd37458548048fd077204f2751f19986e9021c7ab46add"
+    }
+  }
+}

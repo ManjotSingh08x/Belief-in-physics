@@ -1,0 +1,91 @@
+{
+  "checked_at": 1791272920.5304453,
+  "all_owned_workers_stopped": true,
+  "files": {
+    "benchmark_0.log": "4deb3e4616cbf5a40bfb7fe7dc3f422fb7b6d3d5e29645c8587ceda354cd8a68",
+    "benchmark_1.log": "4deb3e4616cbf5a40bfb7fe7dc3f422fb7b6d3d5e29645c8587ceda354cd8a68",
+    "benchmark_2.log": "4deb3e4616cbf5a40bfb7fe7dc3f422fb7b6d3d5e29645c8587ceda354cd8a68",
+    "benchmark_3.log": "4deb3e4616cbf5a40bfb7fe7dc3f422fb7b6d3d5e29645c8587ceda354cd8a68",
+    "benchmark_1.json": "70638d3302e98339863cc1bf2b0a428ffafa51860280716c97d757d157a6cb6f",
+    "benchmark_2.json": "317dc48f4822b4f13c51207db58e9ab03d1b835af04c6a8a17768726b55cf087",
+    "benchmark_3.json": "df93438d284dc3012cc31cd231f3679d29caf488a86aa73564b8b17b09c08869",
+    "benchmark_0.json": "238263eb251f627be496db6b5fd1360d30aeee28d8be5ab9d5f339ac7381af75",
+    "benchmark_aggregate.json": "4bf408906db8a04eab002f11d9123f8fae56fcf563697d1cc2f6347bb38ef93f",
+    "train_0.log": "fd731315ab57b4ea0383fbfd2194e69e2e5f2c07731e2a9dd2249c8acec2ac07",
+    "train_1.log": "9b7e598551d9179670de703a6ea03f84a70f665e41814ac0e7f62522dab671e0",
+    "train_2.log": "ed4d91f78891d4d63fe819672e06715c30e60a82e17cf222893abab84ddd5aa9",
+    "train_3.log": "14f71ad0102b0b07a071da7b2530a5c140a23bee5209980be33860045394b629",
+    "TRAIN_PIDS.json": "09b0e7aeacf42e199008d59d8a25b1985c816a2907a1ac60005461cb9bea6f99",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "58ac1a3ed9f137dc24ca1c680256c05c9090addffa3400e6e18d2d01dc195c40",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "8780576b46ea1a708f94b346df446d3f34da0625a8bc76b9d9edc8a8f683c493",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "78e16111b8e3db3b002f4f801dfab3634af177ffb8cc2ec29139a1d994518e43",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "3230c5113b401f3e09727c1138793ee0b2523f71e4366e6d82facb5e083704e2",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.pt": "2adde6e5ad78499869e628d112f672e93249130717a68277c4d2fd0234f3f370",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.json": "c4dfa0aa6216c725e77de21e72b1e66dde00cfbdc8f4834012eccd05f1b59301",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.pt": "257fb498730d4cc8a38b5a42c3703a5b047cbb37f62dedbaf6b9aebb6842cff8",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.json": "d6fd30ee85bc16afb468988201503450d5c764dd4f2d8e0ccb683b8d60088442",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.pt": "f6d0fd965d8a28aa2f65220c07f928defd406333b067cbd371fc468811ede191",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.json": "b66a058362d06cb27c7f8539d654effcc0cab2ab33e4ac0f59196898336f67bf",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.pt": "dc63727477d874f2147aa39c75f4ffd2bb97574696db757029af6657a5ba5776",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_progress_50176000_tokens.json": "a115db522f4fc85f0fdfdd47482ffbf059249d9738f3f448f193f39b5cdf50ac",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.pt": "4febbec563084b2462fb45dcc7a8c21816e913375ed37c9eacf066fdf84b7eb2",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.json": "b52bfdb760a1698305d1c01d3539e578bb51a125353add263b45d5aa9a52ede7",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10.resume.pt": "1b78e3289c54c8ce8c0e6479cd7dfbd2a33c6856d054bc8deec022cfe0eb7a63",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.pt": "324ac4f7462377da5601c2c59b7682088d17c4e2f145ebecd7d248e2219875b9",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.json": "0f3cb9813da7a2b0b49f0973938aa7324a3bf65435c4380215e8d53d45070c21",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10.resume.pt": "942ba02c8adbd26f7a0de62c713084a62ac09058c1699bf1ca5c2441ba11e4ba",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.pt": "c5221aeceede319365a9762052d7bcf096846a3469623301a6e5b0f5254c895e",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.json": "521d91e98a61555ee04f79174a3913cbf77fadf921a74c2b37e31a7baf7019fb",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10.resume.pt": "d06ee2ba5d1bd134a1b479d56ea018976a80b0c401e1f02aa95cf4a84d883f91",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.pt": "9917d77779540c753f51adbc3e8398c79d57da079d288c247a60b45f12459160",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_progress_100352000_tokens.json": "c4523d87a4a121813ca2fd8f64ea72181301a93ace9a2b8737b92520d69c8ab2",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10.resume.pt": "36ff0dd92e9d355fb06d7a2de8892279dcb23a496614b0e50887bc97e9575a26",
+    "SLICE_FAILURE.json": "93fbd1a65e524f275772179244ff395ba2bd46c153ab237300a89d9de63c2418"
+  },
+  "failed_attempt_id": "att-ec98783e3b1f8c678489",
+  "reconciled_state": "failed",
+  "independent_local_hashes_agree": true,
+  "capsules": [
+    {
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10",
+      "updates": 196,
+      "input_tokens": 100352000,
+      "resume_key": {
+        "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+        "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa"
+      },
+      "sha256": "1b78e3289c54c8ce8c0e6479cd7dfbd2a33c6856d054bc8deec022cfe0eb7a63"
+    },
+    {
+      "name": "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10",
+      "updates": 196,
+      "input_tokens": 100352000,
+      "resume_key": {
+        "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+        "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c"
+      },
+      "sha256": "36ff0dd92e9d355fb06d7a2de8892279dcb23a496614b0e50887bc97e9575a26"
+    },
+    {
+      "name": "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10",
+      "updates": 196,
+      "input_tokens": 100352000,
+      "resume_key": {
+        "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+        "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97"
+      },
+      "sha256": "942ba02c8adbd26f7a0de62c713084a62ac09058c1699bf1ca5c2441ba11e4ba"
+    },
+    {
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "updates": 196,
+      "input_tokens": 100352000,
+      "resume_key": {
+        "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+        "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e"
+      },
+      "sha256": "d06ee2ba5d1bd134a1b479d56ea018976a80b0c401e1f02aa95cf4a84d883f91"
+    }
+  ],
+  "staging_hashes_agree": true
+}

@@ -1,0 +1,12 @@
+{
+  "checked_at": 1791270775.700737,
+  "gpu_proof": "fresh_training_verified.json",
+  "independent_local_saved_hash_agreement": true,
+  "models": 4,
+  "file_hashes": {
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "58ac1a3ed9f137dc24ca1c680256c05c9090addffa3400e6e18d2d01dc195c40",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "8780576b46ea1a708f94b346df446d3f34da0625a8bc76b9d9edc8a8f683c493",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "78e16111b8e3db3b002f4f801dfab3634af177ffb8cc2ec29139a1d994518e43",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "3230c5113b401f3e09727c1138793ee0b2523f71e4366e6d82facb5e083704e2"
+  }
+}

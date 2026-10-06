@@ -1,0 +1,15 @@
+Id=sphere-alpha-controller-recovery-20261006.service
+ActiveState=inactive
+MainPID=0
+
+Id=research-studio-2790341313c5903b756c.service
+ActiveState=inactive
+MainPID=0
+
+Id=sphere-alpha-login-a-20261006.scope
+ActiveState=inactive
+
+Id=sphere-alpha-login-b-20261006.scope
+ActiveState=inactive
+5991, GPU-0b402e55-a831-8a3e-7daa-db2c2330d6ae, 2324 MiB
+1329844, GPU-0b402e55-a831-8a3e-7daa-db2c2330d6ae, 231 MiB

@@ -1,0 +1,292 @@
+{
+  "hypothesis_id": "H-SPHERE-JOINT-50",
+  "total": 4,
+  "max_total_dollars": 2.0,
+  "micro_batch_size": 32,
+  "training_seed": 0,
+  "screen_sha256": "1731323c2ce0c6e2e55a76390a2dd2599f7c6e52f13af3f9e6db00eb01771219",
+  "jobs": [
+    {
+      "index": 0,
+      "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.3,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.5,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 1,
+      "name": "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.3,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.65,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 2,
+      "name": "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.3,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.75,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97",
+      "actual_tokens": 699904000
+    },
+    {
+      "index": 3,
+      "name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10",
+      "recipe": {
+        "experiment": {
+          "name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85",
+          "physics": {
+            "dt": 0.04,
+            "integration_dt": 0.005,
+            "delta_v": 0.3,
+            "obs_bins": [
+              50,
+              50
+            ],
+            "g": 9.8,
+            "length": 1.0,
+            "gamma": 0.7,
+            "rate_max": 32.0,
+            "theta0": 0.6,
+            "psi_dot0": 2.0,
+            "system_name": "sphere_dual"
+          },
+          "hmm": {
+            "n_states": 4,
+            "alpha": 0.85,
+            "stay": 0.7
+          },
+          "initial_state": {
+            "mode": "random",
+            "jitter_std": 0.05773502691896258,
+            "azimuth_mode": "uniform [-pi,pi)",
+            "release_distribution": "uniform coordinate offsets [-.1,.1]"
+          },
+          "seed": 20260920,
+          "n_trajectories": 256,
+          "m": 25,
+          "n": 20
+        },
+        "training": {
+          "name": "d128l4h2mlp512_700m_seed0_k10",
+          "seed": 0,
+          "k": 10,
+          "d_model": 128,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_mlp": 512,
+          "batch_size": 1024,
+          "total_tokens": 700000000,
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "log_every": 50,
+          "stream_seed_offset": 101,
+          "eval_size": 256,
+          "grad_clip": 1.0
+        },
+        "model": {
+          "vocab_size": 2500,
+          "n_ctx": 500,
+          "n_layers": 4,
+          "n_heads": 2,
+          "d_model": 128,
+          "d_mlp": 512,
+          "seed": 0
+        }
+      },
+      "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e",
+      "actual_tokens": 699904000
+    }
+  ],
+  "acceptance_state": "screened; untrained",
+  "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+  "host": "kratos",
+  "checkpoint_interval_input_tokens": 50000000,
+  "max_runtime_seconds": 43200,
+  "min_free_gpu_mib": 12288,
+  "max_gpu_utilization_percent": 20,
+  "slice_runtime_seconds": 3600,
+  "threads_per_worker": 1,
+  "gpu_allocator_mib_per_worker": 2560
+}

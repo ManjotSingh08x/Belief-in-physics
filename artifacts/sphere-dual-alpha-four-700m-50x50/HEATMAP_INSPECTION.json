@@ -1,0 +1,13 @@
+{
+  "models": 4,
+  "paths_per_model": 4,
+  "axes_inspected": [
+    "theta",
+    "circular azimuth"
+  ],
+  "query_windows": "t modulo20 in10..19; predicts t+10 across next impulse",
+  "observation": "dominant ridge with localized widening and faint secondary bands; consistently clear four-way high-probability splitting not established",
+  "interpretation": "qualitative, existing predictions only; physical dashed endpoints excluded as evidence of neural branches",
+  "additional_neural_inference": false,
+  "smoothing_or_peak_creation": false
+}

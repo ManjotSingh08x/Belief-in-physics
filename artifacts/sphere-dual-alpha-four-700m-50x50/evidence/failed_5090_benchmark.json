@@ -1,0 +1,76 @@
+{
+  "accepted": false,
+  "conservative_aggregate_tokens_per_second": 130079.91620069873,
+  "projected_seconds_with_50percent_margin": 32883.41563136279,
+  "remaining_seconds_before_stop": 12038.034331083298,
+  "workers": [
+    {
+      "index": 0,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.993200778961182,
+        7.997576713562012,
+        7.995065212249756,
+        7.98826789855957,
+        7.993443965911865
+      ],
+      "eval_loss": 7.991513252258301,
+      "tokens_per_second": 32519.979050174683,
+      "elapsed_seconds": 2.460026185028255,
+      "gpu": "NVIDIA GeForce RTX 5090",
+      "peak_cuda_bytes": 3805337600,
+      "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa"
+    },
+    {
+      "index": 1,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.991744041442871,
+        7.988523483276367,
+        7.985245704650879,
+        7.993681907653809,
+        7.994662284851074
+      ],
+      "eval_loss": 7.9964165687561035,
+      "tokens_per_second": 34591.04524574932,
+      "elapsed_seconds": 2.3127372830640525,
+      "gpu": "NVIDIA GeForce RTX 5090",
+      "peak_cuda_bytes": 3805337600,
+      "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c"
+    },
+    {
+      "index": 2,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.995847702026367,
+        7.982029914855957,
+        7.987502574920654,
+        7.992417335510254,
+        7.998733043670654
+      ],
+      "eval_loss": 7.990479946136475,
+      "tokens_per_second": 34076.86563842883,
+      "elapsed_seconds": 2.34763375390321,
+      "gpu": "NVIDIA GeForce RTX 5090",
+      "peak_cuda_bytes": 3805337600,
+      "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97"
+    },
+    {
+      "index": 3,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.994051456451416,
+        7.987331867218018,
+        7.992372035980225,
+        7.990464210510254,
+        7.996592044830322
+      ],
+      "eval_loss": 7.994030475616455,
+      "tokens_per_second": 34981.89660441575,
+      "elapsed_seconds": 2.286897160112858,
+      "gpu": "NVIDIA GeForce RTX 5090",
+      "peak_cuda_bytes": 3805337600,
+      "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e"
+    }
+  ]
+}

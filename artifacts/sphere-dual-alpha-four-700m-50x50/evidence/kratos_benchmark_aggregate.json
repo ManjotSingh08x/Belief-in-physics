@@ -1,0 +1,75 @@
+{
+  "accepted": true,
+  "conservative_aggregate_tokens_per_second": 201898.15216289088,
+  "projected_seconds_with_50percent_margin": 21399.71488105506,
+  "workers": [
+    {
+      "index": 0,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.993200778961182,
+        7.99757719039917,
+        7.9950642585754395,
+        7.988266468048096,
+        7.993443012237549
+      ],
+      "eval_loss": 7.991514444351196,
+      "tokens_per_second": 50474.53804072272,
+      "elapsed_seconds": 1.5849575470201671,
+      "gpu": "NVIDIA GeForce RTX 5070 Ti",
+      "peak_cuda_bytes": 1093489664,
+      "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa"
+    },
+    {
+      "index": 1,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.991743564605713,
+        7.988523960113525,
+        7.985243797302246,
+        7.99368143081665,
+        7.994663238525391
+      ],
+      "eval_loss": 7.996416091918945,
+      "tokens_per_second": 55023.22647160058,
+      "elapsed_seconds": 1.4539314600406215,
+      "gpu": "NVIDIA GeForce RTX 5070 Ti",
+      "peak_cuda_bytes": 1093489664,
+      "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c"
+    },
+    {
+      "index": 2,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.995848178863525,
+        7.982030391693115,
+        7.9875030517578125,
+        7.992417812347412,
+        7.998732566833496
+      ],
+      "eval_loss": 7.990477204322815,
+      "tokens_per_second": 54421.71091520531,
+      "elapsed_seconds": 1.4700015610433184,
+      "gpu": "NVIDIA GeForce RTX 5070 Ti",
+      "peak_cuda_bytes": 1093489664,
+      "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97"
+    },
+    {
+      "index": 3,
+      "optimizer_updates": 0,
+      "finite_losses": [
+        7.994051456451416,
+        7.987331390380859,
+        7.992372989654541,
+        7.990463733673096,
+        7.996593475341797
+      ],
+      "eval_loss": 7.994029521942139,
+      "tokens_per_second": 50631.98655890033,
+      "elapsed_seconds": 1.5800288599566557,
+      "gpu": "NVIDIA GeForce RTX 5070 Ti",
+      "peak_cuda_bytes": 1093489664,
+      "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e"
+    }
+  ]
+}

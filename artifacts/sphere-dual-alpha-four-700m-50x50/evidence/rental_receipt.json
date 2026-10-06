@@ -1,0 +1,30 @@
+{
+  "disk_gb": 25,
+  "guard_hourly_rate": 0.125,
+  "max_total_dollars": 2.0,
+  "transfer_reserve": 0.35,
+  "prior_rental_reserve": 0.1,
+  "max_rental_hours": 12.399999999999999,
+  "instance_id": 54402063,
+  "offer_id": 47543124,
+  "label": "sphere-dual-alpha-four-700m-20261006-ce77c6e-a2",
+  "created_at": 1791245603.0677068,
+  "source_revision": "ce77c6e6782dfc48f167afdb5e863a7a471bc83e",
+  "source_archive_sha256": "ec691ccf3ed8cc80aac7a9b45de35987f0cee538b2a138a80afa6b515f12449b",
+  "image": "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime",
+  "estimated_hourly_rate": 0.10490740740740741,
+  "models": 4,
+  "requested_tokens_each": 700000000,
+  "actual_tokens_each": 699904000,
+  "persistent_volumes_requested": false,
+  "alpha_values": [
+    0.5,
+    0.65,
+    0.75,
+    0.85
+  ],
+  "micro_batch_size": 32,
+  "selection_basis": "cheaper same-CUDA candidate; four-worker measured gate required; 16GB fits chunked evaluation",
+  "prior_failed_instance": 54400240,
+  "remote_control": "/home/chayan/sphere-dual-alpha-four-20261006-a2"
+}

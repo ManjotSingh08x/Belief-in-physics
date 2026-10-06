@@ -1,0 +1,18 @@
+{
+  "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+  "remote_control": "/opt/watchdog/users/chayan-bit/sphere-dual-alpha-four-20261006",
+  "files": {
+    "source.tar.gz": "1177588a13e4efec9afa3e23b8fda3332acb6aa7c87c0edb7d6f026c8875bbf0",
+    "screen.json": "1731323c2ce0c6e2e55a76390a2dd2599f7c6e52f13af3f9e6db00eb01771219",
+    "plan.json": "c1aafa36a58022163ddcf84ca0cb6bc1321ea25bfefa021db81997d53613f768"
+  },
+  "models": 4,
+  "alpha_values": [
+    0.5,
+    0.65,
+    0.75,
+    0.85
+  ],
+  "no_paid_rental": true,
+  "state": "ready for qualified-host CPU preflight and registered dispatch"
+}

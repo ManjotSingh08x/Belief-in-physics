@@ -1,0 +1,11 @@
+{
+  "checked_at": 1791312362.15918,
+  "models": 4,
+  "input_tokens_each": 699904000,
+  "zip_member_and_csv_numerical_agreement": true,
+  "lossless_large_files_verified": 21,
+  "standalone_joint3d_pages_verified": 16,
+  "training_archive_sha256_verified": true,
+  "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+  "scientific_acceptance": "one training seed; four-way high-probability splitting not established by marginal displays"
+}

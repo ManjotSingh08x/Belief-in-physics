@@ -1,0 +1,13 @@
+{
+  "checked_at": 1791312130.8701062,
+  "verified_models": [
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10"
+  ],
+  "verified_exports": 4,
+  "verified_joint3d_pages": 16,
+  "zip_members_and_csv_agree": true,
+  "html_base64_float32_probabilities_equal_saved_npz": true
+}

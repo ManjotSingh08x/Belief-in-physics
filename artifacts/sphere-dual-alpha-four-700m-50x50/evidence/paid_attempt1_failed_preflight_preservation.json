@@ -1,0 +1,18 @@
+{
+  "optimizer_updates": 0,
+  "models_trained": 0,
+  "files": {
+    "LAUNCH_PID": "257ad493dc36225fcc2b8db98198dd24a3379258a2121f421c965671ca308bf8",
+    "benchmark_0.json": "b33b1c128dce3ee491fecdfdf1606727031405b598b014926c78210ce85445c6",
+    "benchmark_1.json": "a636470eaed38e2f4c802e67e5828c9db631831df2e4f403e011939f740f161e",
+    "benchmark_0.log": "e2073608805eb21fdb7d2a38eaa9b41cc3069575c51bc9368d29c8093ad7055d",
+    "benchmark_aggregate.json": "6fd577d3cd50c0feada5f7469a7269b2714018bf9599364455a3aebb3cb4df5b",
+    "benchmark_3.log": "e2073608805eb21fdb7d2a38eaa9b41cc3069575c51bc9368d29c8093ad7055d",
+    "benchmark_1.log": "e2073608805eb21fdb7d2a38eaa9b41cc3069575c51bc9368d29c8093ad7055d",
+    "benchmark_2.log": "e2073608805eb21fdb7d2a38eaa9b41cc3069575c51bc9368d29c8093ad7055d",
+    "GPU_FAILURE.json": "70c323e251906d6b591b881a42efe38d24818f36dd85dd5d7c5ee29da5f658ea",
+    "benchmark_3.json": "b266d6391781846b9cb3382ce31ca27ece9cf36e4f1088fa9ac4d8f84c09bdef",
+    "launch.log": "0b4197835692b4bc0927a974d17bf7d04aee0b1b5c227c5cb4a15f8d4cc79603",
+    "benchmark_2.json": "2f6af36482c3b995c60af9610601743ffc27cda19d6e6ddc0b788e7e4b746e4b"
+  }
+}

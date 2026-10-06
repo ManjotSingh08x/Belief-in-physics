@@ -1,0 +1,19 @@
+{
+  "zip_sha256": "d3e33a223b28177d518e07f0cced0d9f9f3ce47519cc233c19447735e79077b3",
+  "member_sha256": {
+    "analysis.json": "523fc1de26e5da3889fe2b5a9515108e9d242dd561ec64e600c3239a55c41f52",
+    "belief_heatmaps.png": "1cc24245d09ebca7b8d666da7330b3df2b4e29dcc327c49f826d855bea8a3fd5",
+    "belief_readouts.npz": "9c027d3c958abbe71212c54502441648e21f2f795333b3aba0d18af1126cc346",
+    "heldout_paths.npz": "b709df8d1ed2526fdf7f5bfc343f639e477686909cdfd8af42d91145192a5dfa",
+    "probes.csv": "dec3bc6977996a4655bdf909162590d3aea5567598a5f96c456a75e0c6d7ddf0",
+    "random_init_joint_heatmaps.png": "fee9743700cb14bdab8bfd7f0f079e60ab60be48afbe04f9599488f995bda8e9",
+    "random_init_native_probabilities.npz": "084ba30d9f0daccd3b8e6ed4e980c813659de34dd656d991487398630275868d",
+    "random_init_psi_heatmaps.png": "50277d212b23871167d8eb79e93ab1fafcc72c5ab25e8b277df2a32a91186ba4",
+    "random_init_theta_heatmaps.png": "5abac29d348c57e9064ab97eeefc9c2f0317384f61f60e82aff82e17b8758941",
+    "trained_joint_heatmaps.png": "5cb1783f88a2ce57b1873a556c891932a7b4b08c4ee0b8deda2bad3f07b32cde",
+    "trained_native_probabilities.npz": "7edb76bb38cfdd96026a5b082db38889ce79b9334d6e51e178a656654ffb4b2d",
+    "trained_psi_heatmaps.png": "c45f87a834042b0483601351f0575aac4d4e2d7a17747860870bbf17bcf9ffd0",
+    "trained_theta_heatmaps.png": "76a3875ca02058b780fc81a98d924528a299d0df7c650af4f6146ac196491b50"
+  },
+  "csv_metadata_numerical_agreement": true
+}

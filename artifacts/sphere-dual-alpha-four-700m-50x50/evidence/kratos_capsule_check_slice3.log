@@ -1,0 +1,9 @@
+[{"name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10", "updates": 952, "input_tokens": 487424000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa"}, "sha256": "7571176ee3ff1c8cb828c97af86ccff733b51da7459489c3091716f03e999761"}, {"name": "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10", "updates": 950, "input_tokens": 486400000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c"}, "sha256": "0c4cec7547c2324244346bcb18346f616e7162e8cd26086b8bb365ece9dccff6"}, {"name": "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10", "updates": 944, "input_tokens": 483328000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97"}, "sha256": "693d420d85457f32a0a9411cbac725e9c3760c5b130bc93d1e3358a1bc7ffc79"}, {"name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10", "updates": 954, "input_tokens": 488448000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e"}, "sha256": "7d9830265072cb0bfc62e122b8315ead9d1450f60462f509db18d1189eb4aab1"}]
+
+Running as unit: sphere-alpha-capsule-check-slice3.service; invocation ID: 74fdde8362f0440bb0ea8921c872dc56
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.160s
+             CPU time consumed: 3.305s
+                   Memory peak: 315.5M (swap: 0B)
+

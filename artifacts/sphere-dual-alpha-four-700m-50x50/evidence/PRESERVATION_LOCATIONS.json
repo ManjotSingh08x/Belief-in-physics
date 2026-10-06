@@ -1,0 +1,10 @@
+{
+  "local_original_packet": "/Users/chayanaggarwal/Research/90_Projects/Belief-in-physics-sphere-ladder-540/artifacts/sphere-dual-alpha-four-700m-50x50",
+  "kratos_original_control": "/opt/watchdog/users/chayan-bit/sphere-dual-alpha-four-20261006",
+  "staging_control": "/home/chayan/sphere-dual-alpha-kratos-control",
+  "partial_and_failure_binary_policy": "Preserved at original owned locations with independent file hashes; only final model/random binaries are duplicated into publication models/.",
+  "slice0": "kratos/failure-slice0",
+  "slice3": "kratos/failure-slice3",
+  "failed_paid_attempt": "failed-training-results",
+  "counts": "4 final699904000-token models; no failed or partial checkpoints counted"
+}

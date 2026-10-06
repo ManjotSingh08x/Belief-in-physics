@@ -1,0 +1,240 @@
+{
+  "project": "Belief-in-physics",
+  "hypothesis_id": "H-SPHERE-JOINT-50",
+  "experiment_id": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10",
+  "dataset": "fresh streamed Mess-4 joint-angle Sphere; bounded uniform offsets [-.1,.1], uniform azimuth; 500 tokens",
+  "acceptance_state": "full_training_complete; held-out probes pending",
+  "scientific_acceptance": "unmeasured",
+  "process": "sphere_dual_mess4",
+  "experiment": {
+    "name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85",
+    "physics": {
+      "dt": 0.04,
+      "integration_dt": 0.005,
+      "delta_v": 0.3,
+      "obs_bins": [
+        50,
+        50
+      ],
+      "g": 9.8,
+      "length": 1.0,
+      "gamma": 0.7,
+      "rate_max": 32.0,
+      "theta0": 0.6,
+      "psi_dot0": 2.0,
+      "system_name": "sphere_dual"
+    },
+    "hmm": {
+      "n_states": 4,
+      "alpha": 0.85,
+      "stay": 0.7
+    },
+    "initial_state": {
+      "mode": "random",
+      "jitter_std": 0.05773502691896258,
+      "azimuth_mode": "uniform [-pi,pi)",
+      "release_distribution": "uniform coordinate offsets [-.1,.1]"
+    },
+    "seed": 20260920,
+    "n_trajectories": 256,
+    "m": 25,
+    "n": 20
+  },
+  "model": {
+    "vocab_size": 2500,
+    "n_ctx": 500,
+    "n_layers": 4,
+    "n_heads": 2,
+    "d_model": 128,
+    "d_mlp": 512,
+    "seed": 0
+  },
+  "training": {
+    "name": "d128l4h2mlp512_700m_seed0_k10",
+    "seed": 0,
+    "k": 10,
+    "d_model": 128,
+    "n_layers": 4,
+    "n_heads": 2,
+    "d_mlp": 512,
+    "batch_size": 1024,
+    "total_tokens": 700000000,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0,
+    "log_every": 50,
+    "stream_seed_offset": 101,
+    "eval_size": 256,
+    "grad_clip": 1.0
+  },
+  "source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f",
+  "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e",
+  "device": "cuda",
+  "torch_version": "2.11.0+cu128",
+  "python_version": "3.14.4",
+  "host": "kratos",
+  "gpu_name": "NVIDIA GeForce RTX 5070 Ti",
+  "tokens_seen": 699904000,
+  "updates": 1367,
+  "requested_tokens": 700000000,
+  "final_loss": {
+    "step": 1366,
+    "train_loss": 2.1357908248901367,
+    "eval_loss": 2.1447198688983917
+  },
+  "loss_history": [
+    {
+      "step": 0,
+      "train_loss": 7.992512226104736,
+      "eval_loss": 7.998236835002899
+    },
+    {
+      "step": 50,
+      "train_loss": 5.828612327575684,
+      "eval_loss": 5.8425814509391785
+    },
+    {
+      "step": 100,
+      "train_loss": 5.498283386230469,
+      "eval_loss": 5.498603105545044
+    },
+    {
+      "step": 150,
+      "train_loss": 4.243841648101807,
+      "eval_loss": 4.281744956970215
+    },
+    {
+      "step": 200,
+      "train_loss": 3.935314178466797,
+      "eval_loss": 3.9350832402706146
+    },
+    {
+      "step": 250,
+      "train_loss": 3.5032782554626465,
+      "eval_loss": 3.5314139127731323
+    },
+    {
+      "step": 300,
+      "train_loss": 3.244987964630127,
+      "eval_loss": 3.2544963657855988
+    },
+    {
+      "step": 350,
+      "train_loss": 3.057713747024536,
+      "eval_loss": 3.0582597255706787
+    },
+    {
+      "step": 400,
+      "train_loss": 2.92678165435791,
+      "eval_loss": 2.9146751761436462
+    },
+    {
+      "step": 450,
+      "train_loss": 2.7879960536956787,
+      "eval_loss": 2.7872880697250366
+    },
+    {
+      "step": 500,
+      "train_loss": 2.678250551223755,
+      "eval_loss": 2.673443704843521
+    },
+    {
+      "step": 550,
+      "train_loss": 2.5666158199310303,
+      "eval_loss": 2.6227135360240936
+    },
+    {
+      "step": 600,
+      "train_loss": 2.483973979949951,
+      "eval_loss": 2.517426759004593
+    },
+    {
+      "step": 650,
+      "train_loss": 2.4475059509277344,
+      "eval_loss": 2.450342208147049
+    },
+    {
+      "step": 700,
+      "train_loss": 2.3948044776916504,
+      "eval_loss": 2.3966288566589355
+    },
+    {
+      "step": 750,
+      "train_loss": 2.3297903537750244,
+      "eval_loss": 2.33995321393013
+    },
+    {
+      "step": 800,
+      "train_loss": 2.287471294403076,
+      "eval_loss": 2.3050276935100555
+    },
+    {
+      "step": 850,
+      "train_loss": 2.2649261951446533,
+      "eval_loss": 2.273058831691742
+    },
+    {
+      "step": 900,
+      "train_loss": 2.236253499984741,
+      "eval_loss": 2.2488963901996613
+    },
+    {
+      "step": 950,
+      "train_loss": 2.2091686725616455,
+      "eval_loss": 2.2223563492298126
+    },
+    {
+      "step": 1000,
+      "train_loss": 2.187549114227295,
+      "eval_loss": 2.198430508375168
+    },
+    {
+      "step": 1050,
+      "train_loss": 2.1780600547790527,
+      "eval_loss": 2.180270254611969
+    },
+    {
+      "step": 1100,
+      "train_loss": 2.1609315872192383,
+      "eval_loss": 2.1660130321979523
+    },
+    {
+      "step": 1150,
+      "train_loss": 2.139292001724243,
+      "eval_loss": 2.1564396023750305
+    },
+    {
+      "step": 1200,
+      "train_loss": 2.1366426944732666,
+      "eval_loss": 2.150223135948181
+    },
+    {
+      "step": 1250,
+      "train_loss": 2.130152940750122,
+      "eval_loss": 2.146784096956253
+    },
+    {
+      "step": 1300,
+      "train_loss": 2.1302530765533447,
+      "eval_loss": 2.1451495885849
+    },
+    {
+      "step": 1350,
+      "train_loss": 2.1353278160095215,
+      "eval_loss": 2.1447236835956573
+    },
+    {
+      "step": 1366,
+      "train_loss": 2.1357908248901367,
+      "eval_loss": 2.1447198688983917
+    }
+  ],
+  "stream_seed": 101,
+  "eval_seed": 99999,
+  "eval_size": 256,
+  "micro_batch_size": 32,
+  "elapsed_seconds": 11886.867040119017,
+  "checkpoint_interval_input_tokens": 50000000,
+  "checkpoint_sha256": "420b3fe34c0d929a345db5d5bedb31b8acde550b5d13aec46ca3978c48f2e355",
+  "random_checkpoint_filename": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt",
+  "random_checkpoint_sha256": "58ac1a3ed9f137dc24ca1c680256c05c9090addffa3400e6e18d2d01dc195c40"
+}

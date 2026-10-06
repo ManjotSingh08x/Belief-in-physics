@@ -1,0 +1,11 @@
+CONNECTION_CHECK {"baseline_error": "unable to open database file", "baseline_failed_after_reads": 61, "fixed_reads": 2000, "descriptors_before": 4, "descriptors_after": 4}
+
+CAPSULES [{"name": "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10", "updates": 196, "input_tokens": 100352000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "8ff010183a28977c1c3e492d7b24634989c437dfd7f8a8cfd79d49f76d3896aa"}, "sha256": "1b78e3289c54c8ce8c0e6479cd7dfbd2a33c6856d054bc8deec022cfe0eb7a63"}, {"name": "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10", "updates": 196, "input_tokens": 100352000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "ab54144fb5ef39a4f14966cb50a8c2fb0e7fd12fec6961d2e7c3acab63dd9f4c"}, "sha256": "36ff0dd92e9d355fb06d7a2de8892279dcb23a496614b0e50887bc97e9575a26"}, {"name": "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10", "updates": 196, "input_tokens": 100352000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "5c6b0c63ba72f9d02e6f1b742d19f691979b5d23cccc27dcb0485127a3f66f97"}, "sha256": "942ba02c8adbd26f7a0de62c713084a62ac09058c1699bf1ca5c2441ba11e4ba"}, {"name": "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10", "updates": 196, "input_tokens": 100352000, "resume_key": {"source_revision": "92bb2afa0fd61e86a0402cbffb2a50907ba0822f", "configuration_sha256": "e1f771cfd78aa4d653f3047caf627fd2fd9e0ceb1bf0b5d7d9e96fc5ce8b740e"}, "sha256": "d06ee2ba5d1bd134a1b479d56ea018976a80b0c401e1f02aa95cf4a84d883f91"}]
+
+Running as unit: sphere-alpha-recovery-check-20261006.service; invocation ID: 609cabf0edf5416f87890b10c435c858
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.397s
+             CPU time consumed: 3.512s
+                   Memory peak: 325.3M (swap: 0B)
+

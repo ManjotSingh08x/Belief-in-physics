@@ -1,0 +1,42 @@
+{
+  "checked_at": 1791252091.7205658,
+  "instance_id": 54402063,
+  "preservation_scope": "all synchronized staging outputs; GPU unavailable after controller release",
+  "files": {
+    "LAUNCH_PID": "1086d35563c495c1cecbce12135cab3b945e01dd185ea2c1dc8ace5ad988977e",
+    "benchmark_0.json": "a232eb06f2da60ea055578a07346eb0b0874635a38838bf06bf3eb8e33fd1cd0",
+    "train_2.log": "238aa48773cb3e73f083ae4b8768632368a6289cf393d52e65e974e2d7c529b2",
+    "benchmark_1.json": "8ab2137fae9874cd26e9f52bd8ee5fb7be9810f699d96f41cabd087513a9b987",
+    "train_1.log": "cf01a0dc3f1d1f0b5980595cf1448e78dd41a059db2dfaa6191f644f0040ec2d",
+    "TRAIN_PIDS.json": "64e250ab50bb7fc093e2d6b40dd0c1f4d6936a7ac807751a858cee37433688d5",
+    "benchmark_0.log": "12a2235b40c8a49db67554174fd9463fe25d72daa4d2dfd8ec2f8f0d39ad9334",
+    "sphere_dual50_c0_n20_g0.7_dv0.3_a0.5_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "3230c5113b401f3e09727c1138793ee0b2523f71e4366e6d82facb5e083704e2",
+    "benchmark_aggregate.json": "00421ddb5a72002ddbbb19406b27028fbc08f519d4c7696febe8c40518da8f0b",
+    "sphere_dual50_c3_n20_g0.7_dv0.3_a0.85_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "58ac1a3ed9f137dc24ca1c680256c05c9090addffa3400e6e18d2d01dc195c40",
+    "sphere_dual50_c1_n20_g0.7_dv0.3_a0.65_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "78e16111b8e3db3b002f4f801dfab3634af177ffb8cc2ec29139a1d994518e43",
+    "benchmark_3.log": "12a2235b40c8a49db67554174fd9463fe25d72daa4d2dfd8ec2f8f0d39ad9334",
+    "benchmark_1.log": "12a2235b40c8a49db67554174fd9463fe25d72daa4d2dfd8ec2f8f0d39ad9334",
+    "train_3.log": "cb6f9df983aa6ea9912ca129f3ca43bcbf21f874c7eff56a15450d43bff33290",
+    "benchmark_2.log": "12a2235b40c8a49db67554174fd9463fe25d72daa4d2dfd8ec2f8f0d39ad9334",
+    "benchmark_3.json": "41fd2c20008e631840fbae2459197ca1a160b79f0c9a57aeca54870bf4057858",
+    "train_0.log": "e3cbdadc69fa20fe37058c30c1e10e6a40676d6e07952d9c7047206e2ca4974a",
+    "launch.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "benchmark_2.json": "4ac58ca079b7cc03457af9750bdc1a291f0e0f5bc25545eccd265af8285c4b50",
+    "sphere_dual50_c2_n20_g0.7_dv0.3_a0.75_d128l4h2mlp512_700m_seed0_k10_random_init.pt": "8780576b46ea1a708f94b346df446d3f34da0625a8bc76b9d9edc8a8f683c493"
+  },
+  "last_synced_updates": [
+    386,
+    388,
+    394,
+    390
+  ],
+  "last_synced_input_tokens": [
+    197632000,
+    198656000,
+    201728000,
+    199680000
+  ],
+  "full_models": 0,
+  "trained_checkpoint_files": [],
+  "random_controls": 4
+}
