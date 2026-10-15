@@ -92,6 +92,8 @@ def build_process_from_config(config_name: str, output_dir: Path | str) -> MessD
         n_steps=int(meta["n_steps"]),
         dt=float(meta["dt"]),
         obs_bins=int(meta.get("vocab_size", 181)),
+        random_init=bool(meta.get("random_init", False)),
+        init_theta_std=float(meta.get("init_theta_std", 0.3)),
     )
 
 
@@ -140,6 +142,8 @@ def load_model(
     model = TinyTransformer(config)
     state = torch.load(pt_path, map_location=device)
     model.load_state_dict(state)
+    model.k = int(meta.get("k", 1))
+    model.k_suffix = str(meta.get("k_suffix", k_suffix))
     return model.to(device).eval()
 
 
@@ -171,6 +175,8 @@ def load_trained_and_random(
     cfg_dict["seed"] = seed + random_seed_offset
     random_config = ModelConfig(**cfg_dict)
     random_model = TinyTransformer(random_config).to(device).eval()
+    random_model.k = trained.k
+    random_model.k_suffix = trained.k_suffix
     return trained, random_model
 
 
@@ -453,11 +459,12 @@ def extract_features(
     device: str,
     batch_size: int = 64,
     layer: int | None = None,
+    k: int | None = None,
 ) -> np.ndarray:
     """Extract representation features from model residual stream.
 
     Modes:
-      - "all_layers_single_token": Tick-end positions (last token before perturbation).
+      - "all_layers_usable_token" / "all_layers_single_token": Positions whose lookahead crosses through a perturbation.
       - "all_layers_cycle": All tokens in each cycle concatenated horizontally.
       - "single_layer_all_tokens": Same as cycle concatenation for a single layer.
       - "all_tokens_flat": Every token position flattened independently.
@@ -471,6 +478,7 @@ def extract_features(
         batch_size: Batch size for forward pass
         layer: If specified, extracts only this layer index (0=emb, 1..L).
                If None, concatenates all layers.
+        k: Lookahead horizon for usable_token (defaults to model.k or 1).
 
     Returns:
         2D numpy array of shape (n_samples, feature_dim).
@@ -481,15 +489,16 @@ def extract_features(
     n_steps = proc.n_steps
     m = proc.m
     seq_len = proc.seq_len
-    last_positions = np.arange(n_steps - 1, seq_len, n_steps)
+    k_val = getattr(model, "k", 1) if k is None else k
 
     # streams is list of arrays: each (N, seq_len, d_model)
     concat = np.concatenate(streams, axis=-1)  # (N, seq_len, total_features)
     N, _, feat_dim = concat.shape
 
-    if mode == "all_layers_single_token":
-        selected = concat[:, last_positions, :]  # (N, m, feat_dim)
-        return selected.reshape(N * m, feat_dim).astype(np.float32)
+    if mode in ("all_layers_usable_token", "all_layers_single_token"):
+        usable_positions = proc.usable_positions(k_val)
+        selected = concat[:, usable_positions, :]  # (N, n_usable, feat_dim)
+        return selected.reshape(N * len(usable_positions), feat_dim).astype(np.float32)
 
     elif mode in ("all_layers_cycle", "single_layer_all_tokens"):
         per_cycle = concat.reshape(N, m, n_steps, feat_dim)  # (N, m, n_steps, feat_dim)
@@ -506,17 +515,22 @@ def extract_targets(
     data: dict[str, np.ndarray],
     proc: MessDriven,
     mode: str,
+    k: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Extract matched belief and physics targets for the given feature mode.
 
     Returns:
         (belief_targets, physics_targets):
-          - For cycle/tick-level modes: (N * m, 3) and (N * m, 2)
+          - For usable_token: (N * n_usable, 3) and (N * n_usable, 2)
+          - For cycle modes: (N * m, 3) and (N * m, 2)
           - For all_tokens_flat: (N * seq_len, 3) and (N * seq_len, 2)
     """
-    last_positions = np.arange(proc.n_steps - 1, proc.seq_len, proc.n_steps)
-
-    if mode in ("all_layers_single_token", "all_layers_cycle", "single_layer_all_tokens"):
+    if mode in ("all_layers_usable_token", "all_layers_single_token"):
+        usable_positions = proc.usable_positions(k)
+        belief = data["belief_coords"][:, usable_positions, :].reshape(-1, 3)
+        physics = data["physics_state"][:, usable_positions, :].reshape(-1, 2)
+    elif mode in ("all_layers_cycle", "single_layer_all_tokens"):
+        last_positions = np.arange(proc.n_steps - 1, proc.seq_len, proc.n_steps)
         belief = data["belief_coords"][:, last_positions, :].reshape(-1, 3)
         physics = data["physics_state"][:, last_positions, :].reshape(-1, 2)
     elif mode == "all_tokens_flat":
@@ -552,12 +566,18 @@ def test_nullspace(
     probed in the remainder with a fresh PCA+ridge (own k). Random baseline: same
     procedure with its own physics direction, truncated to the trained model's k.
     """
-    X = extract_features(model, data["tokens"], proc, mode, device, batch_size=batch_size)
+    k_val = getattr(model, "k", 1)
+    X = extract_features(model, data["tokens"], proc, mode, device, batch_size=batch_size, k=k_val)
     Xr = None if random_model is None else extract_features(
-        random_model, data["tokens"], proc, mode, device, batch_size=batch_size)
-    y_bel, y_phys = extract_targets(data, proc, mode)
+        random_model, data["tokens"], proc, mode, device, batch_size=batch_size, k=k_val)
+    y_bel, y_phys = extract_targets(data, proc, mode, k=k_val)
 
-    per_seq = proc.seq_len if mode == "all_tokens_flat" else proc.m
+    if mode == "all_tokens_flat":
+        per_seq = proc.seq_len
+    elif mode in ("all_layers_usable_token", "all_layers_single_token"):
+        per_seq = len(proc.usable_positions(k_val))
+    else:
+        per_seq = proc.m
     tr, te = _split_idx(data["tokens"].shape[0], per_seq, train_frac, split_seed)
 
     full = _split_probe(X, Xr, {"belief": y_bel, "physics": y_phys}, tr, te, alpha, device, var_threshold)
@@ -608,27 +628,34 @@ def test_layer_emergence(
     """Test B: Layer-wise Emergence Curves (PCA+ridge probe per layer, trained vs random).
 
     Evaluates R² for each layer (embedding + layers 1..n_layers) plus all layers
-    concatenated, for one variation: "all_tokens" | "cycle_concat" | "last_token".
+    concatenated, for one variation: "all_tokens" | "cycle_concat" | "usable_token" / "last_token".
     Each entry carries the chosen k (trained-model PCA at `var_threshold`).
     """
     n_layers = model.config.n_layers
+    k_val = getattr(model, "k", 1)
     modes = {
         "all_tokens": "all_tokens_flat",
         "cycle_concat": "all_layers_cycle",
-        "last_token": "all_layers_single_token",
+        "usable_token": "all_layers_usable_token",
+        "last_token": "all_layers_usable_token",
     }
     if variation not in modes:
         raise ValueError(f"Unknown variation: {variation}")
     mode = modes[variation]
 
-    y_bel, y_phys = extract_targets(data, proc, mode)
-    per_seq = proc.seq_len if mode == "all_tokens_flat" else proc.m
+    y_bel, y_phys = extract_targets(data, proc, mode, k=k_val)
+    if mode == "all_tokens_flat":
+        per_seq = proc.seq_len
+    elif mode in ("all_layers_usable_token", "all_layers_single_token"):
+        per_seq = len(proc.usable_positions(k_val))
+    else:
+        per_seq = proc.m
     tr, te = _split_idx(data["tokens"].shape[0], per_seq, train_frac, split_seed)
 
     results = []
     for lyr in [*range(n_layers + 1), None]:  # None = all layers concatenated
         feats = lambda mdl: extract_features(
-            mdl, data["tokens"], proc, mode, device, batch_size=batch_size, layer=lyr)
+            mdl, data["tokens"], proc, mode, device, batch_size=batch_size, layer=lyr, k=k_val)
         X = feats(model)
         Xr = None if random_model is None else feats(random_model)
         res = _split_probe(X, Xr, {"belief": y_bel, "physics": y_phys}, tr, te, alpha, device, var_threshold)
@@ -670,11 +697,18 @@ def test_pca_alignment(
     its own PCA basis). `k_threshold` is the smallest k reaching `var_threshold` of
     the trained model's variance; it is always included in the evaluated PC counts.
     """
+    k_val = getattr(model, "k", 1)
     layer_arg = model.config.n_layers if feature_config == "single_layer_all_tokens" else None
     feats = lambda mdl: extract_features(
-        mdl, data["tokens"], proc, feature_config, device, batch_size=batch_size, layer=layer_arg)
-    y_bel, y_phys = extract_targets(data, proc, feature_config)
-    tr, te = _split_idx(data["tokens"].shape[0], proc.m, train_frac, split_seed)
+        mdl, data["tokens"], proc, feature_config, device, batch_size=batch_size, layer=layer_arg, k=k_val)
+    y_bel, y_phys = extract_targets(data, proc, feature_config, k=k_val)
+    if feature_config in ("all_layers_usable_token", "all_layers_single_token"):
+        per_seq = len(proc.usable_positions(k_val))
+    elif feature_config == "all_tokens_flat":
+        per_seq = proc.seq_len
+    else:
+        per_seq = proc.m
+    tr, te = _split_idx(data["tokens"].shape[0], per_seq, train_frac, split_seed)
 
     def pca_of(mdl):
         X = feats(mdl)
@@ -795,14 +829,32 @@ def test_matched_physics(
     N_seq = concat.shape[0]
     n_steps = proc.n_steps
 
-    # Timestep indices: last token before perturbation for cycles in cycle_range
+    # Timestep indices: usable tokens for cycles in cycle_range
     c_start, c_end = cycle_range
-    selected_cycles = np.arange(c_start, min(c_end, proc.m))
-    last_tokens = selected_cycles * n_steps + (n_steps - 1)
+    k_val = getattr(model, "k", 1)
+    usable_pos = proc.usable_positions(k_val)
+    cycle_idx = usable_pos // n_steps
+    usable_tokens = usable_pos[(cycle_idx >= c_start) & (cycle_idx < min(c_end, proc.m))]
 
-    X_sub = concat[:, last_tokens, :].reshape(-1, concat.shape[-1]).astype(np.float32)
-    bel_sub = data["belief_coords"][:, last_tokens, :].reshape(-1, 3).astype(np.float32)
-    phys_sub = data["physics_state"][:, last_tokens, :].reshape(-1, 2).astype(np.float32)
+    if len(usable_tokens) == 0:
+        del streams, concat
+        gc.collect()
+        return {
+            "n_matched_pairs": 0,
+            "matched_resid_l2": np.array([], dtype=np.float32),
+            "control_resid_l2": np.array([], dtype=np.float32),
+            "matched_belief_l1": np.array([], dtype=np.float32),
+            "matched_physics_linf": np.array([], dtype=np.float32),
+            "mean_matched_l2": float("nan"),
+            "mean_control_l2": float("nan"),
+            "cycle_range": cycle_range,
+            "epsilon": epsilon,
+            "belief_threshold": belief_threshold,
+        }
+
+    X_sub = concat[:, usable_tokens, :].reshape(-1, concat.shape[-1]).astype(np.float32)
+    bel_sub = data["belief_coords"][:, usable_tokens, :].reshape(-1, 3).astype(np.float32)
+    phys_sub = data["physics_state"][:, usable_tokens, :].reshape(-1, 2).astype(np.float32)
 
     # Normalize physics to [0, 1] for balanced distance query
     theta_min, theta_max = proc.obs_ranges[0]
@@ -915,8 +967,12 @@ def test_umap_geometry(
         batch_size=batch_size, layer=layer_arg,
     )
 
-    last_positions = np.arange(proc.n_steps - 1, proc.seq_len, proc.n_steps)
-    if feature_config in ("all_layers_single_token", "all_layers_cycle", "single_layer_all_tokens"):
+    k_val = getattr(model, "k", 1)
+    if feature_config in ("all_layers_usable_token", "all_layers_single_token"):
+        usable_pos = proc.usable_positions(k_val)
+        beliefs = data["beliefs"][:, usable_pos, :].reshape(-1, 4)
+    elif feature_config in ("all_layers_cycle", "single_layer_all_tokens"):
+        last_positions = np.arange(proc.n_steps - 1, proc.seq_len, proc.n_steps)
         beliefs = data["beliefs"][:, last_positions, :].reshape(-1, 4)
     else:
         beliefs = data["beliefs"].reshape(-1, 4)
@@ -1105,9 +1161,9 @@ def plot_layer_emergence(
     results_by_seed: {variation: [test_layer_emergence result per seed]}. X tick labels
     carry the chosen k of the last-token variation (first present variation).
     """
-    variations = ["last_token", "cycle_concat", "all_tokens"]
-    var_labels = {"last_token": "Last Token", "cycle_concat": "Cycle Concat", "all_tokens": "All Tokens"}
-    var_colors = {"last_token": "#2980b9", "cycle_concat": "#27ae60", "all_tokens": "#8e44ad"}
+    variations = ["usable_token", "last_token", "cycle_concat", "all_tokens"]
+    var_labels = {"usable_token": "Usable Token", "last_token": "Usable Token", "cycle_concat": "Cycle Concat", "all_tokens": "All Tokens"}
+    var_colors = {"usable_token": "#2980b9", "last_token": "#2980b9", "cycle_concat": "#27ae60", "all_tokens": "#8e44ad"}
     present = [v for v in variations if v in results_by_seed]
     first = results_by_seed[present[0]]
     ks = np.mean([[d["k"] for d in run] for run in first], axis=0)
@@ -1138,10 +1194,11 @@ def plot_pca_alignment(
     results_by_seed: {feature_config: [test_pca_alignment result per seed]}. The dotted
     vertical line marks k_threshold (trained model PCs reaching the variance threshold).
     """
-    configs = ["all_layers_cycle", "all_layers_single_token", "single_layer_all_tokens"]
+    configs = ["all_layers_cycle", "all_layers_usable_token", "all_layers_single_token", "single_layer_all_tokens"]
     titles = {
         "all_layers_cycle": "All Layers + Cycle Concat",
-        "all_layers_single_token": "All Layers + Single Token",
+        "all_layers_usable_token": "All Layers + Usable Token",
+        "all_layers_single_token": "All Layers + Usable Token",
         "single_layer_all_tokens": "Single Layer + Cycle Concat",
     }
     present = [c for c in configs if c in results_by_seed]
@@ -1236,10 +1293,11 @@ def plot_umap_geometry(
     config_idx: int,
 ) -> None:
     """Scatter plots for Test G: 2D UMAP colored by ground-truth belief distribution."""
-    configs = ["all_layers_cycle", "all_layers_single_token", "single_layer_all_tokens"]
+    configs = ["all_layers_cycle", "all_layers_usable_token", "all_layers_single_token", "single_layer_all_tokens"]
     titles = {
         "all_layers_cycle": "All Layers + Cycle Concat",
-        "all_layers_single_token": "All Layers + Single Token",
+        "all_layers_usable_token": "All Layers + Usable Token",
+        "all_layers_single_token": "All Layers + Usable Token",
         "single_layer_all_tokens": "Single Layer + Cycle Concat",
     }
 

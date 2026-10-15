@@ -231,13 +231,17 @@ def test_probe_features_and_targets_all_6_modes():
         "belief_cycle": np.random.randn(N, m, 3).astype(np.float32),
     }
 
-    # 1. single_layer_single_token
+    # 1. single_layer_single_token (evaluates single layer)
     X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "single_layer_single_token", n_steps, m)
-    assert X.shape == (N * seq_len * L, d_model)
-    assert yp.shape == (N * seq_len * L, 1)
-    assert yb.shape == (N * seq_len * L, 3)
-    assert g.shape == (N * seq_len * L,)
+    assert X.shape == (N * seq_len, d_model)
+    assert yp.shape == (N * seq_len, 1)
+    assert yb.shape == (N * seq_len, 3)
+    assert g.shape == (N * seq_len,)
     assert set(g) == set(range(N))
+
+    # Test explicit layer index
+    X_l1, _, _, _ = extract_probe_features_and_targets(streams, raw_targets, "single_layer_single_token", n_steps, m, layer=1)
+    assert X_l1.shape == (N * seq_len, d_model)
 
     # 2. all_layers_single_token
     X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "all_layers_single_token", n_steps, m)
@@ -248,10 +252,10 @@ def test_probe_features_and_targets_all_6_modes():
 
     # 3. single_layer_cycle
     X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "single_layer_cycle", n_steps, m)
-    assert X.shape == (N * m * L, n_steps * d_model)
-    assert yp.shape == (N * m * L, 1)
-    assert yb.shape == (N * m * L, 3)
-    assert g.shape == (N * m * L,)
+    assert X.shape == (N * m, n_steps * d_model)
+    assert yp.shape == (N * m, 1)
+    assert yb.shape == (N * m, 3)
+    assert g.shape == (N * m,)
 
     # 4. all_layers_cycle
     X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "all_layers_cycle", n_steps, m)
@@ -260,19 +264,27 @@ def test_probe_features_and_targets_all_6_modes():
     assert yb.shape == (N * m, 3)
     assert g.shape == (N * m,)
 
-    # 5. single_layer_last_token
-    X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "single_layer_last_token", n_steps, m)
-    assert X.shape == (N * m, d_model)
-    assert yp.shape == (N * m, 1)
-    assert yb.shape == (N * m, 3)
-    assert g.shape == (N * m,)
+    # 5. single_layer_usable_token (and alias single_layer_last_token)
+    # k=1: usable positions count = (m-1)*k = 49
+    n_u = (m - 1) * 1
+    X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "single_layer_usable_token", n_steps, m, k=1)
+    assert X.shape == (N * n_u, d_model)
+    assert yp.shape == (N * n_u, 1)
+    assert yb.shape == (N * n_u, 3)
+    assert g.shape == (N * n_u,)
 
-    # 6. all_layers_last_token
-    X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "all_layers_last_token", n_steps, m)
-    assert X.shape == (N * m, L * d_model)
-    assert yp.shape == (N * m, 1)
-    assert yb.shape == (N * m, 3)
-    assert g.shape == (N * m,)
+    X_alias, _, _, _ = extract_probe_features_and_targets(streams, raw_targets, "single_layer_last_token", n_steps, m, k=1)
+    assert X_alias.shape == (N * n_u, d_model)
+
+    # 6. all_layers_usable_token (and alias all_layers_last_token)
+    X, yp, yb, g = extract_probe_features_and_targets(streams, raw_targets, "all_layers_usable_token", n_steps, m, k=1)
+    assert X.shape == (N * n_u, L * d_model)
+    assert yp.shape == (N * n_u, 1)
+    assert yb.shape == (N * n_u, 3)
+    assert g.shape == (N * n_u,)
+
+    X_alias, _, _, _ = extract_probe_features_and_targets(streams, raw_targets, "all_layers_last_token", n_steps, m, k=1)
+    assert X_alias.shape == (N * n_u, L * d_model)
 
 
 def test_cross_validated_ridge():
@@ -525,15 +537,16 @@ def test_worker_cli_full_cycle():
             assert meta["d_model"] == 32
             assert meta["seed"] == 0
 
-        # Check probe CSV has 72 rows
+        # Check probe CSV has 216 rows (3 horizons * 2 models * 2 targets * (3 all-layer + 3 single-layer * 5))
         probe_csv = cfg_dir / "d32_seed0_probes.csv"
         assert probe_csv.exists()
         probe_df = pd.read_csv(probe_csv)
-        assert len(probe_df) == 72
+        assert len(probe_df) == 216
         assert set(probe_df["horizon"]) == {"k1", "kn2", "kn"}
         assert set(probe_df["model_type"]) == {"trained", "random_init"}
         assert set(probe_df["mode"]) == set(PROBE_MODES)
         assert set(probe_df["target"]) == {"physics", "belief"}
+        assert set(probe_df["layer"].astype(str)) == {"0", "1", "2", "mean", "max", "all"}
 
         # Check summary plot exists
         summary_png = cfg_dir / "d32_seed0_summary.png"

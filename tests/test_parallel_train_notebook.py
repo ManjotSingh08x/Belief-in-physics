@@ -213,7 +213,8 @@ def test_notebook_cell_execution():
         # Cell 3: Build jobs
         c3 = "".join(code_cells[2])
         exec(c3, ns)
-        assert len(ns["jobs"]) == 25
+        expected_jobs = len(ns["configs"]) * sum(len(s) for s in ns["SEEDS_BY_WIDTH"].values())
+        assert len(ns["jobs"]) == expected_jobs
 
         # Limit to 1 job for fast test execution
         ns["jobs"] = ns["jobs"][:1]
@@ -239,7 +240,10 @@ def test_notebook_cell_execution():
         master_csv = tmp_path / "probe_results_all.csv"
         assert master_csv.exists()
         df = pd.read_csv(master_csv)
-        assert len(df) == 72
+        # 3 horizons * 2 models * 2 targets * (3 all_layers + 3 single_layers * (n_layers + 2))
+        # with n_layers=2: 3 * 2 * 2 * (3 + 3 * 4) = 180 rows
+        assert len(df) == 180
+
         assert "test_r2" in df.columns
         assert "cv_r2" in df.columns
         assert "target" in df.columns

@@ -91,6 +91,8 @@ def build_process_from_meta(exp_meta: dict, hmm_meta: dict | None = None) -> Mes
         n_steps=int(exp_meta.get("n", 10)),
         dt=float(phys_meta.get("dt", 0.2)),
         obs_bins=phys_meta.get("obs_bins", 181),
+        random_init=bool(phys_meta.get("random_init", False)),
+        init_theta_std=float(phys_meta.get("init_theta_std", 0.3)),
     )
 
 
@@ -100,13 +102,16 @@ def sample_analysis_batch(
     n_trajectories: int,
     init_cfg: dict | None = None,
 ) -> dict:
-    z0 = proc.system.initial_state(n_trajectories).astype(np.float64, copy=True)
-    if init_cfg and init_cfg.get("mode") == "random":
-        jitter = float(init_cfg.get("jitter_std", 0.1))
-        z0 += rng.normal(0.0, jitter, size=z0.shape)
-        if hasattr(proc.system, "omega_max"):
-            z0[:, 1] = np.clip(z0[:, 1], -proc.system.omega_max, proc.system.omega_max)
-    raw = proc.sample_batch(rng, n_trajectories, initial_state=z0)
+    if proc.random_init:
+        raw = proc.sample_batch(rng, n_trajectories)
+    else:
+        z0 = proc.system.initial_state(n_trajectories).astype(np.float64, copy=True)
+        if init_cfg and init_cfg.get("mode") == "random":
+            jitter = float(init_cfg.get("jitter_std", 0.1))
+            z0 += rng.normal(0.0, jitter, size=z0.shape)
+            if hasattr(proc.system, "omega_max"):
+                z0[:, 1] = np.clip(z0[:, 1], -proc.system.omega_max, proc.system.omega_max)
+        raw = proc.sample_batch(rng, n_trajectories, initial_state=z0)
     return {
         "tokens": raw["tokens"],
         "observable": raw["observable"],
@@ -114,6 +119,7 @@ def sample_analysis_batch(
         "letters": raw["letters"],
         "beliefs": raw["beliefs"],
         "states": raw["states"],
+        "initial_state": raw.get("initial_state"),
     }
 
 
@@ -167,12 +173,16 @@ def extract_probe_targets(
     proc: MessDriven,
     n_steps: int = 10,
     pre_perturbation_only: bool = False,
+    k: int = 1,
 ) -> dict[str, np.ndarray]:
     if pre_perturbation_only:
-        cycle_indices = np.arange(1, proc.m - 1)
-        token_indices = (cycle_indices + 1) * n_steps - 1
+        if hasattr(proc, "usable_positions"):
+            token_indices = proc.usable_positions(k)
+        else:
+            seq_len = getattr(proc, "seq_len", batch["beliefs"].shape[1])
+            token_indices = np.array([p for p in range(seq_len) if ((p % n_steps) + k >= n_steps and p + k < seq_len)], dtype=np.int64)
     else:
-        token_indices = np.arange(n_steps - 1, proc.seq_len, n_steps)
+        token_indices = np.arange(n_steps - 1, getattr(proc, "seq_len", batch["beliefs"].shape[1]), n_steps)
     belief = batch["beliefs"][:, token_indices] @ simplex_embedding(proc.chain.n_states)
     metric = batch["metric"][:, token_indices]
     return {
@@ -186,6 +196,8 @@ def extract_probe_features(
     mode: str,
     n_steps: int = 10,
     m: int | None = None,
+    k: int = 1,
+    proc: MessDriven | None = None,
 ) -> np.ndarray:
     if mode == "single_layer_single_token":
         return tick_features([streams[-1]], n_steps, whole_tick=False).astype(np.float32)
@@ -195,16 +207,22 @@ def extract_probe_features(
         return tick_features([streams[-1]], n_steps, whole_tick=True).astype(np.float32)
     elif mode == "all_layers_cycle":
         return tick_features(streams, n_steps, whole_tick=True).astype(np.float32)
-    elif mode == "last_token_all_layers":
-        m_cycles = m or (streams[0].shape[1] // n_steps)
-        token_indices = (np.arange(1, m_cycles - 1) + 1) * n_steps - 1
+    elif mode in ("usable_token_all_layers", "last_token_all_layers"):
+        if proc is not None:
+            token_indices = proc.usable_positions(k)
+        else:
+            seq_len = streams[0].shape[1]
+            token_indices = np.array([p for p in range(seq_len) if ((p % n_steps) + k >= n_steps and p + k < seq_len)], dtype=np.int64)
         stacked = np.concatenate(streams, axis=-1)
         return stacked[:, token_indices, :].reshape(-1, stacked.shape[-1]).astype(np.float32)
-    elif mode.startswith("layer_") and mode.endswith("_last_token"):
+    elif mode.startswith("layer_") and (mode.endswith("_usable_token") or mode.endswith("_last_token")):
         parts = mode.split("_")
         depth = int(parts[1])
-        m_cycles = m or (streams[0].shape[1] // n_steps)
-        token_indices = (np.arange(1, m_cycles - 1) + 1) * n_steps - 1
+        if proc is not None:
+            token_indices = proc.usable_positions(k)
+        else:
+            seq_len = streams[0].shape[1]
+            token_indices = np.array([p for p in range(seq_len) if ((p % n_steps) + k >= n_steps and p + k < seq_len)], dtype=np.int64)
         return streams[depth][:, token_indices, :].reshape(-1, streams[depth].shape[-1]).astype(np.float32)
     elif mode.startswith("layer_"):
         parts = mode.split("_")
@@ -332,8 +350,10 @@ def run_precomputation_job(
     macro_modes: bool = True,
     layerwise_token: bool = True,
     layerwise_cycle: bool = False,
-    last_token_modes: bool = True,
-    layerwise_last_token: bool = True,
+    last_token_modes: bool | None = None,
+    layerwise_last_token: bool | None = None,
+    usable_token_modes: bool = True,
+    layerwise_usable_token: bool = True,
     targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
@@ -342,6 +362,11 @@ def run_precomputation_job(
     log_callback=None,
 ) -> pd.DataFrame:
     global _CACHED_DF
+    if last_token_modes is not None:
+        usable_token_modes = last_token_modes
+    if layerwise_last_token is not None:
+        layerwise_usable_token = layerwise_last_token
+
     checkpoints = discover_checkpoints()
     new_rows = []
 
@@ -356,15 +381,19 @@ def run_precomputation_job(
         exp_meta = meta.get("experiment", {})
         proc = build_process_from_meta(exp_meta, meta.get("hmm"))
         n_steps = exp_meta.get("n", 10)
+        k_val = int(meta.get("training", {}).get("k", 1))
 
         eval_rng = np.random.default_rng(exp_meta.get("seed", 20260917) + 3)
         init_cfg = exp_meta.get("initial_state")
         batch = sample_analysis_batch(proc, eval_rng, n_traj, init_cfg=init_cfg)
         target_dict = extract_probe_targets(batch, proc, n_steps=n_steps)
-        target_dict_lt = extract_probe_targets(batch, proc, n_steps=n_steps, pre_perturbation_only=True)
+        target_dict_usable = extract_probe_targets(batch, proc, n_steps=n_steps, pre_perturbation_only=True, k=k_val)
+
+        usable_pos = proc.usable_positions(k_val)
+        n_usable = len(usable_pos)
 
         groups = np.repeat(np.arange(n_traj), proc.m)
-        groups_lt = np.repeat(np.arange(n_traj), proc.m - 2)
+        groups_usable = np.repeat(np.arange(n_traj), n_usable)
 
         order = np.random.default_rng(exp_meta.get("seed", 20260917) + 4).permutation(n_traj)
         n_test = max(1, int(n_traj * 0.2))
@@ -373,8 +402,8 @@ def run_precomputation_job(
         test_mask = np.array([g in test_seqs for g in groups])
         dev_mask = ~test_mask
 
-        test_mask_lt = np.array([g in test_seqs for g in groups_lt])
-        dev_mask_lt = ~test_mask_lt
+        test_mask_usable = np.array([g in test_seqs for g in groups_usable])
+        dev_mask_usable = ~test_mask_usable
 
         modes = []
         if macro_modes:
@@ -383,20 +412,20 @@ def run_precomputation_job(
             modes.extend([f"layer_{l}_single_token" for l in range(m_cfg.n_layers + 1)])
         if layerwise_cycle:
             modes.extend([f"layer_{l}_cycle" for l in range(m_cfg.n_layers + 1)])
-        if last_token_modes:
-            modes.append("last_token_all_layers")
-        if layerwise_last_token:
-            modes.extend([f"layer_{l}_last_token" for l in range(m_cfg.n_layers + 1)])
+        if usable_token_modes:
+            modes.append("usable_token_all_layers")
+        if layerwise_usable_token:
+            modes.extend([f"layer_{l}_usable_token" for l in range(m_cfg.n_layers + 1)])
 
         for model_tag, model_obj in (("trained", trained_m), ("random_init", random_m)):
             streams = residual_streams_batched(model_obj.to(DEVICE).eval(), batch["tokens"], DEVICE)
             for mode in modes:
-                is_lt = "last_token" in mode
-                X = extract_probe_features(streams, mode, n_steps=n_steps, m=proc.m)
-                curr_targets = target_dict_lt if is_lt else target_dict
-                curr_groups = groups_lt if is_lt else groups
-                curr_dev = dev_mask_lt if is_lt else dev_mask
-                curr_test = test_mask_lt if is_lt else test_mask
+                is_usable = ("usable_token" in mode) or ("last_token" in mode)
+                X = extract_probe_features(streams, mode, n_steps=n_steps, m=proc.m, k=k_val, proc=proc)
+                curr_targets = target_dict_usable if is_usable else target_dict
+                curr_groups = groups_usable if is_usable else groups
+                curr_dev = dev_mask_usable if is_usable else dev_mask
+                curr_test = test_mask_usable if is_usable else test_mask
 
                 for t_name in targets:
                     score = cross_validated_ridge(
@@ -446,14 +475,21 @@ def run_precomputation(
     macro_modes: bool = True,
     layerwise_token: bool = True,
     layerwise_cycle: bool = False,
-    last_token_modes: bool = True,
-    layerwise_last_token: bool = True,
+    last_token_modes: bool | None = None,
+    layerwise_last_token: bool | None = None,
+    usable_token_modes: bool = True,
+    layerwise_usable_token: bool = True,
     targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
     alphas: tuple = (0.1, 1.0, 10.0, 50.0),
     verbose: bool = True,
 ) -> pd.DataFrame:
+    if last_token_modes is not None:
+        usable_token_modes = last_token_modes
+    if layerwise_last_token is not None:
+        layerwise_usable_token = layerwise_last_token
+
     checkpoints = discover_checkpoints()
     if target_models == "all" or target_models == ["all"]:
         models = list(checkpoints.keys())
@@ -467,8 +503,8 @@ def run_precomputation(
         macro_modes=macro_modes,
         layerwise_token=layerwise_token,
         layerwise_cycle=layerwise_cycle,
-        last_token_modes=last_token_modes,
-        layerwise_last_token=layerwise_last_token,
+        usable_token_modes=usable_token_modes,
+        layerwise_usable_token=layerwise_usable_token,
         targets=list(targets),
         n_traj=n_traj,
         cv_folds=cv_folds,
@@ -598,7 +634,7 @@ def plot_last_token_layerwise(
     sub = current_df[
         (current_df["training"] == run_name)
         & (current_df["mode"].str.startswith("layer_"))
-        & (current_df["mode"].str.endswith("_last_token"))
+        & (current_df["mode"].str.endswith("_usable_token") | current_df["mode"].str.endswith("_last_token"))
     ].copy()
     if experiment is not None and "experiment" in sub.columns:
         sub = sub[sub["experiment"] == experiment]
@@ -606,7 +642,7 @@ def plot_last_token_layerwise(
         chosen_exp = sub["experiment"].iloc[0]
         sub = sub[sub["experiment"] == chosen_exp]
     if len(sub) == 0:
-        print(f"No last-token layerwise data for '{run_name}'. Run precomputation with layerwise last-token enabled.")
+        print(f"No usable-token layerwise data for '{run_name}'. Run precomputation with layerwise usable-token enabled.")
         return None
 
     sub["depth"] = sub["mode"].apply(lambda m: int(m.split("_")[1]))
@@ -622,7 +658,7 @@ def plot_last_token_layerwise(
             m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("depth")
             if len(m_sub) > 0:
                 ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2, ms=6, label=m_type)
-        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Pre-Perturbation Last Token", fontweight="bold")
+        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Pre-Perturbation Usable Token", fontweight="bold")
         ax.set_xlabel("Residual Stream Depth")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
@@ -635,6 +671,9 @@ def plot_last_token_layerwise(
         fig.savefig(save_path, bbox_inches="tight", dpi=100)
     plt.show()
     return fig
+
+
+plot_usable_token_layerwise = plot_last_token_layerwise
 
 
 def plot_last_token_comparison(
@@ -651,9 +690,9 @@ def plot_last_token_comparison(
     if experiment is not None and "experiment" in current_df.columns:
         current_df = current_df[current_df["experiment"] == experiment]
 
-    lt_sub = current_df[current_df["mode"] == "last_token_all_layers"].copy()
+    lt_sub = current_df[current_df["mode"].isin(["usable_token_all_layers", "last_token_all_layers"])].copy()
     if len(lt_sub) == 0:
-        print("No last_token_all_layers data available.")
+        print("No usable_token_all_layers or last_token_all_layers data available.")
         return None
 
     fig, axes = plt.subplots(len(targets), 1, figsize=(11, 4.2 * len(targets)), squeeze=False)
@@ -662,7 +701,7 @@ def plot_last_token_comparison(
         ax = axes[r_idx, 0]
         piv = lt_sub[lt_sub["target"] == tgt].pivot_table(index=index_col, columns="model_type", values="test_r2")
         piv.plot.bar(ax=ax, color=["#e74c3c", "#2980b9"], width=0.6)
-        ax.set_title(f"{tgt.capitalize()} Last-Token Pre-Perturbation Comparison", fontweight="bold")
+        ax.set_title(f"{tgt.capitalize()} Usable-Token Pre-Perturbation Comparison", fontweight="bold")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
         ax.axhline(0, color="k", lw=0.8, ls="--")
@@ -675,6 +714,9 @@ def plot_last_token_comparison(
         fig.savefig(save_path, bbox_inches="tight", dpi=100)
     plt.show()
     return fig
+
+
+plot_usable_token_comparison = plot_last_token_comparison
 
 
 def plot_sweep_comparison(
@@ -751,8 +793,10 @@ def build_precomputation_widget() -> widgets.VBox:
     chk_macro = widgets.Checkbox(value=True, description="Phase 3 Modes (Macro)", indent=False)
     chk_layerwise_token = widgets.Checkbox(value=True, description="Layerwise Single-Token (emb, L1..L4)", indent=False)
     chk_layerwise_cycle = widgets.Checkbox(value=False, description="Layerwise Cycle", indent=False)
-    chk_last_token = widgets.Checkbox(value=True, description="Last Token (All Layers)", indent=False)
-    chk_layerwise_last_token = widgets.Checkbox(value=True, description="Layerwise Last Token", indent=False)
+    chk_usable_token = widgets.Checkbox(value=True, description="Usable Token (All Layers)", indent=False)
+    chk_layerwise_usable_token = widgets.Checkbox(value=True, description="Layerwise Usable Token", indent=False)
+    chk_last_token = chk_usable_token
+    chk_layerwise_last_token = chk_layerwise_usable_token
 
     chk_belief = widgets.Checkbox(value=True, description="Belief State (Simplex)", indent=False)
     chk_physics = widgets.Checkbox(value=True, description="Physical Observables", indent=False)
@@ -820,8 +864,8 @@ def build_precomputation_widget() -> widgets.VBox:
                     (4 if chk_macro.value else 0)
                     + ((n_layers + 1) if chk_layerwise_token.value else 0)
                     + ((n_layers + 1) if chk_layerwise_cycle.value else 0)
-                    + (1 if chk_last_token.value else 0)
-                    + ((n_layers + 1) if chk_layerwise_last_token.value else 0)
+                    + (1 if chk_usable_token.value else 0)
+                    + ((n_layers + 1) if chk_layerwise_usable_token.value else 0)
                 )
                 total_jobs += m_count * len(targets) * 2
 
@@ -833,8 +877,8 @@ def build_precomputation_widget() -> widgets.VBox:
                 macro_modes=chk_macro.value,
                 layerwise_token=chk_layerwise_token.value,
                 layerwise_cycle=chk_layerwise_cycle.value,
-                last_token_modes=chk_last_token.value,
-                layerwise_last_token=chk_layerwise_last_token.value,
+                usable_token_modes=chk_usable_token.value,
+                layerwise_usable_token=chk_layerwise_usable_token.value,
                 targets=targets,
                 n_traj=slider_n_traj.value,
                 cv_folds=slider_cv_folds.value,
@@ -857,7 +901,7 @@ def build_precomputation_widget() -> widgets.VBox:
             widgets.VBox([
                 widgets.HTML("<b>Feature Modes:</b>"),
                 chk_macro, chk_layerwise_token, chk_layerwise_cycle,
-                chk_last_token, chk_layerwise_last_token,
+                chk_usable_token, chk_layerwise_usable_token,
                 widgets.HTML("<b>Targets:</b>"),
                 chk_belief, chk_physics,
             ]),
@@ -902,7 +946,7 @@ def build_viewer_widget() -> widgets.VBox:
     tab.children = [out_macro, out_layerwise, out_last_token, out_sweep, out_table]
     tab.set_title(0, "Macro Overview")
     tab.set_title(1, "Layerwise Emergence")
-    tab.set_title(2, "Last Token Test")
+    tab.set_title(2, "Usable Token Test")
     tab.set_title(3, "Sweep Comparison")
     tab.set_title(4, "Metrics Table")
 

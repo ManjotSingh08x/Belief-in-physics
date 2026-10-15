@@ -215,3 +215,33 @@ Measured at the committed defaults, one sequence of `m=40` ticks at seed 3:
 
 The double pendulum's positive exponent is the system, not a misconfiguration.
 The sphere's is small and its bin use is the lowest of the four, both consequences of `obs_range = (0.05, 1.25)` being far wider than the band theta visits - see the sphere entry in section 3.
+
+## 9. Pendulum parameter sweeps
+
+`experiments/pendulum-sweeps/` contains parameter sweep training and probing pipelines for the pendulum system.
+
+### Random initialisation
+When `random_init=True` (enabled in sweeps via `physics/systems/pendulum.py:sample_initial_state`):
+- `theta ~ N(0, init_theta_std^2)` with `init_theta_std = 0.3` (untruncated).
+- `omega ~ truncated N(0, delta_v^2)` clamped via rejection sampling to `[-omega_max, omega_max]` where `omega_max = 8.0`.
+- Passed through `MessDriven` batch generation via `initial_state` and forwarded to rollouts and counterfactual trajectory evaluations.
+
+### Usable token probe extraction
+For lookahead horizon `k >= 1`:
+- Usable token positions: `(p % n) + k >= n` and `p + k < seq_len`.
+- Evaluates tokens whose lookahead window crosses a perturbation point.
+- For `k = 1`, coincides with cycle-ending positions.
+- For `k = n // 2`, captures the second half of each cycle.
+- For `k = n`, all positions qualify.
+- Each usable position across sequences acts as an independent sample in probe datasets.
+
+### Single-layer probing format & summary visualisations
+- Single-layer configurations train separate linear probes for each transformer layer `0..L-1`.
+- Summary plots display 6 distinct bar groups (`all_layers_single_token`, `single_layer_single_token`, `all_layers_cycle`, `single_layer_cycle`, `all_layers_usable_token`, `single_layer_usable_token`).
+- For single-layer modes, the bar height represents the mean $R^2$ across all layer probes, with a horizontal ticker whisker indicating the maximum layer $R^2$.
+
+### Sweep execution & seed filtering
+In `experiments/pendulum-sweeps/parallel_train.ipynb`:
+- `CONFIG_INDICES`: optional list of integer rows from `pendulum_range.csv` to run (empty list trains all rows).
+- `SEEDS_BY_WIDTH`: seeds mapped by model width, defaulting to `{32: [0, 1, 2], 64: [0], 128: [0]}`.
+

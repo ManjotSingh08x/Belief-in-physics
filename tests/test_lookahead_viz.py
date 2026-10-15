@@ -50,7 +50,7 @@ def test_compute_counterfactual_branches(n_steps: int):
     tokens = batch["tokens"][0]
     letters = batch["letters"][0]
 
-    branches = compute_counterfactual_branches(proc, letters)
+    branches = compute_counterfactual_branches(proc, letters, initial_state=batch.get("initial_state"))
     assert branches.shape == (4, proc.seq_len)
 
     for j in range(m):

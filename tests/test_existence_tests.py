@@ -71,13 +71,14 @@ def test_c4_feature_and_target_extraction(setup_env):
     m = setup_env["tr_m"]
     data = setup_env["data"]
 
+    k_val = getattr(m, "k", 1)
     for mode, expected_cols in [
         ("all_layers_single_token", 5 * 128),
         ("all_layers_cycle", 10 * 5 * 128),
         ("all_tokens_flat", 5 * 128),
     ]:
-        X = et.extract_features(m, data["tokens"], proc, mode, DEVICE)
-        b, p = et.extract_targets(data, proc, mode)
+        X = et.extract_features(m, data["tokens"], proc, mode, DEVICE, k=k_val)
+        b, p = et.extract_targets(data, proc, mode, k=k_val)
         assert X.shape[0] == b.shape[0] == p.shape[0]
         assert X.shape[1] == expected_cols
 

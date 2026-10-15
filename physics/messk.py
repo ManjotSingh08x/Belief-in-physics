@@ -183,6 +183,8 @@ class MessDriven:
     #: product -- the double pendulum, whose theta2 alone hides the driven joint,
     #: is the case this exists for.
     obs_bins: tuple[int, ...] | int = 181
+    random_init: bool = False
+    init_theta_std: float = 0.3
 
     def __post_init__(self) -> None:
         bins = (self.obs_bins,) if isinstance(self.obs_bins, int) else tuple(self.obs_bins)
@@ -213,6 +215,19 @@ class MessDriven:
     @property
     def seq_len(self) -> int:
         return self.m * self.n_steps
+
+    def usable_positions(self, k: int) -> np.ndarray:
+        """Indices of tokens whose lookahead crosses through a perturbation.
+
+        A token at position p predicting step p+k crosses a perturbation iff
+        the perturbation lands in (p, p+k]. For steps within tick p//n_steps,
+        with phase r = p % n_steps, perturbation lands when r + k >= n_steps.
+        Positions where p + k >= seq_len are excluded since target is beyond sequence length.
+        """
+        if k < 1 or k >= self.seq_len:
+            raise ValueError(f"k must satisfy 1 <= k < seq_len ({self.seq_len}), got {k}")
+        p = np.arange(self.seq_len - k)
+        return p[(p % self.n_steps) + k >= self.n_steps]
 
     @property
     def n_obs(self) -> int:
@@ -311,12 +326,22 @@ class MessDriven:
 
         sys_, actions = self.system, self.actions
         expected = sys_.initial_state(n)
-        z = expected if initial_state is None else np.asarray(initial_state, dtype=np.float64)
+        if initial_state is not None:
+            z = np.asarray(initial_state, dtype=np.float64)
+        elif self.random_init:
+            if not hasattr(sys_, "sample_initial_state"):
+                raise ValueError(
+                    f"{type(sys_).__name__} does not support random_init; sample_initial_state missing"
+                )
+            z = sys_.sample_initial_state(rng, n, self.init_theta_std, self.delta_v)
+        else:
+            z = expected
         if z.shape != expected.shape or not np.isfinite(z).all():
             raise ValueError(
                 f"initial_state must be finite with shape {expected.shape}, got {z.shape}"
             )
         z = z.copy()
+        z_init = z.copy()
         obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(sys_.metric_names)))
         for t in range(self.m):
@@ -333,6 +358,7 @@ class MessDriven:
             "metric": metric,
             "letters": letters,
             "states": states,
+            "initial_state": z_init,
             # the chain advances once per tick, so its belief is constant inside that tick
             "beliefs": np.repeat(tick_beliefs, self.n_steps, axis=1),
             # the mood the belief is about, so probe target and belief line up
@@ -340,20 +366,24 @@ class MessDriven:
             "emitting_moods": np.repeat(states[:, :-1], self.n_steps, axis=1),
         }
 
-    def rollout(self, letters: np.ndarray) -> dict:
+    def rollout(self, letters: np.ndarray, initial_state: np.ndarray | None = None) -> dict:
         """Replay an explicit letter sequence, with no chain sampling.
 
-        Every system here is deterministic given its letters: fixed initial
-        state, no process noise. So a letter sequence names exactly one
-        trajectory, which is what makes a counterfactual well posed -- change one
-        letter, replay, and the difference is that letter's whole causal effect
-        rather than a difference of two random draws.
+        Every system here is deterministic given its letters and initial state:
+        no process noise. Counterfactual replay starts from fixed release or explicit initial_state.
         """
         letters = np.atleast_2d(np.asarray(letters, dtype=np.int64))
         if letters.shape[1] != self.m:
             raise ValueError(f"expected {self.m} letters per row, got {letters.shape[1]}")
         n = len(letters)
-        z = self.system.initial_state(n)
+        expected = self.system.initial_state(n)
+        z = expected if initial_state is None else np.asarray(initial_state, dtype=np.float64)
+        if z.shape != expected.shape or not np.isfinite(z).all():
+            raise ValueError(
+                f"initial_state must be finite with shape {expected.shape}, got {z.shape}"
+            )
+        z = z.copy()
+        z_init = z.copy()
         obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(self.system.metric_names)))
         energy = np.empty((n, self.seq_len))
@@ -371,6 +401,7 @@ class MessDriven:
             "metric": metric,
             "energy": energy,
             "letters": letters,
+            "initial_state": z_init,
         }
 
     def bin_report(self, observable: np.ndarray) -> dict:
@@ -506,6 +537,20 @@ def _demo() -> None:
     assert tw.shape == (4, proc.seq_len, 3 * proc.n_obs)
     assert tw[0, 5].sum() == 3, "three one-hots once the window is full"
     assert tw[0, 0].sum() == 1, "only the current token exists at position 0"
+
+    # Test usable_positions
+    u1 = proc.usable_positions(1)
+    assert len(u1) == (proc.m - 1) * 1
+    assert np.all(u1 % proc.n_steps == proc.n_steps - 1)
+    un = proc.usable_positions(proc.n_steps)
+    assert len(un) == (proc.m - 1) * proc.n_steps
+
+    # Test random_init
+    proc_rand = MessDriven(chain=m4, random_init=True)
+    batch_rand = proc_rand.sample_batch(rng, 16)
+    assert batch_rand["initial_state"].shape == (16, 2)
+    assert not np.allclose(batch_rand["initial_state"][0], batch_rand["initial_state"][1])
+
     print(f"messk ok (mood recovery {acc:.2f} vs chance {1/4:.2f}, "
           f"memory {m4.memory_length()} letters)")
 

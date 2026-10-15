@@ -37,6 +37,18 @@ class Pendulum:
     def initial_state(self, n: int) -> np.ndarray:
         return np.stack([np.full(n, self.theta0), np.full(n, self.omega0)], axis=-1)
 
+    def sample_initial_state(
+        self, rng: np.random.Generator, n: int, theta_std: float, omega_std: float
+    ) -> np.ndarray:
+        """Sample randomized initial states: theta ~ N(0, theta_std), omega ~ truncated N(0, omega_std)."""
+        theta = rng.normal(0.0, theta_std, size=n)
+        omega = rng.normal(0.0, omega_std, size=n)
+        bad = np.abs(omega) > self.omega_max
+        while bad.any():
+            omega[bad] = rng.normal(0.0, omega_std, size=bad.sum())
+            bad = np.abs(omega) > self.omega_max
+        return np.stack([theta, omega], axis=-1)
+
     def _accel(self, theta: np.ndarray, omega: np.ndarray) -> np.ndarray:
         return -(self.g / self.length) * np.sin(theta) - self.gamma * omega
 
@@ -96,6 +108,11 @@ def _demo() -> None:
     kicked = p.kick(z0, np.array([[0.6]]))
     assert abs(kicked[0, 1] - 0.6) < 1e-12 and kicked[0, 0] == z0[0, 0]
     assert p.initial_state(5).shape == (5, 2)
+    rng_demo = np.random.default_rng(42)
+    s_init = p.sample_initial_state(rng_demo, 1000, 0.3, 0.5)
+    assert s_init.shape == (1000, 2)
+    assert np.all(np.abs(s_init[:, 1]) <= p.omega_max)
+    assert abs(s_init[:, 0].mean()) < 0.05
     print("pendulum ok")
 
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Standalone worker script for parallel_train.ipynb.
 
-Trains LookaheadTransformers across 3 horizons (k=1, k=n//2, k=n),
-evaluates 6 linear probe modes against exact Bayesian belief and angular velocity,
-saves sidecars, CSV results, and generates 8-panel summary plots.
+Trains LookaheadTransformers across 3 horizons (k=1, k=n//2, k=n) with randomized initial conditions,
+evaluates linear probe modes (including per-layer probes reporting mean and max R² and k-aware usable_token)
+against exact Bayesian belief and angular velocity, saves sidecars, CSV results, and generates 8-panel summary plots.
 """
 
 from __future__ import annotations
@@ -77,7 +77,9 @@ class LookaheadTransformer(TinyTransformer):
         )
 
 
-def build_process(delta_v: float, gamma: float, dt: float, n_steps: int, m: int) -> MessDriven:
+def build_process(
+    delta_v: float, gamma: float, dt: float, n_steps: int, m: int, random_init: bool = True
+) -> MessDriven:
     pendulum = Pendulum(gamma=gamma)
     sampled = SampledPhysicsSystem(base=pendulum, integration_dt=0.01)
     chain = MessKProcess(n_states=4, alpha=0.7, stay=0.7)
@@ -89,6 +91,8 @@ def build_process(delta_v: float, gamma: float, dt: float, n_steps: int, m: int)
         n_steps=n_steps,
         dt=dt,
         obs_bins=181,
+        random_init=random_init,
+        init_theta_std=0.3,
     )
 
 
@@ -210,8 +214,8 @@ PROBE_MODES = [
     "all_layers_single_token",
     "single_layer_cycle",
     "all_layers_cycle",
-    "single_layer_last_token",
-    "all_layers_last_token",
+    "single_layer_usable_token",
+    "all_layers_usable_token",
 ]
 
 
@@ -233,16 +237,29 @@ def extract_raw_targets(batch: dict, proc: MessDriven) -> dict:
 
 
 def extract_probe_features_and_targets(
-    streams: list[np.ndarray], raw_targets: dict, mode: str, n_steps: int, m: int
+    streams: list[np.ndarray],
+    raw_targets: dict,
+    mode: str,
+    n_steps: int,
+    m: int,
+    k: int = 1,
+    layer: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     N, seq_len, d_model = streams[0].shape
     L = len(streams)
+
+    # Aliases for backward compatibility
+    if mode == "single_layer_last_token":
+        mode = "single_layer_usable_token"
+    elif mode == "all_layers_last_token":
+        mode = "all_layers_usable_token"
+
     if mode == "single_layer_single_token":
-        stacked = np.stack(streams, axis=2)  # (N, seq_len, L, d_model)
-        X = stacked.reshape(N * seq_len * L, d_model)
-        y_phys = np.repeat(raw_targets["physics_token"][:, :, np.newaxis, :], L, axis=2).reshape(N * seq_len * L, -1)
-        y_bel = np.repeat(raw_targets["belief_token"][:, :, np.newaxis, :], L, axis=2).reshape(N * seq_len * L, -1)
-        groups = np.repeat(np.arange(N), seq_len * L)
+        l_idx = -1 if layer is None else layer
+        X = streams[l_idx].reshape(N * seq_len, d_model)
+        y_phys = raw_targets["physics_token"].reshape(N * seq_len, -1)
+        y_bel = raw_targets["belief_token"].reshape(N * seq_len, -1)
+        groups = np.repeat(np.arange(N), seq_len)
     elif mode == "all_layers_single_token":
         concat = np.concatenate(streams, axis=-1)  # (N, seq_len, L * d_model)
         X = concat.reshape(N * seq_len, L * d_model)
@@ -250,30 +267,35 @@ def extract_probe_features_and_targets(
         y_bel = raw_targets["belief_token"].reshape(N * seq_len, -1)
         groups = np.repeat(np.arange(N), seq_len)
     elif mode == "single_layer_cycle":
-        stacked = np.stack([s.reshape(N, m, n_steps * d_model) for s in streams], axis=2)
-        X = stacked.reshape(N * m * L, n_steps * d_model)
-        y_phys = np.repeat(raw_targets["physics_cycle"][:, :, np.newaxis, :], L, axis=2).reshape(N * m * L, -1)
-        y_bel = np.repeat(raw_targets["belief_cycle"][:, :, np.newaxis, :], L, axis=2).reshape(N * m * L, -1)
-        groups = np.repeat(np.arange(N), m * L)
+        l_idx = -1 if layer is None else layer
+        X = streams[l_idx].reshape(N, m, n_steps * d_model).reshape(N * m, n_steps * d_model)
+        y_phys = raw_targets["physics_cycle"].reshape(N * m, -1)
+        y_bel = raw_targets["belief_cycle"].reshape(N * m, -1)
+        groups = np.repeat(np.arange(N), m)
     elif mode == "all_layers_cycle":
         concat = np.concatenate(streams, axis=-1)
         X = concat.reshape(N * m, n_steps * L * d_model)
         y_phys = raw_targets["physics_cycle"].reshape(N * m, -1)
         y_bel = raw_targets["belief_cycle"].reshape(N * m, -1)
         groups = np.repeat(np.arange(N), m)
-    elif mode == "single_layer_last_token":
-        last_positions = np.arange(n_steps - 1, seq_len, n_steps)
-        X = streams[-1][:, last_positions, :].reshape(N * m, d_model)
-        y_phys = raw_targets["physics_cycle"].reshape(N * m, -1)
-        y_bel = raw_targets["belief_cycle"].reshape(N * m, -1)
-        groups = np.repeat(np.arange(N), m)
-    elif mode == "all_layers_last_token":
-        last_positions = np.arange(n_steps - 1, seq_len, n_steps)
+    elif mode == "single_layer_usable_token":
+        l_idx = -1 if layer is None else layer
+        p = np.arange(seq_len - k)
+        usable_positions = p[(p % n_steps) + k >= n_steps]
+        n_u = len(usable_positions)
+        X = streams[l_idx][:, usable_positions, :].reshape(N * n_u, d_model)
+        y_phys = raw_targets["physics_token"][:, usable_positions, :].reshape(N * n_u, -1)
+        y_bel = raw_targets["belief_token"][:, usable_positions, :].reshape(N * n_u, -1)
+        groups = np.repeat(np.arange(N), n_u)
+    elif mode == "all_layers_usable_token":
+        p = np.arange(seq_len - k)
+        usable_positions = p[(p % n_steps) + k >= n_steps]
+        n_u = len(usable_positions)
         concat = np.concatenate(streams, axis=-1)
-        X = concat[:, last_positions, :].reshape(N * m, L * d_model)
-        y_phys = raw_targets["physics_cycle"].reshape(N * m, -1)
-        y_bel = raw_targets["belief_cycle"].reshape(N * m, -1)
-        groups = np.repeat(np.arange(N), m)
+        X = concat[:, usable_positions, :].reshape(N * n_u, L * d_model)
+        y_phys = raw_targets["physics_token"][:, usable_positions, :].reshape(N * n_u, -1)
+        y_bel = raw_targets["belief_token"][:, usable_positions, :].reshape(N * n_u, -1)
+        groups = np.repeat(np.arange(N), n_u)
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
@@ -447,29 +469,78 @@ def generate_summary_plot(
     ax_loss.grid(True, alpha=0.3)
 
     # Row 2: Probe R² bars (Belief on col 0, Physics on col 1, Info on col 2)
+    plot_modes = [
+        ("all_layers_single_token", "all_layers\nsingle_token", False),
+        ("single_layer_single_token", "single_layer\nsingle_token", True),
+        ("all_layers_cycle", "all_layers\ncycle", False),
+        ("single_layer_cycle", "single_layer\ncycle", True),
+        ("all_layers_usable_token", "all_layers\nusable_token", False),
+        ("single_layer_usable_token", "single_layer\nusable_token", True),
+    ]
     for col_idx, target_name in enumerate(["belief", "physics"]):
         ax_probe = fig.add_subplot(gs[2, col_idx])
         sub_df = probe_df[probe_df["target"] == target_name]
-        modes = PROBE_MODES
-        x = np.arange(len(modes))
+        x = np.arange(len(plot_modes))
         bar_w = 0.35
 
-        trained_r2 = []
-        random_r2 = []
-        for m_name in modes:
-            m_trained = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
-            m_random = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
-            trained_r2.append(float(m_trained.max()) if len(m_trained) > 0 else 0.0)
-            random_r2.append(float(m_random.max()) if len(m_random) > 0 else 0.0)
+        trained_mean, trained_max = [], []
+        random_mean, random_max = [], []
 
-        ax_probe.bar(x - bar_w / 2, trained_r2, bar_w, label="Trained (best k)", color="#2980b9")
-        ax_probe.bar(x + bar_w / 2, random_r2, bar_w, label="Random init", color="#e74c3c")
+        for m_name, _, is_single in plot_modes:
+            if is_single:
+                if "layer" in sub_df.columns:
+                    tr_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "mean") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    tr_mx = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "max") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "mean") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                    rnd_mx = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "max") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                else:
+                    tr_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
+                    tr_mx = tr_m
+                    rnd_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
+                    rnd_mx = rnd_m
+                tm = float(tr_m.max()) if len(tr_m) > 0 else 0.0
+                trained_mean.append(tm)
+                trained_max.append(float(tr_mx.max()) if len(tr_mx) > 0 else tm)
+
+                rm = float(rnd_m.max()) if len(rnd_m) > 0 else 0.0
+                random_mean.append(rm)
+                random_max.append(float(rnd_mx.max()) if len(rnd_mx) > 0 else rm)
+            else:
+                if "layer" in sub_df.columns:
+                    tr = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "all") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "all") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                else:
+                    tr = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
+                trained_mean.append(float(tr.max()) if len(tr) > 0 else 0.0)
+                trained_max.append(None)
+                random_mean.append(float(rnd.max()) if len(rnd) > 0 else 0.0)
+                random_max.append(None)
+
+        ax_probe.bar(x - bar_w / 2, trained_mean, bar_w, label="Trained (mean/all)", color="#2980b9", alpha=0.85)
+        ax_probe.bar(x + bar_w / 2, random_mean, bar_w, label="Random init", color="#e74c3c", alpha=0.85)
+
+        for i, (_, _, is_single) in enumerate(plot_modes):
+            if is_single:
+                x_tr = x[i] - bar_w / 2
+                tm_val, tmx_val = trained_mean[i], trained_max[i]
+                ax_probe.hlines(tmx_val, x_tr - bar_w * 0.45, x_tr + bar_w * 0.45, colors="#1b4f72", linewidth=2.5, zorder=5)
+                if tmx_val > tm_val:
+                    ax_probe.vlines(x_tr, tm_val, tmx_val, colors="#1b4f72", linestyle=":", linewidth=1.5, zorder=4)
+
+                x_rnd = x[i] + bar_w / 2
+                rm_val, rmx_val = random_mean[i], random_max[i]
+                ax_probe.hlines(rmx_val, x_rnd - bar_w * 0.45, x_rnd + bar_w * 0.45, colors="#78281f", linewidth=2.5, zorder=5)
+                if rmx_val > rm_val:
+                    ax_probe.vlines(x_rnd, rm_val, rmx_val, colors="#78281f", linestyle=":", linewidth=1.5, zorder=4)
+
+        ax_probe.plot([], [], color="black", marker="_", markersize=10, markeredgewidth=2.5, linestyle="None", label="Max Layer Ticker")
         ax_probe.set_xticks(x)
-        ax_probe.set_xticklabels([m.replace("_", "\n") for m in modes], rotation=45, ha="right", fontsize=8)
+        ax_probe.set_xticklabels([lbl for _, lbl, _ in plot_modes], rotation=35, ha="right", fontsize=7.5)
         ax_probe.set_ylabel("Test R²")
         ax_probe.set_ylim(-0.1, 1.05)
         ax_probe.set_title(f"{target_name.capitalize()} Probe R² by Mode")
-        ax_probe.legend(loc="upper left")
+        ax_probe.legend(loc="upper left", fontsize=7.5)
         ax_probe.grid(True, axis="y", alpha=0.3)
 
     # Row 2, Col 2: 3D tetrahedron belief projection
@@ -678,6 +749,9 @@ def worker_main():
                     "final_eval_loss": report["final"]["eval_loss"] if report["final"] else None,
                     "device": device,
                     "training_time_seconds": round(elapsed, 1),
+                    "random_init": True,
+                    "init_theta_std": 0.3,
+                    "init_omega_std": job["delta_v"],
                 }
                 final_json.write_text(json.dumps(meta, indent=2))
                 loss_histories[k_suffix] = report["history"]
@@ -724,35 +798,120 @@ def worker_main():
 
                 for model_tag, model_obj in [("trained", trained_model), ("random_init", random_model)]:
                     streams = residual_streams_batched(model_obj, analysis_batch["tokens"], device)
+                    L = len(streams)
                     for mode in PROBE_MODES:
-                        X, y_phys, y_bel, groups = extract_probe_features_and_targets(
-                            streams, raw_targets, mode, n_steps, m
-                        )
-                        t_mask = np.isin(groups, list(test_seqs))
-                        d_mask = ~t_mask
+                        if mode.startswith("single_layer_"):
+                            layer_scores = []
+                            for layer_idx in range(L):
+                                X, y_phys, y_bel, groups = extract_probe_features_and_targets(
+                                    streams, raw_targets, mode, n_steps, m, k=k, layer=layer_idx
+                                )
+                                t_mask = np.isin(groups, list(test_seqs))
+                                d_mask = ~t_mask
 
-                        for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
-                            score = cross_validated_ridge(
-                                X, y, groups, d_mask, t_mask,
-                                ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
-                                device=device,
+                                for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
+                                    score = cross_validated_ridge(
+                                        X, y, groups, d_mask, t_mask,
+                                        ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
+                                        device=device,
+                                    )
+                                    probe_rows.append({
+                                        "config_name": job["config_name"],
+                                        "delta_v": job["delta_v"],
+                                        "gamma": job["gamma"],
+                                        "dt": job["dt"],
+                                        "n_steps": n_steps,
+                                        "m": m,
+                                        "d_model": width,
+                                        "seed": seed,
+                                        "horizon": k_suffix,
+                                        "k_value": k,
+                                        "model_type": model_tag,
+                                        "mode": mode,
+                                        "target": target_name,
+                                        "layer": str(layer_idx),
+                                        **score,
+                                    })
+                                    layer_scores.append((target_name, score))
+
+                            # Aggregate mean and max over layers
+                            for target_name in ["physics", "belief"]:
+                                t_scores = [sc for tn, sc in layer_scores if tn == target_name]
+                                cv_r2s = [s["cv_r2"] for s in t_scores]
+                                test_r2s = [s["test_r2"] for s in t_scores]
+                                feat_dim = t_scores[0]["feature_dim"] if t_scores else width
+
+                                probe_rows.append({
+                                    "config_name": job["config_name"],
+                                    "delta_v": job["delta_v"],
+                                    "gamma": job["gamma"],
+                                    "dt": job["dt"],
+                                    "n_steps": n_steps,
+                                    "m": m,
+                                    "d_model": width,
+                                    "seed": seed,
+                                    "horizon": k_suffix,
+                                    "k_value": k,
+                                    "model_type": model_tag,
+                                    "mode": mode,
+                                    "target": target_name,
+                                    "layer": "mean",
+                                    "alpha": float("nan"),
+                                    "cv_r2": float(np.mean(cv_r2s)),
+                                    "test_r2": float(np.mean(test_r2s)),
+                                    "feature_dim": feat_dim,
+                                })
+                                max_idx = int(np.argmax(test_r2s)) if test_r2s else 0
+                                probe_rows.append({
+                                    "config_name": job["config_name"],
+                                    "delta_v": job["delta_v"],
+                                    "gamma": job["gamma"],
+                                    "dt": job["dt"],
+                                    "n_steps": n_steps,
+                                    "m": m,
+                                    "d_model": width,
+                                    "seed": seed,
+                                    "horizon": k_suffix,
+                                    "k_value": k,
+                                    "model_type": model_tag,
+                                    "mode": mode,
+                                    "target": target_name,
+                                    "layer": "max",
+                                    "alpha": t_scores[max_idx]["alpha"] if t_scores else float("nan"),
+                                    "cv_r2": float(np.max(cv_r2s)) if cv_r2s else float("nan"),
+                                    "test_r2": float(np.max(test_r2s)) if test_r2s else float("nan"),
+                                    "feature_dim": feat_dim,
+                                })
+                        else:
+                            X, y_phys, y_bel, groups = extract_probe_features_and_targets(
+                                streams, raw_targets, mode, n_steps, m, k=k
                             )
-                            probe_rows.append({
-                                "config_name": job["config_name"],
-                                "delta_v": job["delta_v"],
-                                "gamma": job["gamma"],
-                                "dt": job["dt"],
-                                "n_steps": n_steps,
-                                "m": m,
-                                "d_model": width,
-                                "seed": seed,
-                                "horizon": k_suffix,
-                                "k_value": k,
-                                "model_type": model_tag,
-                                "mode": mode,
-                                "target": target_name,
-                                **score,
-                            })
+                            t_mask = np.isin(groups, list(test_seqs))
+                            d_mask = ~t_mask
+
+                            for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
+                                score = cross_validated_ridge(
+                                    X, y, groups, d_mask, t_mask,
+                                    ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
+                                    device=device,
+                                )
+                                probe_rows.append({
+                                    "config_name": job["config_name"],
+                                    "delta_v": job["delta_v"],
+                                    "gamma": job["gamma"],
+                                    "dt": job["dt"],
+                                    "n_steps": n_steps,
+                                    "m": m,
+                                    "d_model": width,
+                                    "seed": seed,
+                                    "horizon": k_suffix,
+                                    "k_value": k,
+                                    "model_type": model_tag,
+                                    "mode": mode,
+                                    "target": target_name,
+                                    "layer": "all",
+                                    **score,
+                                })
 
             # 4. Save per-job probes CSV
             probe_df = pd.DataFrame(probe_rows)
@@ -763,50 +922,52 @@ def worker_main():
             # Compute 3D belief arrays for visualization (use first 32 trajectories max)
             N_VIS = min(32, args.n_probe_traj)
             vis_beliefs = analysis_batch["beliefs"][:N_VIS]            # (N_VIS, seq_len, 4)
-            # Extract at cycle-end positions
-            last_positions = np.arange(n_steps - 1, proc.seq_len, n_steps)  # (m,)
-            vis_belief_gt = (vis_beliefs[:, last_positions, :]          # (N_VIS, m, 4)
-                             @ simplex_embedding(4))                    # (N_VIS, m, 3)
-            vis_hmm_states = vis_beliefs[:, last_positions, :].argmax(-1)  # (N_VIS, m)
 
-            # Probe-predicted belief from best model (trained, all_layers_last_token, best horizon by cv_r2)
+            # Probe-predicted belief from best model (trained, all_layers_usable_token, best horizon by cv_r2)
             best_row = (
                 probe_df[(probe_df["target"] == "belief")
                          & (probe_df["model_type"] == "trained")
-                         & (probe_df["mode"] == "all_layers_last_token")]
+                         & (probe_df["mode"] == "all_layers_usable_token")]
                 .sort_values("cv_r2", ascending=False)
             )
             vis_belief_pred = None
+            vis_pos = None
             if len(best_row) > 0:
                 best_k_suffix = best_row.iloc[0]["horizon"]
-                best_k = best_row.iloc[0]["k_value"]
+                best_k = int(best_row.iloc[0]["k_value"])
                 best_alpha = best_row.iloc[0]["alpha"]
                 best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
                 best_pt = config_dir / f"{best_model_id}_final.pt"
+                vis_pos = proc.usable_positions(best_k)
                 if best_pt.exists():
                     vis_cfg = ModelConfig(
                         vocab_size=181, n_ctx=proc.seq_len, n_layers=args.n_layers,
                         n_heads=args.n_heads, d_model=width, d_mlp=4 * width, seed=seed,
                     )
-                    vis_model = LookaheadTransformer(vis_cfg, k=int(best_k))
+                    vis_model = LookaheadTransformer(vis_cfg, k=best_k)
                     vis_model.load_state_dict(torch.load(best_pt, map_location=device))
                     vis_model.to(device).eval()
                     vis_streams = residual_streams_batched(
                         vis_model, analysis_batch["tokens"][:N_VIS], device
                     )
-                    # all_layers_last_token: concat streams, pick last_positions
-                    vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, last_positions, :]  # (N_VIS, m, L*d)
+                    # all_layers_usable_token: concat streams, pick vis_pos
+                    vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, vis_pos, :]  # (N_VIS, n_u, L*d)
                     vis_X = StandardScaler().fit_transform(
-                        vis_X_raw.reshape(N_VIS * len(last_positions), -1)
+                        vis_X_raw.reshape(N_VIS * len(vis_pos), -1)
                     )
-                    vis_y_bel = vis_belief_gt.reshape(N_VIS * len(last_positions), 3)
+                    vis_y_bel = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4)).reshape(N_VIS * len(vis_pos), 3)
                     # Fit ridge with best alpha (no CV needed — just for viz)
                     _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
                     _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
                     _A = _Xt.T @ _Xt
                     _A.diagonal().add_(float(best_alpha))
                     _W = torch.linalg.solve(_A, _Xt.T @ _yt)
-                    vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(last_positions), 3)
+                    vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(vis_pos), 3)
+
+            if vis_pos is None:
+                vis_pos = np.arange(n_steps - 1, proc.seq_len, n_steps)
+            vis_belief_gt = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4))
+            vis_hmm_states = vis_beliefs[:, vis_pos, :].argmax(-1)
 
             # 5. Generate summary plot
             print(f"  [Summary] Generating summary plot...")

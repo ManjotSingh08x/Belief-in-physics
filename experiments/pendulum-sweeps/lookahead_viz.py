@@ -31,7 +31,9 @@ BRANCH_COLORS = ["#ff5555", "#ffb86c", "#50fa7b", "#8be9fd"]  # L0 (red), L1 (or
 BRANCH_NAMES = ["L0 (-1.64)", "L1 (-0.55)", "L2 (+0.55)", "L3 (+1.64)"]
 
 
-def compute_counterfactual_branches(proc: MessDriven, letters: np.ndarray) -> np.ndarray:
+def compute_counterfactual_branches(
+    proc: MessDriven, letters: np.ndarray, initial_state: np.ndarray | None = None
+) -> np.ndarray:
     """Replays physical ODE with letters L0, L1, L2, L3 at each tick to get exact physical branches.
 
     Uses 1-tick forward simulation from cached pre-kick states for 25x acceleration.
@@ -39,6 +41,7 @@ def compute_counterfactual_branches(proc: MessDriven, letters: np.ndarray) -> np
     Args:
         proc: MessDriven physics process.
         letters: 1D or 2D array containing the letter sequence of length m.
+        initial_state: Optional initial physical state (2,) or (1, 2).
 
     Returns:
         branch_tokens: Array of shape (4, seq_len) with discrete tokens for each counterfactual impulse.
@@ -50,7 +53,12 @@ def compute_counterfactual_branches(proc: MessDriven, letters: np.ndarray) -> np
     sys_ = proc.system
     actions = proc.actions
 
-    z = sys_.initial_state(1)
+    if initial_state is not None:
+        z = np.asarray(initial_state, dtype=np.float64)
+        if z.ndim == 1:
+            z = z[None, :]
+    else:
+        z = sys_.initial_state(1)
     z_before_kicks = np.empty((m_ticks, 2))
     for j in range(m_ticks):
         z_before_kicks[j] = z[0]
@@ -78,6 +86,7 @@ def compute_horizon_branches(
     k: int,
     all_branches: np.ndarray | None = None,
     beliefs: np.ndarray | None = None,
+    initial_state: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Computes horizon-aware counterfactual branches and Bayes-optimal predictive distribution.
 
@@ -99,6 +108,7 @@ def compute_horizon_branches(
         k: Lookahead horizon step count.
         all_branches: Optional precomputed array of shape (4, seq_len).
         beliefs: Optional predictive beliefs array of shape (seq_len, 4).
+        initial_state: Optional initial physical state.
 
     Returns:
         Dict with:
@@ -116,7 +126,7 @@ def compute_horizon_branches(
     E = proc.chain.E
 
     if all_branches is None:
-        all_branches = compute_counterfactual_branches(proc, letters_1d)
+        all_branches = compute_counterfactual_branches(proc, letters_1d, initial_state=initial_state)
 
     if beliefs is None:
         tick_beliefs = proc.chain.beliefs(np.atleast_2d(letters_1d))
@@ -193,8 +203,9 @@ def prepare_run_data(
     beliefs_batch = batch.get("beliefs")
     beliefs_traj = beliefs_batch[traj_idx] if beliefs_batch is not None else None
     seq_len = proc.seq_len
+    init_state = batch.get("initial_state")[traj_idx] if batch.get("initial_state") is not None else None
 
-    all_branches = compute_counterfactual_branches(proc, letters)
+    all_branches = compute_counterfactual_branches(proc, letters, initial_state=init_state)
     h_data = compute_horizon_branches(
         proc,
         tokens,
@@ -202,6 +213,7 @@ def prepare_run_data(
         k,
         all_branches=all_branches,
         beliefs=beliefs_traj,
+        initial_state=init_state,
     )
 
     probs = token_probabilities(model, tokens, device)
@@ -836,29 +848,78 @@ def plot_enhanced_summary(
     ax_loss.grid(True, alpha=0.3)
 
     # Row 4: Probe R² bars (Belief on col 0, Physics on col 1, Info on col 2)
+    plot_modes = [
+        ("all_layers_single_token", "all_layers\nsingle_token", False),
+        ("single_layer_single_token", "single_layer\nsingle_token", True),
+        ("all_layers_cycle", "all_layers\ncycle", False),
+        ("single_layer_cycle", "single_layer\ncycle", True),
+        ("all_layers_usable_token", "all_layers\nusable_token", False),
+        ("single_layer_usable_token", "single_layer\nusable_token", True),
+    ]
     for col_idx, target_name in enumerate(["belief", "physics"]):
         ax_probe = fig.add_subplot(gs[4, col_idx])
         sub_df = probe_df[probe_df["target"] == target_name]
-        modes = PROBE_MODES
-        x = np.arange(len(modes))
+        x = np.arange(len(plot_modes))
         bar_w = 0.35
 
-        trained_r2 = []
-        random_r2 = []
-        for m_name in modes:
-            m_trained = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
-            m_random = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
-            trained_r2.append(float(m_trained.max()) if len(m_trained) > 0 else 0.0)
-            random_r2.append(float(m_random.max()) if len(m_random) > 0 else 0.0)
+        trained_mean, trained_max = [], []
+        random_mean, random_max = [], []
 
-        ax_probe.bar(x - bar_w / 2, trained_r2, bar_w, label="Trained (best k)", color="#2980b9")
-        ax_probe.bar(x + bar_w / 2, random_r2, bar_w, label="Random init", color="#e74c3c")
+        for m_name, _, is_single in plot_modes:
+            if is_single:
+                if "layer" in sub_df.columns:
+                    tr_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "mean") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    tr_mx = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "max") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "mean") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                    rnd_mx = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "max") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                else:
+                    tr_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
+                    tr_mx = tr_m
+                    rnd_m = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
+                    rnd_mx = rnd_m
+                tm = float(tr_m.max()) if len(tr_m) > 0 else 0.0
+                trained_mean.append(tm)
+                trained_max.append(float(tr_mx.max()) if len(tr_mx) > 0 else tm)
+
+                rm = float(rnd_m.max()) if len(rnd_m) > 0 else 0.0
+                random_mean.append(rm)
+                random_max.append(float(rnd_mx.max()) if len(rnd_mx) > 0 else rm)
+            else:
+                if "layer" in sub_df.columns:
+                    tr = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "all") & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd = sub_df[(sub_df["mode"] == m_name) & (sub_df["layer"] == "all") & (sub_df["model_type"] == "random_init")]["test_r2"]
+                else:
+                    tr = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "trained")]["test_r2"]
+                    rnd = sub_df[(sub_df["mode"] == m_name) & (sub_df["model_type"] == "random_init")]["test_r2"]
+                trained_mean.append(float(tr.max()) if len(tr) > 0 else 0.0)
+                trained_max.append(None)
+                random_mean.append(float(rnd.max()) if len(rnd) > 0 else 0.0)
+                random_max.append(None)
+
+        ax_probe.bar(x - bar_w / 2, trained_mean, bar_w, label="Trained (mean/all)", color="#2980b9", alpha=0.85)
+        ax_probe.bar(x + bar_w / 2, random_mean, bar_w, label="Random init", color="#e74c3c", alpha=0.85)
+
+        for i, (_, _, is_single) in enumerate(plot_modes):
+            if is_single:
+                x_tr = x[i] - bar_w / 2
+                tm_val, tmx_val = trained_mean[i], trained_max[i]
+                ax_probe.hlines(tmx_val, x_tr - bar_w * 0.45, x_tr + bar_w * 0.45, colors="#1b4f72", linewidth=2.5, zorder=5)
+                if tmx_val > tm_val:
+                    ax_probe.vlines(x_tr, tm_val, tmx_val, colors="#1b4f72", linestyle=":", linewidth=1.5, zorder=4)
+
+                x_rnd = x[i] + bar_w / 2
+                rm_val, rmx_val = random_mean[i], random_max[i]
+                ax_probe.hlines(rmx_val, x_rnd - bar_w * 0.45, x_rnd + bar_w * 0.45, colors="#78281f", linewidth=2.5, zorder=5)
+                if rmx_val > rm_val:
+                    ax_probe.vlines(x_rnd, rm_val, rmx_val, colors="#78281f", linestyle=":", linewidth=1.5, zorder=4)
+
+        ax_probe.plot([], [], color="black", marker="_", markersize=10, markeredgewidth=2.5, linestyle="None", label="Max Layer Ticker")
         ax_probe.set_xticks(x)
-        ax_probe.set_xticklabels([m.replace("_", "\n") for m in modes], rotation=45, ha="right", fontsize=8)
+        ax_probe.set_xticklabels([lbl for _, lbl, _ in plot_modes], rotation=35, ha="right", fontsize=7.5)
         ax_probe.set_ylabel("Test R²")
         ax_probe.set_ylim(-0.1, 1.05)
         ax_probe.set_title(f"{target_name.capitalize()} Probe R² by Mode", fontweight="bold")
-        ax_probe.legend(loc="upper left")
+        ax_probe.legend(loc="upper left", fontsize=7.5)
         ax_probe.grid(True, axis="y", alpha=0.3)
 
     # Row 4, Col 2: Info panel

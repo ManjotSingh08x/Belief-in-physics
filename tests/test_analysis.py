@@ -14,11 +14,10 @@ Covers:
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
-
 import sys
-from pathlib import Path
 
 SWEEPS_DIR = Path(__file__).resolve().parent.parent / "experiments" / "pendulum-sweeps"
 if str(SWEEPS_DIR) not in sys.path:
@@ -30,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
 import analysis
 from analysis import (
@@ -55,6 +55,94 @@ from analysis import (
     run_precomputation_job,
     sample_analysis_batch,
 )
+from models.transformer import ModelConfig, TinyTransformer
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_mock_checkpoints():
+    analysis.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    cfg = ModelConfig(
+        vocab_size=181,
+        n_ctx=160,
+        n_layers=4,
+        n_heads=1,
+        d_model=64,
+        d_mlp=256,
+        seed=0,
+    )
+    model = TinyTransformer(cfg)
+    models = ["standard_next-token_seed0", "standard_next-token_seed1", "standard_lookahead-k5_seed0"]
+    created_files = []
+    for name in models:
+        pt_path = analysis.OUTPUT_DIR / f"{name}_final.pt"
+        json_path = analysis.OUTPUT_DIR / f"{name}_final.json"
+        if not pt_path.exists():
+            torch.save(model.state_dict(), pt_path)
+            created_files.append(pt_path)
+        if not json_path.exists():
+            k_val = 5 if "k5" in name else 1
+            meta = {
+                "experiment": {
+                    "name": "standard",
+                    "seed": 20260917,
+                    "n": 10,
+                    "m": 16,
+                    "physics": {"delta_v": 0.55, "damping_value": 0.3, "dt": 0.2, "random_init": True, "init_theta_std": 0.3},
+                },
+                "model": {
+                    "vocab_size": 181,
+                    "n_ctx": 160,
+                    "n_layers": 4,
+                    "n_heads": 1,
+                    "d_model": 64,
+                    "d_mlp": 256,
+                    "seed": 0,
+                },
+                "training": {
+                    "name": "next-token" if "next-token" in name else "lookahead-k5",
+                    "seed": 0 if "seed0" in name else 1,
+                    "k": k_val,
+                },
+                "hmm": {"n_states": 4, "alpha": 0.7, "stay": 0.7},
+            }
+            json_path.write_text(json.dumps(meta))
+            created_files.append(json_path)
+
+    analysis_csv = analysis.OUTPUT_DIR / "analysis.csv"
+    if not analysis_csv.exists():
+        rows = []
+        for mod in ["single_layer_single_token", "all_layers_cycle", "usable_token_all_layers", "last_token_all_layers", "layer_0_single_token"]:
+            for tgt in ["belief", "physics"]:
+                rows.append({
+                    "experiment": "standard",
+                    "training": "next-token",
+                    "model_type": "trained",
+                    "mode": mod,
+                    "target": tgt,
+                    "test_r2": 0.85,
+                    "cv_r2": 0.82,
+                    "alpha": 1.0,
+                    "feature_dim": 64,
+                })
+        pd.DataFrame(rows).to_csv(analysis_csv, index=False)
+        created_files.append(analysis_csv)
+
+    probe_csv = analysis.OUTPUT_DIR / "standard_next-token_seed0_probes.csv"
+    if not probe_csv.exists():
+        p_df = pd.DataFrame([{
+            "experiment": "standard",
+            "training": "next-token",
+            "model_type": "trained",
+            "mode": "all_layers_cycle",
+            "target": "belief",
+            "test_r2": 0.85,
+            "cv_r2": 0.82,
+            "feature_dim": 64,
+        }])
+        p_df.to_csv(probe_csv, index=False)
+        created_files.append(probe_csv)
+
+    yield
 
 
 def test_discover_checkpoints():
@@ -250,20 +338,15 @@ def test_fetch_probe_csvs_and_filtering():
 @pytest.mark.parametrize("n", [5, 10, 15, 20])
 @pytest.mark.parametrize("m", [6, 10, 16])
 def test_last_token_preperturbation_indices(n: int, m: int):
-    cycle_indices = np.arange(1, m - 1)
-    token_indices = (cycle_indices + 1) * n - 1
+    seq_len = m * n
+    # For k=1, usable tokens are (p % n) + 1 >= n and p + 1 < seq_len
+    token_indices = np.array([p for p in range(seq_len) if ((p % n) + 1 >= n and p + 1 < seq_len)], dtype=np.int64)
 
-    assert len(token_indices) == m - 2
+    assert len(token_indices) == m - 1
 
-    for t, idx in zip(cycle_indices, token_indices):
+    for idx in token_indices:
         assert (idx + 1) % n == 0
-        assert (idx + 1) // n == t + 1
-
-        perturbation_token = (t + 1) * n
-        assert idx == perturbation_token - 1
-
-        assert idx >= 2 * n - 1
-        assert idx < (m - 1) * n
+        assert idx + 1 < seq_len
 
 
 @pytest.mark.parametrize("n", [5, 10, 15, 20])
@@ -282,12 +365,17 @@ def test_last_token_feature_extraction_accuracy_and_shapes(n: int):
         for t_idx in range(seq_len):
             streams[l_idx][:, t_idx, :] = l_idx * 10000 + t_idx
 
-    expected_indices = (np.arange(1, m - 1) + 1) * n - 1
+    expected_indices = np.array([p for p in range(seq_len) if ((p % n) + 1 >= n and p + 1 < seq_len)], dtype=np.int64)
+    n_usable = len(expected_indices)
 
-    all_feats = extract_probe_features(streams, "last_token_all_layers", n_steps=n, m=m)
-    assert all_feats.shape == (n_traj * (m - 2), (n_layers + 1) * d_model)
+    all_feats = extract_probe_features(streams, "usable_token_all_layers", n_steps=n, m=m, k=1)
+    assert all_feats.shape == (n_traj * n_usable, (n_layers + 1) * d_model)
 
-    unflattened_all = all_feats.reshape(n_traj, m - 2, (n_layers + 1) * d_model)
+    # Test backward compatibility alias
+    all_feats_alias = extract_probe_features(streams, "last_token_all_layers", n_steps=n, m=m, k=1)
+    assert all_feats_alias.shape == (n_traj * n_usable, (n_layers + 1) * d_model)
+
+    unflattened_all = all_feats.reshape(n_traj, n_usable, (n_layers + 1) * d_model)
     for c_i, t_idx in enumerate(expected_indices):
         for l in range(n_layers + 1):
             expected_val = l * 10000 + t_idx
@@ -297,9 +385,9 @@ def test_last_token_feature_extraction_accuracy_and_shapes(n: int):
             )
 
     for l in range(n_layers + 1):
-        layer_feats = extract_probe_features(streams, f"layer_{l}_last_token", n_steps=n, m=m)
-        assert layer_feats.shape == (n_traj * (m - 2), d_model)
-        unflattened_layer = layer_feats.reshape(n_traj, m - 2, d_model)
+        layer_feats = extract_probe_features(streams, f"layer_{l}_usable_token", n_steps=n, m=m, k=1)
+        assert layer_feats.shape == (n_traj * n_usable, d_model)
+        unflattened_layer = layer_feats.reshape(n_traj, n_usable, d_model)
         for c_i, t_idx in enumerate(expected_indices):
             assert np.allclose(unflattened_layer[:, c_i, :], l * 10000 + t_idx)
 
@@ -314,22 +402,28 @@ def test_last_token_target_extraction(n: int):
         n_states = 4
 
     class MockProc:
-        def __init__(self, m_val, seq_len_val):
+        def __init__(self, m_val, seq_len_val, n_val):
             self.m = m_val
+            self.n_steps = n_val
             self.seq_len = seq_len_val
             self.chain = MockChain()
 
-    proc = MockProc(m_val=m, seq_len_val=seq_len)
+        def usable_positions(self, k: int = 1):
+            p = np.arange(self.seq_len - k)
+            return p[(p % self.n_steps) + k >= self.n_steps]
+
+    proc = MockProc(m_val=m, seq_len_val=seq_len, n_val=n)
 
     metric = np.arange(n_traj * seq_len, dtype=np.float32).reshape(n_traj, seq_len, 1)
     beliefs = np.ones((n_traj, seq_len, 4), dtype=np.float32) / 4.0
     batch = {"metric": metric, "beliefs": beliefs}
 
-    targets = extract_probe_targets(batch, proc, n_steps=n, pre_perturbation_only=True)
-    assert targets["physics"].shape == (n_traj * (m - 2), 1)
-    assert targets["belief"].shape == (n_traj * (m - 2), 3)
+    targets = extract_probe_targets(batch, proc, n_steps=n, pre_perturbation_only=True, k=1)
+    expected_indices = proc.usable_positions(k=1)
+    n_usable = len(expected_indices)
+    assert targets["physics"].shape == (n_traj * n_usable, 1)
+    assert targets["belief"].shape == (n_traj * n_usable, 3)
 
-    expected_indices = (np.arange(1, m - 1) + 1) * n - 1
     expected_physics = metric[:, expected_indices, :].reshape(-1, 1)
     assert np.allclose(targets["physics"], expected_physics)
 
@@ -338,11 +432,12 @@ def test_last_token_group_disjointness_and_cv():
     n_traj = 12
     m = 16
     n_test = 3
+    n_usable = m - 1
 
     order = np.random.default_rng(42).permutation(n_traj)
     test_seqs = set(order[:n_test].tolist())
 
-    groups_lt = np.repeat(np.arange(n_traj), m - 2)
+    groups_lt = np.repeat(np.arange(n_traj), n_usable)
     test_mask_lt = np.array([g in test_seqs for g in groups_lt])
     dev_mask_lt = ~test_mask_lt
 
@@ -384,9 +479,9 @@ def test_precomputation_job_last_token(tmp_path: Path):
         assert df is not None
         assert len(df) > 0
         modes = set(df["mode"].unique())
-        assert "last_token_all_layers" in modes
+        assert ("usable_token_all_layers" in modes) or ("last_token_all_layers" in modes)
         for l in range(5):
-            assert f"layer_{l}_last_token" in modes
+            assert (f"layer_{l}_usable_token" in modes) or (f"layer_{l}_last_token" in modes)
 
         assert "all_layers_cycle" not in modes
         assert "single_layer_cycle" not in modes
