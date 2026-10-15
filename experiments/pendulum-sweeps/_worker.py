@@ -610,7 +610,7 @@ def worker_main():
     parser.add_argument("--ridge-alphas", type=str, default="0.1,1.0,10.0,50.0")
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--n-layers", type=int, default=4)
-    parser.add_argument("--n-heads", type=int, default=1)
+    parser.add_argument("--n-heads", type=int, default=8)
     parser.add_argument("--log-every", type=int, default=50)
 
     args = parser.parse_args()

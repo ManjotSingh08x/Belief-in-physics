@@ -244,4 +244,20 @@ For lookahead horizon `k >= 1`:
 In `experiments/pendulum-sweeps/parallel_train.ipynb`:
 - `CONFIG_INDICES`: optional list of integer rows from `pendulum_range.csv` to run (empty list trains all rows).
 - `SEEDS_BY_WIDTH`: seeds mapped by model width, defaulting to `{32: [0, 1, 2], 64: [0], 128: [0]}`.
+- `M_TICKS`: optional context length override (e.g. `200` ticks $\to$ `seq_len = 2000` tokens for $n=10$).
+- `OUTPUT_DIR_NAME`: directory name for checkpoint outputs (e.g. `parallel_output_m200`).
+
+## 10. In-context KL divergence & k-HMM baselines
+
+`experiments/pendulum-sweeps/kl_in_context.py` and `experiments/pendulum-sweeps/kl_in_context.ipynb` adapt the in-context evaluation methodology from Poncin et al. (2026), *Large Language Models Develop Belief State Geometry In-Context* (arXiv:2609.17376v1).
+
+| Parameter | Value | What it does |
+|---|---|---|
+| `n_seq` | `1000` | Number of test evaluation trajectories with randomized initial conditions ($\theta_0 \sim \mathcal{N}(0, 0.3^2)$, $\omega_0 \sim \text{trunc }\mathcal{N}(0, \delta v^2)$) |
+| `ks` | `(0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20)` | Markov orders $k$ for analytic $k$-HMM baseline predictors |
+| `burn_in_ticks` | `0` (or `10`) | Initial chain ticks to exclude when computing converged asymptotic KL |
+| `collision_merge` | Exact token equality | Letter branches mapping to identical physical observation bins have their ground truth and $k$-HMM masses summed before KL computation |
+| `decomposition` | Enabled by default | Splits model total KL into in-subspace belief distribution error $D_{\mathrm{KL}}(P^g \parallel Q^g / Z)$ and off-branch physics mass leakage $-\ln Z$ |
+| `crossover_k` | Linear interpolation | Effective Markov order $k^*$ where $k$-HMM matches the converged model prediction KL |
+
 

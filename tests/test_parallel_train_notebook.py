@@ -241,8 +241,9 @@ def test_notebook_cell_execution():
         assert master_csv.exists()
         df = pd.read_csv(master_csv)
         # 3 horizons * 2 models * 2 targets * (3 all_layers + 3 single_layers * (n_layers + 2))
-        # with n_layers=2: 3 * 2 * 2 * (3 + 3 * 4) = 180 rows
-        assert len(df) == 180
+        # with default n_layers=3: 3 * 2 * 2 * (3 + 3 * 5) = 216 rows
+        assert len(df) == 216
+
 
         assert "test_r2" in df.columns
         assert "cv_r2" in df.columns
