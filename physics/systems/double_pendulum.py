@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.stats import truncnorm
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class DoublePendulum:
     gamma2: float = 2.5  # viscous damping on joint 2
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
+    delta_v: float = 1.2
 
     #: Asymmetric release, at rest, so a kick to either joint shows up.
     th1_0: float = 0.9
@@ -48,11 +50,32 @@ class DoublePendulum:
         gain = self.joint1_action_gain
         return scale * np.array([[-gain, 0.0], [gain, 0.0], [0.0, -1.0], [0.0, 1.0]])
 
-    def initial_state(self, n: int) -> np.ndarray:
-        """An asymmetric release, so kicks to either joint are observable."""
+    def initial_state(
+        self,
+        n: int,
+        rng: np.random.Generator | None = None,
+        delta_v: float | None = None,
+    ) -> np.ndarray:
+        """An asymmetric release with randomized initial angular velocities.
+
+        Release angles are fixed (th1_0=0.9, th2_0=-0.4) so kicks to either joint
+        are observable. Initial velocities (omega1, omega2) are sampled from a
+        truncated normal distribution on [-dv, dv] with mean 0 and variance dv / 2.
+        """
+        dv = self.delta_v if delta_v is None else delta_v
+        if dv <= 0:
+            w1 = np.zeros(n)
+            w2 = np.zeros(n)
+        else:
+            generator = np.random.default_rng(20260925) if rng is None else rng
+            sigma = float(np.sqrt(dv / 2.0))
+            a, b = -dv / sigma, dv / sigma
+            vel = truncnorm.rvs(a, b, loc=0.0, scale=sigma, size=(n, 2), random_state=generator)
+            vel = np.atleast_2d(vel)
+            w1 = vel[:, 0]
+            w2 = vel[:, 1]
         return np.stack(
-            [np.full(n, self.th1_0), np.full(n, self.th2_0),
-             np.full(n, self.w1_0), np.full(n, self.w2_0)],
+            [np.full(n, self.th1_0), np.full(n, self.th2_0), w1, w2],
             axis=-1,
         )
 

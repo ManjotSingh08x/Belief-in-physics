@@ -310,7 +310,13 @@ class MessDriven:
         tick_beliefs = self.chain.beliefs(letters)
 
         sys_, actions = self.system, self.actions
-        expected = sys_.initial_state(n)
+        try:
+            expected = sys_.initial_state(n, rng=rng, delta_v=self.delta_v)
+        except TypeError:
+            try:
+                expected = sys_.initial_state(n, rng=rng)
+            except TypeError:
+                expected = sys_.initial_state(n)
         z = expected if initial_state is None else np.asarray(initial_state, dtype=np.float64)
         if z.shape != expected.shape or not np.isfinite(z).all():
             raise ValueError(
@@ -353,7 +359,10 @@ class MessDriven:
         if letters.shape[1] != self.m:
             raise ValueError(f"expected {self.m} letters per row, got {letters.shape[1]}")
         n = len(letters)
-        z = self.system.initial_state(n)
+        try:
+            z = self.system.initial_state(n, delta_v=self.delta_v)
+        except TypeError:
+            z = self.system.initial_state(n)
         obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(self.system.metric_names)))
         energy = np.empty((n, self.seq_len))

@@ -116,9 +116,12 @@ def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8) -> dict:
         raise ValueError(f"expected {proc.m} letters, got {len(letters)}")
 
     sysm, actions, dt = proc.system, proc.actions, proc.dt
-    z_d = sysm.initial_state(1)
-    z_f = sysm.initial_state(1)
-    z_t = sysm.initial_state(1) + twin_eps
+    try:
+        z_d = sysm.initial_state(1, delta_v=getattr(proc, "delta_v", None))
+    except TypeError:
+        z_d = sysm.initial_state(1)
+    z_f = z_d.copy()
+    z_t = z_d.copy() + twin_eps
 
     states = {"driven": [z_d[0].copy()], "free": [z_f[0].copy()], "twin": [z_t[0].copy()]}
     energy = {k: [float(sysm.energy(z)[0])] for k, z in
