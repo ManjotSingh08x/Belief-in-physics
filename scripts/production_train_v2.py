@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Double Pendulum Production Training & Multi-Platform Queue Orchestrator (v2: 15 Models, GPU-Accelerated Probing).
+"""Double Pendulum Production Training & Multi-Platform Queue Orchestrator (v2: 15 Models).
 
 Key Specifications:
 - 1 model trained per physics configuration x lookahead horizon (no multi-seed sweep).
@@ -7,8 +7,7 @@ Key Specifications:
 - Trajectory starting angular velocities randomized across [-delta_v, delta_v] via truncated normal distribution.
 - Clean model naming: {exp_name}_{train_name} without seed suffixes.
 - Seed column omitted from probe results and manifest.
-- GPU-Accelerated Probing: 4-way Ridge regression solved via PyTorch closed-form linear algebra directly on GPU device.
-- Multi-Platform Modes: 'rtx5090' (5 concurrent workers on cuda:0), 'kaggle' (2 workers on cuda:0/1), 'local_cpu' (1 worker).
+- Multi-Platform Modes: 'rtx5090' (concurrent workers on cuda:0), 'kaggle' (2 workers on cuda:0/1), 'local_cpu' (1 worker).
 - Smoke mode: 10,000 tokens for rapid ~2-second sanity testing.
 """
 
@@ -926,7 +925,13 @@ def train_only_worker(
                 "runtime_seconds": time.perf_counter() - t_start,
             }, f, indent=2)
 
-        print(f"[{job.job_id}] Training completed in {time.perf_counter()-t_start:.1f}s. Saved -> {job.checkpoint_path.name}", flush=True)
+        # Package per-model zip archive containing checkpoint and metadata
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in model_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, arcname=f.relative_to(model_dir))
+
+        print(f"[{job.job_id}] Training completed in {time.perf_counter()-t_start:.1f}s. Saved -> {job.checkpoint_path.name} & {zip_path.name}", flush=True)
         return job.job_id, job.checkpoint_path, job.sidecar_path, pd.DataFrame(history)
     finally:
         del trained_model
@@ -1261,14 +1266,14 @@ def main():
         worker_devices = ["cuda:0"] if torch.cuda.is_available() else ["cpu"]
 
     print("=" * 78)
-    print(" DOUBLE PENDULUM PRODUCTION TRAINING ORCHESTRATOR (v2: 15 Models, GPU Probing)")
+    print(" DOUBLE PENDULUM PRODUCTION TRAINING ORCHESTRATOR (v2: 15 Models)")
     print("=" * 78)
     print(f"Platform Mode:    {platform_mode.upper()}")
     print(f"Smoke Mode:       {smoke}")
     print(f"Workers:          {num_workers} worker(s) on {worker_devices}")
     print(f"Batch Size:       {batch_size} (strictly locked invariant)")
     print(f"Token Budget:     {tokens_per_model:,} tokens/model")
-    print(f"Probing Engine:   GPU-Accelerated Closed-Form PyTorch Linear Algebra (0 CPU bottlenecks)")
+    print(f"Execution Mode:   Pure Model Training (Probing launch decoupled)")
     print(f"Output Base:      {output_base}")
     print(f"Results Dir:      {results_dir}")
     print("=" * 78)
@@ -1358,7 +1363,7 @@ def main():
 
     for job in jobs:
         zip_path = results_dir / f"{job.job_id}.zip"
-        if job.job_id in completed_set or (zip_path.exists() and job.probe_csv_path.exists()):
+        if job.job_id in completed_set or (job.checkpoint_path.exists() and job.sidecar_path.exists()) or (zip_path.exists() and job.probe_csv_path.exists()):
             job.status = "COMPLETED"
             if job.job_id not in manifest_data["completed_models"]:
                 manifest_data["completed_models"].append(job.job_id)
@@ -1372,9 +1377,9 @@ def main():
     with open(manifest_path, "w") as f:
         json.dump(manifest_data, f, indent=2)
 
-    # Multi-worker dispatch: each worker trains and immediately executes GPU probing
+    # Multi-worker dispatch: each worker executes training only
     if num_workers > 1:
-        print(f"\nDispatching {len(jobs)} jobs across {num_workers} concurrent GPU workers ({worker_devices})...")
+        print(f"\nDispatching {len(jobs)} training jobs across {num_workers} concurrent GPU workers ({worker_devices})...")
         ctx = torch.multiprocessing.get_context("spawn")
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
             active_futs: Dict[concurrent.futures.Future, ModelJob] = {}
@@ -1385,7 +1390,7 @@ def main():
                 job.status = "TRAINING"
                 manifest_data["job_statuses"][job.job_id] = job.status
                 fut = executor.submit(
-                    train_and_probe_worker,
+                    train_only_worker,
                     job=job,
                     total_tokens=tokens_per_model,
                     batch_size=batch_size,
@@ -1402,19 +1407,15 @@ def main():
 
             for fut in concurrent.futures.as_completed(active_futs):
                 job = active_futs[fut]
-                job_id, probe_df = fut.result()
+                job_id, ckpt_path, sidecar_path, history_df = fut.result()
                 job.status = "COMPLETED"
-                if not probe_df.empty:
-                    all_probe_dfs.append(probe_df)
-                    cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
-                    cur_master_df.to_csv(master_csv_path, index=False)
                 if job.job_id not in manifest_data["completed_models"]:
                     manifest_data["completed_models"].append(job.job_id)
                 manifest_data["job_statuses"][job.job_id] = job.status
                 manifest_data["timestamp"] = time.time()
                 with open(manifest_path, "w") as f:
                     json.dump(manifest_data, f, indent=2)
-                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
+                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
 
     else:
         # Sequential path (single GPU or local_cpu)
@@ -1428,7 +1429,7 @@ def main():
             with open(manifest_path, "w") as f:
                 json.dump(manifest_data, f, indent=2)
 
-            _, probe_df = train_and_probe_worker(
+            train_only_worker(
                 job=job,
                 total_tokens=tokens_per_model,
                 batch_size=batch_size,
@@ -1439,17 +1440,13 @@ def main():
             )
 
             job.status = "COMPLETED"
-            if not probe_df.empty:
-                all_probe_dfs.append(probe_df)
-                cur_master_df = pd.concat(all_probe_dfs, ignore_index=True)
-                cur_master_df.to_csv(master_csv_path, index=False)
             if job.job_id not in manifest_data["completed_models"]:
                 manifest_data["completed_models"].append(job.job_id)
             manifest_data["job_statuses"][job.job_id] = job.status
             manifest_data["timestamp"] = time.time()
             with open(manifest_path, "w") as f:
                 json.dump(manifest_data, f, indent=2)
-            print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models completed in {master_csv_path.name}", flush=True)
+            print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
 
     print(f"\nState Manifest finalized -> {manifest_path}")
 
