@@ -21,6 +21,7 @@ import os
 import shutil
 import sys
 import time
+import traceback
 import zipfile
 from dataclasses import asdict, dataclass, field
 from itertools import combinations
@@ -171,29 +172,42 @@ def run_phase1_distillation(
     tuples_csv_path = results_dir / "distilled_physics_tuples.csv"
     tuples_json_path = results_dir / "distilled_physics_tuples.json"
 
-    # Auto-resume check: reload previously distilled tuples if present
+    # Auto-resume check: reload previously distilled tuples if present and valid
     if tuples_csv_path.exists() and tuples_json_path.exists():
-        print(f"Loading existing distilled physics tuples from {tuples_csv_path.name}...")
-        df_top = pd.read_csv(tuples_csv_path)
-        configs = []
-        for idx, row in df_top.iterrows():
-            tuple_name = str(row["name"]) if "name" in row else f"tuple{idx+1:02d}_dv{row['delta_v']:.2f}_g{row['gamma']:.2f}_n{int(row['n_steps'])}"
-            configs.append(ExperimentConfig(
-                name=tuple_name,
-                physics=DoublePendulumConfig(
-                    delta_v=float(row["delta_v"]),
-                    gamma1=float(row["gamma"]),
-                    gamma2=float(row["gamma"]),
-                    dt=0.2,
-                    obs_bins=(50, 50),
-                ),
-                hmm=HMMConfig(n_states=4, alpha=0.7, stay=0.7),
-                m=int(row["m"]),
-                n=int(row["n_steps"]),
-                seed=seed,
-            ))
-        print(f"Resumed {len(configs)} physics tuples from Level 1 export.")
-        return configs
+        try:
+            df_top = pd.read_csv(tuples_csv_path)
+            # Invalidate stale cache if sequence length invariant (500) does not match
+            is_valid_cache = (
+                not df_top.empty
+                and "m" in df_top.columns
+                and "n_steps" in df_top.columns
+                and int(df_top["m"].iloc[0] * df_top["n_steps"].iloc[0]) == 500
+            )
+            if is_valid_cache:
+                print(f"Loading existing distilled physics tuples from {tuples_csv_path.name}...")
+                configs = []
+                for idx, row in df_top.iterrows():
+                    tuple_name = str(row["name"]) if "name" in row else f"tuple{idx+1:02d}_dv{row['delta_v']:.2f}_g{row['gamma']:.2f}_n{int(row['n_steps'])}"
+                    configs.append(ExperimentConfig(
+                        name=tuple_name,
+                        physics=DoublePendulumConfig(
+                            delta_v=float(row["delta_v"]),
+                            gamma1=float(row["gamma"]),
+                            gamma2=float(row["gamma"]),
+                            dt=0.2,
+                            obs_bins=(50, 50),
+                        ),
+                        hmm=HMMConfig(n_states=4, alpha=0.7, stay=0.7),
+                        m=int(row["m"]),
+                        n=int(row["n_steps"]),
+                        seed=seed,
+                    ))
+                print(f"Resumed {len(configs)} physics tuples from Level 1 export.")
+                return configs
+            else:
+                print(f"Notice: Stale distilled physics tuples found (seq_len != 500). Re-screening Phase 1...")
+        except Exception as e:
+            print(f"Notice: Error reading cached tuples ({e}). Re-screening Phase 1...")
 
     # Sweep 1A: (dv x n) Grid Screening
     delta_vs = [0.8, 1.2] if smoke else [0.6, 0.8, 1.0, 1.2, 1.5]
@@ -205,7 +219,7 @@ def run_phase1_distillation(
     for dv in delta_vs:
         for n in n_candidates:
             pair_id += 1
-            m = 5000 // n
+            m = 500 // n
             proc = make_process(
                 "double_pendulum_mess4",
                 m=m, n_steps=n, delta_v=dv, dt=0.2,
@@ -528,7 +542,7 @@ def run_synchronous_probing_gpu(
     n = proc.n_steps
     m = proc.m
     k = trained_model.k
-    assert seq_len == m * n == 5000
+    assert seq_len == m * n == 500
 
     # Targets on device
     beliefs_np = eval_batch["beliefs"] @ simplex_embedding(proc.chain.n_states)
@@ -831,6 +845,12 @@ def train_only_worker(
         print(f"[{job.job_id}] Existing checkpoint found -> skipping training.", flush=True)
         return job.job_id, job.checkpoint_path, job.sidecar_path, pd.DataFrame()
 
+    if "cuda" in str(device) and torch.cuda.is_available():
+        try:
+            torch.cuda.set_device(device)
+        except Exception as e:
+            print(f"[{job.job_id}] Notice: Could not set cuda device to {device}: {e}", flush=True)
+
     print(f"[{job.job_id}] Starting training on {device} (Target: {total_tokens:,} tokens)...", flush=True)
 
     # 1. Instantiate Process
@@ -843,7 +863,7 @@ def train_only_worker(
         system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
     )
 
-    default_mb = 1 if device == "cpu" else (16 if smoke else int(os.environ.get("BELIEF_MICRO_BATCH", "64")))
+    default_mb = 1 if device == "cpu" else (16 if smoke else int(os.environ.get("BELIEF_MICRO_BATCH", "16")))
     chosen_mb = micro_batch_size or default_mb
     micro_batch = min(chosen_mb, batch_size)
     eff_batch = micro_batch if smoke else batch_size
@@ -897,14 +917,17 @@ def train_only_worker(
             optimiser.step()
             scheduler.step()
 
-            log_interval = 1 if smoke else 50
-            if step % log_interval == 0 or step == total_steps - 1:
+            log_interval = 1 if smoke else 5
+            if step == 0 or (step + 1) % log_interval == 0 or step == total_steps - 1:
                 cur_tokens = (step + 1) * tokens_per_step
                 lr_curr = scheduler.get_last_lr()[0]
+                elapsed = time.perf_counter() - t_start
+                tok_per_sec = cur_tokens / max(1e-3, elapsed)
                 history.append({"step": step, "loss": loss_accum, "lr": lr_curr, "tokens_seen": cur_tokens})
                 print(
                     f"[{job.job_id}] Step {step+1:4d}/{total_steps} ({(step+1)/total_steps:5.1%}) | "
-                    f"Loss: {loss_accum:.4f} | LR: {lr_curr:.2e} | Tokens: {cur_tokens:,}",
+                    f"Loss: {loss_accum:.4f} | LR: {lr_curr:.2e} | Tokens: {cur_tokens:,} | "
+                    f"{tok_per_sec:,.0f} tok/s | Elapsed: {elapsed:.1f}s",
                     flush=True,
                 )
 
@@ -933,6 +956,12 @@ def train_only_worker(
 
         print(f"[{job.job_id}] Training completed in {time.perf_counter()-t_start:.1f}s. Saved -> {job.checkpoint_path.name} & {zip_path.name}", flush=True)
         return job.job_id, job.checkpoint_path, job.sidecar_path, pd.DataFrame(history)
+    except Exception as e:
+        print(f"[{job.job_id}] CRITICAL ERROR during training on {device}: {e}", flush=True)
+        traceback.print_exc()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        raise
     finally:
         del trained_model
         if device != "cpu" and torch.cuda.is_available():
@@ -1253,7 +1282,7 @@ def main():
         num_workers = args.workers
         worker_devices = ["cuda:0" if torch.cuda.is_available() else "cpu"] * num_workers
     elif platform_mode == "rtx5090":
-        default_workers = 5
+        default_workers = 1
         num_workers = int(os.environ.get("BELIEF_NUM_WORKERS", str(default_workers)))
         worker_devices = ["cuda:0"] * num_workers
     elif platform_mode == "kaggle":
@@ -1407,15 +1436,24 @@ def main():
 
             for fut in concurrent.futures.as_completed(active_futs):
                 job = active_futs[fut]
-                job_id, ckpt_path, sidecar_path, history_df = fut.result()
-                job.status = "COMPLETED"
-                if job.job_id not in manifest_data["completed_models"]:
-                    manifest_data["completed_models"].append(job.job_id)
-                manifest_data["job_statuses"][job.job_id] = job.status
-                manifest_data["timestamp"] = time.time()
-                with open(manifest_path, "w") as f:
-                    json.dump(manifest_data, f, indent=2)
-                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
+                try:
+                    job_id, ckpt_path, sidecar_path, history_df = fut.result()
+                    job.status = "COMPLETED"
+                    if job.job_id not in manifest_data["completed_models"]:
+                        manifest_data["completed_models"].append(job.job_id)
+                    manifest_data["job_statuses"][job.job_id] = job.status
+                    manifest_data["timestamp"] = time.time()
+                    with open(manifest_path, "w") as f:
+                        json.dump(manifest_data, f, indent=2)
+                    print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
+                except Exception as e:
+                    job.status = "FAILED"
+                    manifest_data["job_statuses"][job.job_id] = f"FAILED: {e}"
+                    manifest_data["timestamp"] = time.time()
+                    with open(manifest_path, "w") as f:
+                        json.dump(manifest_data, f, indent=2)
+                    print(f"-> CRITICAL: Worker job {job.job_id} failed: {e}", flush=True)
+                    traceback.print_exc()
 
     else:
         # Sequential path (single GPU or local_cpu)
@@ -1429,24 +1467,32 @@ def main():
             with open(manifest_path, "w") as f:
                 json.dump(manifest_data, f, indent=2)
 
-            train_only_worker(
-                job=job,
-                total_tokens=tokens_per_model,
-                batch_size=batch_size,
-                device=dev,
-                results_dir=results_dir,
-                smoke=smoke,
-                micro_batch_size=args.micro_batch,
-            )
-
-            job.status = "COMPLETED"
-            if job.job_id not in manifest_data["completed_models"]:
-                manifest_data["completed_models"].append(job.job_id)
-            manifest_data["job_statuses"][job.job_id] = job.status
-            manifest_data["timestamp"] = time.time()
-            with open(manifest_path, "w") as f:
-                json.dump(manifest_data, f, indent=2)
-            print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
+            try:
+                train_only_worker(
+                    job=job,
+                    total_tokens=tokens_per_model,
+                    batch_size=batch_size,
+                    device=dev,
+                    results_dir=results_dir,
+                    smoke=smoke,
+                    micro_batch_size=args.micro_batch,
+                )
+                job.status = "COMPLETED"
+                if job.job_id not in manifest_data["completed_models"]:
+                    manifest_data["completed_models"].append(job.job_id)
+                manifest_data["job_statuses"][job.job_id] = job.status
+                manifest_data["timestamp"] = time.time()
+                with open(manifest_path, "w") as f:
+                    json.dump(manifest_data, f, indent=2)
+                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
+            except Exception as e:
+                job.status = "FAILED"
+                manifest_data["job_statuses"][job.job_id] = f"FAILED: {e}"
+                manifest_data["timestamp"] = time.time()
+                with open(manifest_path, "w") as f:
+                    json.dump(manifest_data, f, indent=2)
+                print(f"-> CRITICAL: Training failed for job {job.job_id}: {e}", flush=True)
+                traceback.print_exc()
 
     print(f"\nState Manifest finalized -> {manifest_path}")
 
