@@ -1410,13 +1410,14 @@ def main():
     if num_workers > 1:
         print(f"\nDispatching {len(jobs)} training jobs across {num_workers} concurrent GPU workers ({worker_devices})...")
         ctx = torch.multiprocessing.get_context("spawn")
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
-            active_futs: Dict[concurrent.futures.Future, ModelJob] = {}
+        executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx)
+        active_futs: Dict[concurrent.futures.Future, ModelJob] = {}
+        try:
             for i, job in enumerate(jobs):
                 if job.status == "COMPLETED":
                     continue
                 dev = worker_devices[i % len(worker_devices)]
-                job.status = "TRAINING"
+                job.status = "QUEUED"
                 manifest_data["job_statuses"][job.job_id] = job.status
                 fut = executor.submit(
                     train_only_worker,
@@ -1454,45 +1455,57 @@ def main():
                         json.dump(manifest_data, f, indent=2)
                     print(f"-> CRITICAL: Worker job {job.job_id} failed: {e}", flush=True)
                     traceback.print_exc()
+        except KeyboardInterrupt:
+            print("\n[!] Ctrl+C received: Terminating all workers and cancelling remaining queue...", flush=True)
+            for f in active_futs:
+                f.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+            sys.exit(130)
+        finally:
+            executor.shutdown(wait=False)
 
     else:
         # Sequential path (single GPU or local_cpu)
         dev = worker_devices[0]
-        for job in jobs:
-            if job.status == "COMPLETED":
-                continue
-            job.status = "TRAINING"
-            manifest_data["job_statuses"][job.job_id] = job.status
-            manifest_data["timestamp"] = time.time()
-            with open(manifest_path, "w") as f:
-                json.dump(manifest_data, f, indent=2)
-
-            try:
-                train_only_worker(
-                    job=job,
-                    total_tokens=tokens_per_model,
-                    batch_size=batch_size,
-                    device=dev,
-                    results_dir=results_dir,
-                    smoke=smoke,
-                    micro_batch_size=args.micro_batch,
-                )
-                job.status = "COMPLETED"
-                if job.job_id not in manifest_data["completed_models"]:
-                    manifest_data["completed_models"].append(job.job_id)
+        try:
+            for job in jobs:
+                if job.status == "COMPLETED":
+                    continue
+                job.status = "TRAINING"
                 manifest_data["job_statuses"][job.job_id] = job.status
                 manifest_data["timestamp"] = time.time()
                 with open(manifest_path, "w") as f:
                     json.dump(manifest_data, f, indent=2)
-                print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
-            except Exception as e:
-                job.status = "FAILED"
-                manifest_data["job_statuses"][job.job_id] = f"FAILED: {e}"
-                manifest_data["timestamp"] = time.time()
-                with open(manifest_path, "w") as f:
-                    json.dump(manifest_data, f, indent=2)
-                print(f"-> CRITICAL: Training failed for job {job.job_id}: {e}", flush=True)
-                traceback.print_exc()
+
+                try:
+                    train_only_worker(
+                        job=job,
+                        total_tokens=tokens_per_model,
+                        batch_size=batch_size,
+                        device=dev,
+                        results_dir=results_dir,
+                        smoke=smoke,
+                        micro_batch_size=args.micro_batch,
+                    )
+                    job.status = "COMPLETED"
+                    if job.job_id not in manifest_data["completed_models"]:
+                        manifest_data["completed_models"].append(job.job_id)
+                    manifest_data["job_statuses"][job.job_id] = job.status
+                    manifest_data["timestamp"] = time.time()
+                    with open(manifest_path, "w") as f:
+                        json.dump(manifest_data, f, indent=2)
+                    print(f"-> Progress saved: {len(manifest_data['completed_models'])}/{len(jobs)} models trained ({job.job_id})", flush=True)
+                except Exception as e:
+                    job.status = "FAILED"
+                    manifest_data["job_statuses"][job.job_id] = f"FAILED: {e}"
+                    manifest_data["timestamp"] = time.time()
+                    with open(manifest_path, "w") as f:
+                        json.dump(manifest_data, f, indent=2)
+                    print(f"-> CRITICAL: Training failed for job {job.job_id}: {e}", flush=True)
+                    traceback.print_exc()
+        except KeyboardInterrupt:
+            print("\n[!] Ctrl+C received: Stopping sequential training loop...", flush=True)
+            sys.exit(130)
 
     print(f"\nState Manifest finalized -> {manifest_path}")
 
