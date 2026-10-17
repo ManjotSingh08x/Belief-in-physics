@@ -167,3 +167,33 @@ def test_double_pendulum_single_line_bin_config():
     restored = make_process("double_pendulum_mess4")
     assert restored.obs_bins == orig if isinstance(orig, tuple) else (orig, orig)
 
+
+def test_randomized_initial_velocity_bounds_and_distribution():
+    """REASON: Verifies that DoublePendulum.initial_state randomizes angular velocities
+    within [-delta_v, delta_v] according to truncnorm with mean 0 and variance delta_v / 2,
+    while strictly preserving release angles at (0.9, -0.4).
+    """
+    dp = DoublePendulum(delta_v=1.2)
+    rng = np.random.default_rng(20260925)
+    n_samples = 5000
+    z = dp.initial_state(n_samples, rng=rng)
+
+    # Angles strictly preserved
+    assert np.allclose(z[:, 0], 0.9), "theta1_0 must be 0.9"
+    assert np.allclose(z[:, 1], -0.4), "theta2_0 must be -0.4"
+
+    # Velocities bounded in [-delta_v, delta_v]
+    w1, w2 = z[:, 2], z[:, 3]
+    assert np.all(w1 >= -1.2) and np.all(w1 <= 1.2), f"w1 exceeded [-1.2, 1.2]: [{w1.min()}, {w1.max()}]"
+    assert np.all(w2 >= -1.2) and np.all(w2 <= 1.2), f"w2 exceeded [-1.2, 1.2]: [{w2.min()}, {w2.max()}]"
+
+    # Mean approximately 0
+    assert abs(float(np.mean(w1))) < 0.05, f"w1 mean too far from 0: {np.mean(w1)}"
+    assert abs(float(np.mean(w2))) < 0.05, f"w2 mean too far from 0: {np.mean(w2)}"
+
+    # Determinism: same rng seed produces exact same state
+    z1 = dp.initial_state(10, rng=np.random.default_rng(42))
+    z2 = dp.initial_state(10, rng=np.random.default_rng(42))
+    assert np.array_equal(z1, z2), "Identical RNG seeds must produce identical initial states"
+
+
