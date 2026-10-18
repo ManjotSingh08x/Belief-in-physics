@@ -1,35 +1,20 @@
 #!/usr/bin/env python3
-"""Exact Replication of Probe Metrics & Interactive Dashboard Pipeline.
+"""Dedicated Layerwise Probing & Metrics Evaluation Pipeline.
 
-Implements the exact metric extraction, feature modes, sequence grouping,
-cross-validated Ridge regression, and interactive viewer widgets from the reference code.
+Implements cross-validated Ridge regression probing across individual model layers
+for two canonical modes:
+1. 'usable_tokens_probing': Individual probe per layer on the k pre-perturbation
+   tokens immediately preceding each action kick across cycles.
+2. 'all_tokens_probing': Individual probe per layer on all sequence tokens
+   across all integration steps.
 
-Metrics extracted:
-- Targets:
-    1. 'belief': Posterior belief states projected onto the simplex via simplex_embedding(K)
-    2. 'physics': Physical metric observables (e.g. angular velocities)
-- Feature Modes:
-    1. Earlier Macro Modes:
-        - all_layers_single_token: all layers concatenated at cycle boundary token (dim = (n_layers+1) * d_model)
-        - single_layer_cycle: last layer across all intra-cycle tokens (dim = n_steps * d_model)
-        - single_layer_last_token: last layer at pre-perturbation boundary excluding Cycle 0 (dim = d_model)
-        - single_layer_all_token / all_tokens_probing: last layer across all sequence tokens (dim = d_model)
-        - usable_tokens_probing: last layer across k pre-perturbation tokens across cycles (dim = d_model)
-    2. Layerwise Modes:
-        - layer_{l}_single_token for l in 0..n_layers (dim = d_model)
-        - layer_{l}_cycle for l in 0..n_layers (dim = n_steps * d_model)
-    3. Last-Token Pre-Perturbation Modes (skipping Cycle 0):
-        - last_token_all_layers: all layers at pre-perturbation token (dim = (n_layers+1) * d_model)
-        - layer_{l}_last_token for l in 0..n_layers: layer l at pre-perturbation token (dim = d_model)
-- Cross-Validated Ridge Evaluation (per target and mode):
-    - cv_r2: 5-fold GroupKFold cross-validation score on dev split (grouping by sequence)
-    - test_r2: held-out test R² on the 20% test sequence split (uniform average across outputs)
-    - alpha: optimal regularization parameter chosen from (0.1, 1.0, 10.0, 50.0)
-    - feature_dim: dimensionality of feature representation
-    - dev_rows_per_feature: ratio of training observations to feature dimension
-- Control Baselines:
-    - model_type = 'trained' vs model_type = 'random_init'
-    - Net Gain: test_r2(trained) - test_r2(random_init)
+Targets:
+- 'belief': Posterior belief states projected onto the simplex via simplex_embedding(K)
+- 'physics': Physical metric observables (e.g. double pendulum angular velocities)
+
+Evaluation:
+- 5-fold GroupKFold cross-validation grouped strictly by sequence ID (no temporal leakage).
+- Evaluated against matched random_init controls to compute Net Gain (Trained - Random R²).
 """
 
 from __future__ import annotations
@@ -62,7 +47,7 @@ from sklearn.model_selection import GridSearchCV, GroupKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from models.analysis import residual_streams_batched, tick_features
+from models.analysis import residual_streams_batched
 from models.transformer import ModelConfig, TinyTransformer
 from physics.messk import MessDriven, MessKProcess, simplex_embedding
 from physics.systems.double_pendulum import DoublePendulum
@@ -260,7 +245,12 @@ def extract_probe_targets_and_groups(
     n_steps: int = 10,
     k: int = 1,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
-    """Computes target arrays and sequence groups strictly aligned with feature extraction mode."""
+    """Computes target arrays and sequence groups strictly aligned with feature extraction mode.
+
+    Supported Modes:
+    1. 'usable_tokens_probing': k pre-perturbation tokens preceding each action kick across cycles.
+    2. 'all_tokens_probing': all sequence tokens across all integration steps.
+    """
     N = batch["tokens"].shape[0]
     seq_len = batch["tokens"].shape[1]
     m_cycles = proc.m if hasattr(proc, "m") else (seq_len // n_steps)
@@ -268,15 +258,7 @@ def extract_probe_targets_and_groups(
     embedded_beliefs = batch["beliefs"] @ simplex_embedding(proc.chain.n_states)
     physics_metric = batch["metric"]
 
-    if mode in ("all_tokens_probing", "single_layer_all_token") or (mode.startswith("layer_") and mode.endswith("_all_tokens")):
-        targets = {
-            "physics": physics_metric.reshape(N * seq_len, -1),
-            "belief": embedded_beliefs.reshape(N * seq_len, -1),
-        }
-        groups = np.repeat(np.arange(N), seq_len)
-        return targets, groups
-
-    elif mode in ("usable_tokens_probing",) or (mode.startswith("layer_") and mode.endswith("_usable_tokens")):
+    if mode in ("usable_tokens_probing", "usable_tokens"):
         usable_indices = np.concatenate([
             np.arange(c * n_steps + n_steps - k, c * n_steps + n_steps)
             for c in range(m_cycles)
@@ -288,105 +270,50 @@ def extract_probe_targets_and_groups(
         groups = np.repeat(np.arange(N), len(usable_indices))
         return targets, groups
 
-    elif "last_token" in mode:
-        # Pre-perturbation token at cycle boundaries strictly excluding Cycle 0 (length = m - 1)
-        post_sync_indices = np.arange(2 * n_steps - 1, seq_len, n_steps)
+    elif mode in ("all_tokens_probing", "all_tokens", "single_layer_all_token"):
         targets = {
-            "physics": physics_metric[:, post_sync_indices].reshape(N * (m_cycles - 1), -1),
-            "belief": embedded_beliefs[:, post_sync_indices].reshape(N * (m_cycles - 1), -1),
+            "physics": physics_metric.reshape(N * seq_len, -1),
+            "belief": embedded_beliefs.reshape(N * seq_len, -1),
         }
-        groups = np.repeat(np.arange(N), m_cycles - 1)
+        groups = np.repeat(np.arange(N), seq_len)
         return targets, groups
 
     else:
-        # Standard cycle boundary token: c*n - 1 for all cycles 0..m-1 (length = m)
-        cycle_indices = np.arange(n_steps - 1, seq_len, n_steps)
-        targets = {
-            "physics": physics_metric[:, cycle_indices].reshape(N * m_cycles, -1),
-            "belief": embedded_beliefs[:, cycle_indices].reshape(N * m_cycles, -1),
-        }
-        groups = np.repeat(np.arange(N), m_cycles)
-        return targets, groups
-
-
-def extract_probe_targets(
-    batch: dict,
-    proc: MessDriven,
-    n_steps: int = 10,
-    pre_perturbation_only: bool = False,
-) -> dict[str, np.ndarray]:
-    """Backward compatibility wrapper returning target dictionary."""
-    mode = "single_layer_last_token" if pre_perturbation_only else "single_layer_single_token"
-    targets, _ = extract_probe_targets_and_groups(batch, proc, mode, n_steps=n_steps)
-    return targets
+        raise ValueError(
+            f"Unsupported probe mode '{mode}'. Only 'usable_tokens_probing' and 'all_tokens_probing' are supported."
+        )
 
 
 def extract_probe_features(
     streams: list[np.ndarray],
+    layer_idx: int,
     mode: str,
     n_steps: int = 10,
     m: int | None = None,
     k: int = 1,
 ) -> np.ndarray:
-    N = streams[0].shape[0]
-    seq_len = streams[0].shape[1]
+    """Extracts features from an individual layer stream for the specified probe mode.
+
+    streams[layer_idx] has shape (N, seq_len, d_model).
+    """
+    s = streams[layer_idx]
+    N, seq_len, _ = s.shape
     m_cycles = m or (seq_len // n_steps)
 
-    # 1. All-tokens probing (Macro)
-    if mode in ("all_tokens_probing", "single_layer_all_token"):
-        return streams[-1].reshape(N * seq_len, -1).astype(np.float32)
-
-    # 2. Usable-tokens probing (Macro)
-    elif mode == "usable_tokens_probing":
+    if mode in ("usable_tokens_probing", "usable_tokens"):
         usable_indices = np.concatenate([
             np.arange(c * n_steps + n_steps - k, c * n_steps + n_steps)
             for c in range(m_cycles)
         ])
-        return streams[-1][:, usable_indices, :].reshape(N * len(usable_indices), -1).astype(np.float32)
+        return s[:, usable_indices, :].reshape(N * len(usable_indices), -1).astype(np.float32)
 
-    # 3. Pre-perturbation last token (Macro & all-layers, strictly excluding Cycle 0)
-    elif mode == "single_layer_last_token":
-        post_sync_indices = np.arange(2 * n_steps - 1, seq_len, n_steps)
-        return streams[-1][:, post_sync_indices, :].reshape(N * (m_cycles - 1), -1).astype(np.float32)
-    elif mode == "last_token_all_layers":
-        post_sync_indices = np.arange(2 * n_steps - 1, seq_len, n_steps)
-        stacked = np.concatenate(streams, axis=-1)
-        return stacked[:, post_sync_indices, :].reshape(N * (m_cycles - 1), -1).astype(np.float32)
+    elif mode in ("all_tokens_probing", "all_tokens", "single_layer_all_token"):
+        return s.reshape(N * seq_len, -1).astype(np.float32)
 
-    # 4. Earlier cycle-boundary & cycle-wide modes
-    elif mode == "all_layers_single_token":
-        return tick_features(streams, n_steps, whole_tick=False).astype(np.float32)
-    elif mode == "single_layer_cycle":
-        return tick_features([streams[-1]], n_steps, whole_tick=True).astype(np.float32)
-    elif mode == "all_layers_cycle":
-        return tick_features(streams, n_steps, whole_tick=True).astype(np.float32)
-    elif mode == "single_layer_single_token":
-        return tick_features([streams[-1]], n_steps, whole_tick=False).astype(np.float32)
-
-    # 5. Layerwise Modes
-    elif mode.startswith("layer_") and mode.endswith("_last_token"):
-        parts = mode.split("_")
-        depth = int(parts[1])
-        post_sync_indices = np.arange(2 * n_steps - 1, seq_len, n_steps)
-        return streams[depth][:, post_sync_indices, :].reshape(N * (m_cycles - 1), -1).astype(np.float32)
-    elif mode.startswith("layer_") and mode.endswith("_usable_tokens"):
-        parts = mode.split("_")
-        depth = int(parts[1])
-        usable_indices = np.concatenate([
-            np.arange(c * n_steps + n_steps - k, c * n_steps + n_steps)
-            for c in range(m_cycles)
-        ])
-        return streams[depth][:, usable_indices, :].reshape(N * len(usable_indices), -1).astype(np.float32)
-    elif mode.startswith("layer_") and mode.endswith("_all_tokens"):
-        parts = mode.split("_")
-        depth = int(parts[1])
-        return streams[depth].reshape(N * seq_len, -1).astype(np.float32)
-    elif mode.startswith("layer_"):
-        parts = mode.split("_")
-        depth = int(parts[1])
-        whole = len(parts) > 2 and parts[2] == "cycle"
-        return tick_features([streams[depth]], n_steps, whole_tick=whole).astype(np.float32)
-    raise ValueError(f"Unknown feature mode: {mode}")
+    else:
+        raise ValueError(
+            f"Unsupported probe mode '{mode}'. Only 'usable_tokens_probing' and 'all_tokens_probing' are supported."
+        )
 
 
 def cross_validated_ridge(
@@ -512,21 +439,25 @@ def save_analysis_csv(df: pd.DataFrame) -> None:
 
 def run_precomputation_job(
     target_models: list[str],
-    macro_modes: bool = True,
-    layerwise_token: bool = True,
-    layerwise_cycle: bool = False,
-    last_token_modes: bool = True,
-    layerwise_last_token: bool = True,
+    probe_usable_tokens: bool = True,
+    probe_all_tokens: bool = True,
     targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
     alphas: tuple = (0.1, 1.0, 10.0, 50.0),
     progress_callback=None,
     log_callback=None,
+    **kwargs,
 ) -> pd.DataFrame:
     global _CACHED_DF
     checkpoints = discover_checkpoints()
     new_rows = []
+
+    active_modes = []
+    if probe_usable_tokens:
+        active_modes.append("usable_tokens_probing")
+    if probe_all_tokens:
+        active_modes.append("all_tokens_probing")
 
     for model_name in target_models:
         if model_name not in checkpoints:
@@ -537,6 +468,7 @@ def run_precomputation_job(
 
         trained_m, random_m, m_cfg, meta = load_models_for_run(ckpt_info, device=DEVICE)
         exp_meta = meta.get("experiment", meta.get("exp_config", {}))
+        phys_meta = exp_meta.get("physics", {})
         proc = build_process_from_meta(exp_meta, meta.get("hmm", exp_meta.get("hmm")))
         n_steps = exp_meta.get("n", 10)
 
@@ -547,65 +479,59 @@ def run_precomputation_job(
         n_test = max(1, int(n_traj * 0.2))
         test_seqs = set(order[:n_test].tolist())
 
-        modes = []
-        if macro_modes:
-            # Earlier macro modes used in production training and probing
-            modes.extend([
-                "all_layers_single_token",
-                "single_layer_cycle",
-                "single_layer_last_token",
-                "single_layer_all_token",
-                "usable_tokens_probing",
-            ])
-        if layerwise_token:
-            modes.extend([f"layer_{l}_single_token" for l in range(m_cfg.n_layers + 1)])
-        if layerwise_cycle:
-            modes.extend([f"layer_{l}_cycle" for l in range(m_cfg.n_layers + 1)])
-        if last_token_modes:
-            modes.append("last_token_all_layers")
-        if layerwise_last_token:
-            modes.extend([f"layer_{l}_last_token" for l in range(m_cfg.n_layers + 1)])
-
         k_lookahead = meta.get("training", meta.get("train_config", {})).get("k", 1)
 
         for model_tag, model_obj in (("trained", trained_m), ("random_init", random_m)):
             streams = residual_streams_batched(model_obj.to(DEVICE).eval(), batch["tokens"], DEVICE)
-            for mode in modes:
-                X = extract_probe_features(streams, mode, n_steps=n_steps, m=proc.m, k=k_lookahead)
+            n_stream_layers = len(streams)
+
+            for mode in active_modes:
                 curr_targets, curr_groups = extract_probe_targets_and_groups(
                     batch, proc, mode, n_steps=n_steps, k=k_lookahead
                 )
                 curr_test_mask = np.isin(curr_groups, list(test_seqs))
                 curr_dev_mask = ~curr_test_mask
 
-                for t_name in targets:
-                    score = cross_validated_ridge(
-                        X,
-                        curr_targets[t_name],
-                        curr_groups,
-                        curr_dev_mask,
-                        curr_test_mask,
-                        ridge_alphas=alphas,
-                        cv_folds=cv_folds,
+                for layer_idx in range(n_stream_layers):
+                    depth_name = "emb" if layer_idx == 0 else f"L{layer_idx}"
+                    X = extract_probe_features(
+                        streams, layer_idx=layer_idx, mode=mode, n_steps=n_steps, m=proc.m, k=k_lookahead
                     )
-                    row = {
-                        "experiment": exp_meta.get("name", "standard"),
-                        "system": meta.get("process", "pendulum_mess4"),
-                        "training": meta.get("training", meta.get("train_config", {})).get("name", model_name),
-                        "seed": meta.get("training", meta.get("train_config", {})).get("seed", 0),
-                        "k_lookahead": meta.get("training", meta.get("train_config", {})).get("k", 1),
-                        "d_model": m_cfg.d_model,
-                        "n_layers": m_cfg.n_layers,
-                        "model_type": model_tag,
-                        "mode": mode,
-                        "target": t_name,
-                        **score,
-                    }
-                    new_rows.append(row)
-                    if progress_callback:
-                        progress_callback(1)
-                    if log_callback:
-                        log_callback(f"  [{model_tag:11s}] {mode:25s} | {t_name:7s} -> Test R²={score['test_r2']:.4f} (CV={score['cv_r2']:.4f})")
+
+                    for t_name in targets:
+                        score = cross_validated_ridge(
+                            X,
+                            curr_targets[t_name],
+                            curr_groups,
+                            curr_dev_mask,
+                            curr_test_mask,
+                            ridge_alphas=alphas,
+                            cv_folds=cv_folds,
+                        )
+                        row = {
+                            "experiment": exp_meta.get("name", "standard"),
+                            "system": meta.get("process", "double_pendulum_mess4" if "gamma1" in phys_meta else "pendulum_mess4"),
+                            "training": meta.get("training", meta.get("train_config", {})).get("name", model_name),
+                            "seed": meta.get("training", meta.get("train_config", {})).get("seed", 0),
+                            "k_lookahead": k_lookahead,
+                            "d_model": m_cfg.d_model,
+                            "n_layers": m_cfg.n_layers,
+                            "layer": layer_idx,
+                            "depth_name": depth_name,
+                            "model_type": model_tag,
+                            "probe_mode": mode,
+                            "mode": f"layer_{layer_idx}_{mode}",
+                            "target": t_name,
+                            **score,
+                        }
+                        new_rows.append(row)
+                        if progress_callback:
+                            progress_callback(1)
+                        if log_callback:
+                            log_callback(
+                                f"  [{model_tag:11s}] {depth_name:>4s} | {mode:20s} | {t_name:7s} -> "
+                                f"Test R²={score['test_r2']:.4f} (CV={score['cv_r2']:.4f})"
+                            )
 
     new_df = pd.DataFrame(new_rows)
     existing_df = load_analysis_csv(candidate_file=ANALYSIS_CSV)
@@ -623,16 +549,14 @@ def run_precomputation_job(
 
 def run_precomputation(
     target_models: list[str] | str = "all",
-    macro_modes: bool = True,
-    layerwise_token: bool = True,
-    layerwise_cycle: bool = False,
-    last_token_modes: bool = True,
-    layerwise_last_token: bool = True,
+    probe_usable_tokens: bool = True,
+    probe_all_tokens: bool = True,
     targets: list[str] | tuple = ("belief", "physics"),
     n_traj: int = 512,
     cv_folds: int = 5,
     alphas: tuple = (0.1, 1.0, 10.0, 50.0),
     verbose: bool = True,
+    **kwargs,
 ) -> pd.DataFrame:
     checkpoints = discover_checkpoints()
     if target_models == "all" or target_models == ["all"]:
@@ -644,16 +568,14 @@ def run_precomputation(
 
     return run_precomputation_job(
         target_models=models,
-        macro_modes=macro_modes,
-        layerwise_token=layerwise_token,
-        layerwise_cycle=layerwise_cycle,
-        last_token_modes=last_token_modes,
-        layerwise_last_token=layerwise_last_token,
+        probe_usable_tokens=probe_usable_tokens,
+        probe_all_tokens=probe_all_tokens,
         targets=list(targets),
         n_traj=n_traj,
         cv_folds=cv_folds,
         alphas=alphas,
         log_callback=print if verbose else None,
+        **kwargs,
     )
 
 
@@ -661,134 +583,19 @@ def run_precomputation(
 # 6. Plotting & Reporting Functions
 # ==============================================================================
 
-def plot_macro_overview(
-    run_name: str = "next-token",
-    df: pd.DataFrame | None = None,
-    targets: list[str] | tuple = ("belief", "physics"),
-    save_path: Path | str | None = None,
-    experiment: str | None = None,
-) -> plt.Figure | None:
-    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
-    if current_df is None or len(current_df) == 0:
-        print("No analysis data available.")
-        return None
-
-    candidate_macro_modes = [
-        "all_layers_single_token",
-        "single_layer_cycle",
-        "single_layer_last_token",
-        "single_layer_all_token",
-        "usable_tokens_probing",
-        "all_tokens_probing",
-        "single_layer_single_token",
-        "all_layers_cycle",
-    ]
-    sub = current_df[current_df["training"] == run_name]
-    if experiment is not None and "experiment" in sub.columns:
-        sub = sub[sub["experiment"] == experiment]
-    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
-        chosen_exp = sub["experiment"].iloc[0]
-        sub = sub[sub["experiment"] == chosen_exp]
-
-    macro_modes = [m for m in candidate_macro_modes if m in sub["mode"].unique()]
-    if not macro_modes:
-        macro_modes = [m for m in sub["mode"].unique() if not m.startswith("layer_")]
-    if len(macro_modes) == 0:
-        print(f"No macro mode data found for '{run_name}'.")
-        return None
-
-    sub = sub[sub["mode"].isin(macro_modes)]
-
-    fig, axes = plt.subplots(len(targets), 2, figsize=(13, 3.8 * len(targets)), squeeze=False)
-    for r_idx, tgt in enumerate(targets):
-        t_sub = sub[sub["target"] == tgt]
-        piv = t_sub.pivot(index="mode", columns="model_type", values="test_r2").reindex(macro_modes)
-        ax1, ax2 = axes[r_idx, 0], axes[r_idx, 1]
-
-        piv.plot.bar(ax=ax1, color=["#e74c3c", "#2980b9"], alpha=0.85, edgecolor="k", width=0.6)
-        model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
-        ax1.set_title(f"Model: {model_name} | {tgt.capitalize()} Held-Out R²", fontweight="bold")
-        ax1.set_ylabel("Test R²")
-        ax1.set_ylim(-0.05, 1.05)
-        ax1.axhline(0, color="k", lw=0.8, ls="--")
-        ax1.grid(axis="y", alpha=0.3)
-        ax1.tick_params(axis="x", rotation=18)
-        ax1.legend(["Random Init", "Trained"])
-
-        if "trained" in piv.columns and "random_init" in piv.columns:
-            delta = piv["trained"] - piv["random_init"]
-            colors = ["#27ae60" if d >= 0 else "#c0392b" for d in delta]
-            delta.plot.bar(ax=ax2, color=colors, edgecolor="k", width=0.6)
-            ax2.set_title(f"Model: {model_name} | Net Gain (Trained − Random)", fontweight="bold")
-            ax2.set_ylabel("Δ Test R²")
-            ax2.axhline(0, color="k", lw=0.8, ls="--")
-            ax2.grid(axis="y", alpha=0.3)
-            ax2.tick_params(axis="x", rotation=18)
-
-    plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, bbox_inches="tight", dpi=100)
-    plt.show()
-    return fig
-
+# ==============================================================================
+# 6. Plotting & Reporting Functions
+# ==============================================================================
 
 def plot_layerwise_emergence(
     run_name: str = "next-token",
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
+    probe_mode: str = "usable_tokens_probing",
     save_path: Path | str | None = None,
     experiment: str | None = None,
 ) -> plt.Figure | None:
-    current_df = df if df is not None else load_analysis_csv(experiment=experiment)
-    if current_df is None or len(current_df) == 0:
-        print("No analysis data available.")
-        return None
-
-    sub = current_df[(current_df["training"] == run_name) & (current_df["mode"].str.startswith("layer_")) & (current_df["mode"].str.endswith("_single_token"))].copy()
-    if experiment is not None and "experiment" in sub.columns:
-        sub = sub[sub["experiment"] == experiment]
-    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
-        chosen_exp = sub["experiment"].iloc[0]
-        sub = sub[sub["experiment"] == chosen_exp]
-    if len(sub) == 0:
-        print(f"No layerwise data for '{run_name}'. Run precomputation with layerwise mode enabled.")
-        return None
-
-    sub["depth"] = sub["mode"].apply(lambda m: int(m.split("_")[1]))
-    sub["depth_name"] = sub["depth"].apply(lambda d: "emb" if d == 0 else f"L{d}")
-    sub = sub.sort_values("depth")
-
-    fig, axes = plt.subplots(1, len(targets), figsize=(6.8 * len(targets), 4.2), squeeze=False)
-    model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
-    for c_idx, tgt in enumerate(targets):
-        ax = axes[0, c_idx]
-        t_sub = sub[sub["target"] == tgt]
-        for m_type, style, col in [("trained", "-o", "#2980b9"), ("random_init", "--s", "#e74c3c")]:
-            m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("depth")
-            if len(m_sub) > 0:
-                ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2, ms=6, label=m_type)
-        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Layerwise Trajectory", fontweight="bold")
-        ax.set_xlabel("Residual Stream Depth")
-        ax.set_ylabel("Test R²")
-        ax.set_ylim(-0.05, 1.05)
-        ax.axhline(0, color="k", lw=0.8, ls="--")
-        ax.grid(axis="y", alpha=0.3)
-        ax.legend(loc="lower right" if tgt == "belief" else "upper left")
-
-    plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, bbox_inches="tight", dpi=100)
-    plt.show()
-    return fig
-
-
-def plot_last_token_layerwise(
-    run_name: str = "next-token",
-    df: pd.DataFrame | None = None,
-    targets: list[str] | tuple = ("belief", "physics"),
-    save_path: Path | str | None = None,
-    experiment: str | None = None,
-) -> plt.Figure | None:
+    """Plots layerwise R² trajectory across residual stream depths (emb, L1..Ln) for a given probe mode."""
     current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
@@ -796,32 +603,42 @@ def plot_last_token_layerwise(
 
     sub = current_df[
         (current_df["training"] == run_name)
-        & (current_df["mode"].str.startswith("layer_"))
-        & (current_df["mode"].str.endswith("_last_token"))
+        & (
+            (current_df["probe_mode"] == probe_mode)
+            if "probe_mode" in current_df.columns
+            else current_df["mode"].str.contains(probe_mode)
+        )
     ].copy()
+
     if experiment is not None and "experiment" in sub.columns:
         sub = sub[sub["experiment"] == experiment]
     elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
         chosen_exp = sub["experiment"].iloc[0]
         sub = sub[sub["experiment"] == chosen_exp]
+
     if len(sub) == 0:
-        print(f"No last-token layerwise data for '{run_name}'. Run precomputation with layerwise last-token enabled.")
+        print(f"No {probe_mode} data for '{run_name}'.")
         return None
 
-    sub["depth"] = sub["mode"].apply(lambda m: int(m.split("_")[1]))
-    sub["depth_name"] = sub["depth"].apply(lambda d: "emb" if d == 0 else f"L{d}")
-    sub = sub.sort_values("depth")
+    if "layer" not in sub.columns:
+        sub["layer"] = sub["mode"].apply(lambda m: int(m.split("_")[1]) if m.startswith("layer_") else 0)
+    if "depth_name" not in sub.columns:
+        sub["depth_name"] = sub["layer"].apply(lambda d: "emb" if d == 0 else f"L{d}")
 
-    fig, axes = plt.subplots(1, len(targets), figsize=(6.8 * len(targets), 4.2), squeeze=False)
+    sub = sub.sort_values("layer")
+
+    fig, axes = plt.subplots(1, len(targets), figsize=(7.0 * len(targets), 4.2), squeeze=False)
     model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
+    mode_title = "Usable Pre-Perturbation Tokens" if "usable" in probe_mode else "All Sequence Tokens"
+
     for c_idx, tgt in enumerate(targets):
         ax = axes[0, c_idx]
         t_sub = sub[sub["target"] == tgt]
         for m_type, style, col in [("trained", "-o", "#2980b9"), ("random_init", "--s", "#e74c3c")]:
-            m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("depth")
+            m_sub = t_sub[t_sub["model_type"] == m_type].sort_values("layer")
             if len(m_sub) > 0:
-                ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2, ms=6, label=m_type)
-        ax.set_title(f"Model: {model_name} | {tgt.capitalize()} Pre-Perturbation Last Token", fontweight="bold")
+                ax.plot(m_sub["depth_name"], m_sub["test_r2"], style, color=col, lw=2.2, ms=6, label=m_type)
+        ax.set_title(f"{tgt.capitalize()} Layerwise Emergence\n({mode_title})", fontweight="bold", fontsize=11)
         ax.set_xlabel("Residual Stream Depth")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
@@ -836,38 +653,80 @@ def plot_last_token_layerwise(
     return fig
 
 
-def plot_last_token_comparison(
+def plot_modes_comparison(
+    run_name: str = "next-token",
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
     save_path: Path | str | None = None,
     experiment: str | None = None,
 ) -> plt.Figure | None:
+    """Compares layerwise emergence between usable_tokens_probing and all_tokens_probing."""
     current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
         return None
 
-    if experiment is not None and "experiment" in current_df.columns:
-        current_df = current_df[current_df["experiment"] == experiment]
+    sub = current_df[current_df["training"] == run_name].copy()
+    if experiment is not None and "experiment" in sub.columns:
+        sub = sub[sub["experiment"] == experiment]
+    elif "experiment" in sub.columns and sub["experiment"].nunique() > 1:
+        chosen_exp = sub["experiment"].iloc[0]
+        sub = sub[sub["experiment"] == chosen_exp]
 
-    lt_sub = current_df[current_df["mode"] == "last_token_all_layers"].copy()
-    if len(lt_sub) == 0:
-        print("No last_token_all_layers data available.")
-        return None
+    if "probe_mode" not in sub.columns:
+        sub["probe_mode"] = sub["mode"].apply(lambda m: "usable_tokens_probing" if "usable" in m else "all_tokens_probing")
+    if "layer" not in sub.columns:
+        sub["layer"] = sub["mode"].apply(lambda m: int(m.split("_")[1]) if m.startswith("layer_") else 0)
+    if "depth_name" not in sub.columns:
+        sub["depth_name"] = sub["layer"].apply(lambda d: "emb" if d == 0 else f"L{d}")
 
-    fig, axes = plt.subplots(len(targets), 1, figsize=(11, 4.2 * len(targets)), squeeze=False)
-    index_col = ["experiment", "training"] if ("experiment" in lt_sub.columns and lt_sub["experiment"].nunique() > 1) else "training"
+    fig, axes = plt.subplots(len(targets), 2, figsize=(14, 3.8 * len(targets)), squeeze=False)
+    model_name = f"{sub['experiment'].iloc[0]}_{run_name}" if "experiment" in sub.columns else run_name
+
+    mode_styles = {
+        "usable_tokens_probing": ("Usable Tokens", "-o", "#27ae60", "#95a5a6"),
+        "all_tokens_probing": ("All Tokens", "-s", "#2980b9", "#bdc3c7"),
+    }
+
     for r_idx, tgt in enumerate(targets):
-        ax = axes[r_idx, 0]
-        piv = lt_sub[lt_sub["target"] == tgt].pivot_table(index=index_col, columns="model_type", values="test_r2")
-        piv.plot.bar(ax=ax, color=["#e74c3c", "#2980b9"], width=0.6)
-        ax.set_title(f"{tgt.capitalize()} Last-Token Pre-Perturbation Comparison", fontweight="bold")
-        ax.set_ylabel("Test R²")
-        ax.set_ylim(-0.05, 1.05)
-        ax.axhline(0, color="k", lw=0.8, ls="--")
-        ax.grid(axis="y", alpha=0.3)
-        ax.tick_params(axis="x", rotation=15 if index_col != "training" else 0)
-        ax.legend(["Random Init", "Trained"], bbox_to_anchor=(1.02, 1), loc="upper left")
+        t_sub = sub[sub["target"] == tgt]
+        ax1, ax2 = axes[r_idx, 0], axes[r_idx, 1]
+
+        # Left panel: Trained vs Random Init curves
+        for p_mode in ["usable_tokens_probing", "all_tokens_probing"]:
+            label_prefix, sym, col_tr, col_rnd = mode_styles[p_mode]
+            m_sub = t_sub[t_sub["probe_mode"] == p_mode]
+            m_tr = m_sub[m_sub["model_type"] == "trained"].sort_values("layer")
+            m_rnd = m_sub[m_sub["model_type"] == "random_init"].sort_values("layer")
+            if len(m_tr) > 0:
+                ax1.plot(m_tr["depth_name"], m_tr["test_r2"], sym, color=col_tr, lw=2, ms=6, label=f"{label_prefix} (Trained)")
+            if len(m_rnd) > 0:
+                ax1.plot(m_rnd["depth_name"], m_rnd["test_r2"], "--" + sym[-1], color=col_rnd, lw=1.5, ms=5, label=f"{label_prefix} (Random)")
+
+        ax1.set_title(f"Model: {model_name} | {tgt.capitalize()} Raw Test R²", fontweight="bold")
+        ax1.set_xlabel("Residual Stream Depth")
+        ax1.set_ylabel("Test R²")
+        ax1.set_ylim(-0.05, 1.05)
+        ax1.axhline(0, color="k", lw=0.8, ls="--")
+        ax1.grid(axis="y", alpha=0.3)
+        ax1.legend(loc="lower right" if tgt == "belief" else "upper left", fontsize=8)
+
+        # Right panel: Net Gain (Trained - Random Init)
+        for p_mode in ["usable_tokens_probing", "all_tokens_probing"]:
+            label_prefix, sym, col_tr, _ = mode_styles[p_mode]
+            m_sub = t_sub[t_sub["probe_mode"] == p_mode]
+            piv = m_sub.pivot(index="layer", columns="model_type", values="test_r2")
+            if "trained" in piv.columns and "random_init" in piv.columns:
+                piv["net_gain"] = piv["trained"] - piv["random_init"]
+                depth_labels = [m_sub[m_sub["layer"] == l]["depth_name"].iloc[0] for l in piv.index]
+                ax2.plot(depth_labels, piv["net_gain"], sym, color=col_tr, lw=2, ms=6, label=f"{label_prefix} Net Gain")
+
+        ax2.set_title(f"Model: {model_name} | {tgt.capitalize()} Net Gain (Trained − Random)", fontweight="bold")
+        ax2.set_xlabel("Residual Stream Depth")
+        ax2.set_ylabel("Δ Test R²")
+        ax2.axhline(0, color="k", lw=0.8, ls="--")
+        ax2.grid(axis="y", alpha=0.3)
+        ax2.legend(loc="upper left", fontsize=9)
 
     plt.tight_layout()
     if save_path:
@@ -876,12 +735,19 @@ def plot_last_token_comparison(
     return fig
 
 
+def plot_macro_overview(*args, **kwargs) -> plt.Figure | None:
+    """Backwards-compatibility alias pointing to plot_modes_comparison."""
+    return plot_modes_comparison(*args, **kwargs)
+
+
 def plot_sweep_comparison(
     df: pd.DataFrame | None = None,
     targets: list[str] | tuple = ("belief", "physics"),
+    probe_mode: str = "usable_tokens_probing",
     save_path: Path | str | None = None,
     experiment: str | None = None,
 ) -> plt.Figure | None:
+    """Compares final layer test R² across different runs in the sweep."""
     current_df = df if df is not None else load_analysis_csv(experiment=experiment)
     if current_df is None or len(current_df) == 0:
         print("No analysis data available.")
@@ -890,34 +756,37 @@ def plot_sweep_comparison(
     if experiment is not None and "experiment" in current_df.columns:
         current_df = current_df[current_df["experiment"] == experiment]
 
-    candidate_sweep_modes = [
-        "all_layers_single_token",
-        "single_layer_last_token",
-        "single_layer_all_token",
-        "usable_tokens_probing",
-        "single_layer_cycle",
-        "single_layer_single_token",
-        "all_layers_cycle",
-    ]
-    modes_in_df = [m for m in candidate_sweep_modes if m in current_df["mode"].unique()]
-    macro_sub = current_df[current_df["mode"].isin(modes_in_df)].copy()
-    if len(macro_sub) == 0:
-        print("No sweep comparison data available.")
+    sub = current_df[
+        (
+            (current_df["probe_mode"] == probe_mode)
+            if "probe_mode" in current_df.columns
+            else current_df["mode"].str.contains(probe_mode)
+        )
+    ].copy()
+
+    if len(sub) == 0:
+        print(f"No {probe_mode} sweep data available.")
         return None
 
+    # Filter to final layer for each run
+    if "layer" not in sub.columns:
+        sub["layer"] = sub["mode"].apply(lambda m: int(m.split("_")[1]) if m.startswith("layer_") else 0)
+    max_layer = sub["layer"].max()
+    sub_final = sub[sub["layer"] == max_layer].copy()
+
     fig, axes = plt.subplots(len(targets), 1, figsize=(11, 4.2 * len(targets)), squeeze=False)
-    index_col = ["experiment", "training"] if ("experiment" in macro_sub.columns and macro_sub["experiment"].nunique() > 1) else "training"
+    index_col = ["experiment", "training"] if ("experiment" in sub_final.columns and sub_final["experiment"].nunique() > 1) else "training"
     for r_idx, tgt in enumerate(targets):
         ax = axes[r_idx, 0]
-        piv = macro_sub[macro_sub["target"] == tgt].pivot_table(index=index_col, columns=["model_type", "mode"], values="test_r2")
-        piv.plot.bar(ax=ax, width=0.7)
-        ax.set_title(f"{tgt.capitalize()} Comparison Across Sweep Horizons", fontweight="bold")
+        piv = sub_final[sub_final["target"] == tgt].pivot_table(index=index_col, columns="model_type", values="test_r2")
+        piv.plot.bar(ax=ax, color=["#e74c3c", "#2980b9"], width=0.6)
+        ax.set_title(f"{tgt.capitalize()} Comparison Across Sweep (Final Layer: L{max_layer}, {probe_mode})", fontweight="bold")
         ax.set_ylabel("Test R²")
         ax.set_ylim(-0.05, 1.05)
         ax.axhline(0, color="k", lw=0.8, ls="--")
         ax.grid(axis="y", alpha=0.3)
         ax.tick_params(axis="x", rotation=15 if index_col != "training" else 0)
-        ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
+        ax.legend(["Random Init", "Trained"], bbox_to_anchor=(1.02, 1), loc="upper left")
 
     plt.tight_layout()
     if save_path:
@@ -935,13 +804,13 @@ def get_metrics_table(
     if current_df is None or len(current_df) == 0:
         return pd.DataFrame()
 
-    cols = ["experiment", "training", "model_type", "mode", "target", "test_r2", "cv_r2", "alpha", "feature_dim"]
+    cols = ["experiment", "training", "model_type", "depth_name", "probe_mode", "target", "test_r2", "cv_r2", "alpha", "feature_dim"]
     sub = current_df[[c for c in cols if c in current_df.columns]]
     if experiment is not None and "experiment" in sub.columns:
         sub = sub[sub["experiment"] == experiment]
     if run_name is not None:
         sub = sub[sub["training"] == run_name]
-    return sub.sort_values(["target", "mode", "model_type"])
+    return sub.sort_values(["target", "probe_mode" if "probe_mode" in sub.columns else "mode", "model_type"])
 
 
 # ==============================================================================
@@ -961,11 +830,8 @@ def build_precomputation_widget() -> widgets.VBox:
         layout=widgets.Layout(width="420px"),
     )
 
-    chk_macro = widgets.Checkbox(value=True, description="Earlier Macro Modes (all_layers, cycle, last_token, all_token, usable)", indent=False)
-    chk_layerwise_token = widgets.Checkbox(value=True, description="Layerwise Single-Token (emb, L1..L4)", indent=False)
-    chk_layerwise_cycle = widgets.Checkbox(value=False, description="Layerwise Cycle", indent=False)
-    chk_last_token = widgets.Checkbox(value=True, description="Last Token (All Layers)", indent=False)
-    chk_layerwise_last_token = widgets.Checkbox(value=True, description="Layerwise Last Token", indent=False)
+    chk_usable = widgets.Checkbox(value=True, description="Usable Tokens Probing (Per Layer: emb, L1..Ln)", indent=False)
+    chk_all_tokens = widgets.Checkbox(value=True, description="All Tokens Probing (Per Layer: emb, L1..Ln)", indent=False)
 
     chk_belief = widgets.Checkbox(value=True, description="Belief State (Simplex)", indent=False)
     chk_physics = widgets.Checkbox(value=True, description="Physical Observables", indent=False)
@@ -1020,6 +886,12 @@ def build_precomputation_widget() -> widgets.VBox:
                 btn_load.disabled = False
                 return
 
+            if not chk_usable.value and not chk_all_tokens.value:
+                print("Select at least one probe mode (Usable Tokens or All Tokens).")
+                btn_run.disabled = False
+                btn_load.disabled = False
+                return
+
             try:
                 alphas = tuple(float(x.strip()) for x in text_alphas.value.split(",") if x.strip())
             except ValueError:
@@ -1031,25 +903,17 @@ def build_precomputation_widget() -> widgets.VBox:
                 cfg_d = meta.get("model", {})
                 train_d = meta.get("training", meta.get("train_config", {}))
                 n_layers = train_d.get("n_layers", cfg_d.get("n_layers", 4))
-                m_count = (
-                    (5 if chk_macro.value else 0)
-                    + ((n_layers + 1) if chk_layerwise_token.value else 0)
-                    + ((n_layers + 1) if chk_layerwise_cycle.value else 0)
-                    + (1 if chk_last_token.value else 0)
-                    + ((n_layers + 1) if chk_layerwise_last_token.value else 0)
-                )
-                total_jobs += m_count * len(targets) * 2
+                layers_count = n_layers + 1
+                modes_count = (1 if chk_usable.value else 0) + (1 if chk_all_tokens.value else 0)
+                total_jobs += layers_count * modes_count * len(targets) * 2
 
             prog.max = max(1, total_jobs)
             prog.value = 0
 
             df = run_precomputation_job(
                 target_models=models,
-                macro_modes=chk_macro.value,
-                layerwise_token=chk_layerwise_token.value,
-                layerwise_cycle=chk_layerwise_cycle.value,
-                last_token_modes=chk_last_token.value,
-                layerwise_last_token=chk_layerwise_last_token.value,
+                probe_usable_tokens=chk_usable.value,
+                probe_all_tokens=chk_all_tokens.value,
                 targets=targets,
                 n_traj=slider_n_traj.value,
                 cv_folds=slider_cv_folds.value,
@@ -1066,15 +930,16 @@ def build_precomputation_widget() -> widgets.VBox:
     btn_run.on_click(on_run)
 
     return widgets.VBox([
-        widgets.HTML("<h3>Precomputation Controller</h3>"),
+        widgets.HTML("<h3>Layerwise Probing Controller</h3>"),
         widgets.HBox([
             model_sel,
             widgets.VBox([
-                widgets.HTML("<b>Feature Modes:</b>"),
-                chk_macro, chk_layerwise_token, chk_layerwise_cycle,
-                chk_last_token, chk_layerwise_last_token,
+                widgets.HTML("<b>Layerwise Probe Modes:</b>"),
+                chk_usable,
+                chk_all_tokens,
                 widgets.HTML("<b>Targets:</b>"),
-                chk_belief, chk_physics,
+                chk_belief,
+                chk_physics,
             ]),
         ]),
         widgets.HBox([slider_n_traj, slider_cv_folds]),
@@ -1108,16 +973,16 @@ def build_viewer_widget() -> widgets.VBox:
     btn_refresh = widgets.Button(description="Refresh Data", icon="refresh", layout=widgets.Layout(width="140px"))
 
     tab = widgets.Tab()
-    out_macro = widgets.Output()
-    out_layerwise = widgets.Output()
-    out_last_token = widgets.Output()
+    out_usable = widgets.Output()
+    out_all_tokens = widgets.Output()
+    out_compare = widgets.Output()
     out_sweep = widgets.Output()
     out_table = widgets.Output()
 
-    tab.children = [out_macro, out_layerwise, out_last_token, out_sweep, out_table]
-    tab.set_title(0, "Macro Overview")
-    tab.set_title(1, "Layerwise Emergence")
-    tab.set_title(2, "Last Token Test")
+    tab.children = [out_usable, out_all_tokens, out_compare, out_sweep, out_table]
+    tab.set_title(0, "Layerwise (Usable Tokens)")
+    tab.set_title(1, "Layerwise (All Tokens)")
+    tab.set_title(2, "Modes Comparison")
     tab.set_title(3, "Sweep Comparison")
     tab.set_title(4, "Metrics Table")
 
@@ -1130,22 +995,21 @@ def build_viewer_widget() -> widgets.VBox:
         tgt_choice = target_toggle.value
         targets = ["belief", "physics"] if tgt_choice == "both" else [tgt_choice]
 
-        with out_macro:
+        with out_usable:
             clear_output(wait=True)
-            plot_macro_overview(run_name, df=current_df, targets=targets, experiment=exp_name)
+            plot_layerwise_emergence(run_name, df=current_df, targets=targets, probe_mode="usable_tokens_probing", experiment=exp_name)
 
-        with out_layerwise:
+        with out_all_tokens:
             clear_output(wait=True)
-            plot_layerwise_emergence(run_name, df=current_df, targets=targets, experiment=exp_name)
+            plot_layerwise_emergence(run_name, df=current_df, targets=targets, probe_mode="all_tokens_probing", experiment=exp_name)
 
-        with out_last_token:
+        with out_compare:
             clear_output(wait=True)
-            plot_last_token_layerwise(run_name, df=current_df, targets=targets, experiment=exp_name)
-            plot_last_token_comparison(df=current_df, targets=targets, experiment=exp_name)
+            plot_modes_comparison(run_name, df=current_df, targets=targets, experiment=exp_name)
 
         with out_sweep:
             clear_output(wait=True)
-            plot_sweep_comparison(df=current_df, targets=targets, experiment=exp_name)
+            plot_sweep_comparison(df=current_df, targets=targets, probe_mode="usable_tokens_probing", experiment=exp_name)
 
         with out_table:
             clear_output(wait=True)
@@ -1190,13 +1054,24 @@ def build_viewer_widget() -> widgets.VBox:
 # ==============================================================================
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run exact probe metrics extraction")
+    parser = argparse.ArgumentParser(description="Run layerwise probe metrics extraction")
     parser.add_argument("--models", type=str, default="all", help="Models to probe ('all' or comma-separated names)")
     parser.add_argument("--n-traj", type=int, default=512, help="Number of evaluation trajectories")
     parser.add_argument("--cv-folds", type=int, default=5, help="Number of GroupKFold CV splits")
+    parser.add_argument("--usable-only", action="store_true", help="Probe only usable tokens (k tokens before each kick)")
+    parser.add_argument("--all-tokens-only", action="store_true", help="Probe only all sequence tokens across all steps")
     args = parser.parse_args()
+
+    probe_usable = not args.all_tokens_only
+    probe_all = not args.usable_only
 
     models = "all" if args.models == "all" else [m.strip() for m in args.models.split(",")]
     print(f"Discovering checkpoints from {OUTPUT_DIR}...")
-    df_result = run_precomputation(target_models=models, n_traj=args.n_traj, cv_folds=args.cv_folds)
+    df_result = run_precomputation(
+        target_models=models,
+        probe_usable_tokens=probe_usable,
+        probe_all_tokens=probe_all,
+        n_traj=args.n_traj,
+        cv_folds=args.cv_folds,
+    )
     print(f"Finished extracting metrics. Results shape: {df_result.shape}")
