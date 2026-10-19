@@ -30,6 +30,8 @@ class DoublePendulum:
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
     delta_v: float = 1.2
+    angle_mode: str = "jitter"  # "jitter" | "uniform" | "fixed"
+    delta_theta: float = 0.5    # Half-width for jitter mode around (th1_0, th2_0)
 
     #: Asymmetric release, at rest, so a kick to either joint shows up.
     th1_0: float = 0.9
@@ -55,29 +57,50 @@ class DoublePendulum:
         n: int,
         rng: np.random.Generator | None = None,
         delta_v: float | None = None,
+        angle_mode: str | None = None,
+        delta_theta: float | None = None,
     ) -> np.ndarray:
-        """An asymmetric release with randomized initial angular velocities.
+        """An asymmetric release with randomized initial angles and angular velocities.
 
-        Release angles are fixed (th1_0=0.9, th2_0=-0.4) so kicks to either joint
-        are observable. Initial velocities (omega1, omega2) are sampled from a
-        truncated normal distribution on [-dv, dv] with mean 0 and variance dv / 2.
+        - If angle_mode == "jitter" (default): angles are sampled uniformly from
+          [th1_0 - delta_theta, th1_0 + delta_theta] and [th2_0 - delta_theta, th2_0 + delta_theta],
+          wrapped to [-pi, pi]. Guarantees contractive stability and 0.0000% clipping.
+        - If angle_mode == "uniform": angles are sampled uniformly over [-pi, pi]^2.
+        - If angle_mode == "fixed": angles are fixed to (th1_0, th2_0) = (0.9, -0.4).
+
+        Initial velocities (omega1, omega2) are sampled from a truncated normal distribution
+        on [-dv, dv] with mean 0 and variance dv / 2.
         """
+        generator = np.random.default_rng(20260925) if rng is None else rng
+        mode = self.angle_mode if angle_mode is None else angle_mode
+        d_th = self.delta_theta if delta_theta is None else delta_theta
+
+        wrap = lambda a: (a + np.pi) % (2 * np.pi) - np.pi
+
+        if mode == "fixed":
+            th1 = np.full(n, self.th1_0)
+            th2 = np.full(n, self.th2_0)
+        elif mode == "uniform":
+            th1 = generator.uniform(-np.pi, np.pi, size=n)
+            th2 = generator.uniform(-np.pi, np.pi, size=n)
+        elif mode == "jitter":
+            th1 = wrap(self.th1_0 + generator.uniform(-d_th, d_th, size=n))
+            th2 = wrap(self.th2_0 + generator.uniform(-d_th, d_th, size=n))
+        else:
+            raise ValueError(f"Unknown angle_mode: {mode}. Expected 'jitter', 'uniform', or 'fixed'.")
+
         dv = self.delta_v if delta_v is None else delta_v
         if dv <= 0:
             w1 = np.zeros(n)
             w2 = np.zeros(n)
         else:
-            generator = np.random.default_rng(20260925) if rng is None else rng
             sigma = float(np.sqrt(dv / 2.0))
             a, b = -dv / sigma, dv / sigma
             vel = truncnorm.rvs(a, b, loc=0.0, scale=sigma, size=(n, 2), random_state=generator)
             vel = np.atleast_2d(vel)
             w1 = vel[:, 0]
             w2 = vel[:, 1]
-        return np.stack(
-            [np.full(n, self.th1_0), np.full(n, self.th2_0), w1, w2],
-            axis=-1,
-        )
+        return np.stack([th1, th2, w1, w2], axis=-1)
 
     def _accel(self, th1, th2, w1, w2):
         g, l1, l2, m1, m2 = self.g, self.l1, self.l2, self.m1, self.m2

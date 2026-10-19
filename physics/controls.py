@@ -544,7 +544,13 @@ def compute_optimal_gamma(
         sysm = proc.system
         letters = proc.chain.sample(rng, n_trajs, m)[1]
         actions = proc.actions
-        z = sysm.initial_state(n_trajs)
+        try:
+            z = sysm.initial_state(n_trajs, rng=rng, delta_v=delta_v)
+        except TypeError:
+            try:
+                z = sysm.initial_state(n_trajs, rng=rng)
+            except TypeError:
+                z = sysm.initial_state(n_trajs)
 
         t_inj, t_diss = 0.0, 0.0
         cum_inj, cum_diss = [], []

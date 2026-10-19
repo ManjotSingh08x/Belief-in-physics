@@ -346,7 +346,7 @@ class MessDriven:
             "emitting_moods": np.repeat(states[:, :-1], self.n_steps, axis=1),
         }
 
-    def rollout(self, letters: np.ndarray) -> dict:
+    def rollout(self, letters: np.ndarray, initial_state: np.ndarray | None = None) -> dict:
         """Replay an explicit letter sequence, with no chain sampling.
 
         Every system here is deterministic given its letters: fixed initial
@@ -359,10 +359,15 @@ class MessDriven:
         if letters.shape[1] != self.m:
             raise ValueError(f"expected {self.m} letters per row, got {letters.shape[1]}")
         n = len(letters)
-        try:
-            z = self.system.initial_state(n, delta_v=self.delta_v)
-        except TypeError:
-            z = self.system.initial_state(n)
+        if initial_state is not None:
+            z = np.asarray(initial_state, dtype=np.float64).copy()
+            if z.ndim == 1:
+                z = z.reshape(1, -1)
+        else:
+            try:
+                z = self.system.initial_state(n, delta_v=self.delta_v)
+            except TypeError:
+                z = self.system.initial_state(n)
         obs = np.empty((n, self.seq_len, len(self.obs_bins)))
         metric = np.empty((n, self.seq_len, len(self.system.metric_names)))
         energy = np.empty((n, self.seq_len))

@@ -107,6 +107,8 @@ class DoublePendulumConfig:
     obs_bins: Tuple[int, int] = (50, 50)
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
+    angle_mode: str = "jitter"
+    delta_theta: float = 0.5
 
 
 @dataclass
@@ -631,7 +633,12 @@ def generate_synthesis_dashboard(
                 m=exp_cfg.m,
                 n_steps=exp_cfg.n,
                 delta_v=exp_cfg.physics.delta_v,
-                system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
+                system={
+                    "gamma1": exp_cfg.physics.gamma1,
+                    "gamma2": exp_cfg.physics.gamma2,
+                    "angle_mode": getattr(exp_cfg.physics, "angle_mode", "jitter"),
+                    "delta_theta": getattr(exp_cfg.physics, "delta_theta", 0.5),
+                },
             )
             cfg_heatmap_path = out_dir / f"{exp_cfg.name}_lookahead_heatmaps.png"
             plot_lookahead_comparison_heatmaps(exp_cfg, proc_temp, out_dir, cfg_heatmap_path, device=device)
@@ -825,7 +832,12 @@ def probe_single_checkpoint(
         m=exp_cfg.m,
         n_steps=exp_cfg.n,
         delta_v=exp_cfg.physics.delta_v,
-        system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
+        system={
+            "gamma1": exp_cfg.physics.gamma1,
+            "gamma2": exp_cfg.physics.gamma2,
+            "angle_mode": getattr(exp_cfg.physics, "angle_mode", "jitter"),
+            "delta_theta": getattr(exp_cfg.physics, "delta_theta", 0.5),
+        },
     )
 
     cfg = ModelConfig(

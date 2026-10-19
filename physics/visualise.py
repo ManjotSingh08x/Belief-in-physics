@@ -97,7 +97,7 @@ def state_names(system) -> tuple[str, ...]:
     return tuple(f"z{i}" for i in range(system.initial_state(1).shape[-1]))
 
 
-def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8) -> dict:
+def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8, initial_state=None) -> dict:
     """One driven trajectory, its undriven twin, and a nearby-start twin.
 
     Three rollouts rather than one, because each answers a different question.
@@ -116,10 +116,13 @@ def trace(proc, letters=None, seed: int = 0, twin_eps: float = 1e-8) -> dict:
         raise ValueError(f"expected {proc.m} letters, got {len(letters)}")
 
     sysm, actions, dt = proc.system, proc.actions, proc.dt
-    try:
-        z_d = sysm.initial_state(1, delta_v=getattr(proc, "delta_v", None))
-    except TypeError:
-        z_d = sysm.initial_state(1)
+    if initial_state is not None:
+        z_d = np.asarray(initial_state, dtype=np.float64).reshape(1, -1).copy()
+    else:
+        try:
+            z_d = sysm.initial_state(1, delta_v=getattr(proc, "delta_v", None))
+        except TypeError:
+            z_d = sysm.initial_state(1)
     z_f = z_d.copy()
     z_t = z_d.copy() + twin_eps
 

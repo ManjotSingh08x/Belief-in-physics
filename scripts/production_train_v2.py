@@ -108,6 +108,8 @@ class DoublePendulumConfig:
     obs_bins: Tuple[int, int] = (50, 50)
     omega_max: float = 10.0
     joint1_action_gain: float = 2.0
+    angle_mode: str = "jitter"
+    delta_theta: float = 0.5
 
 
 @dataclass
@@ -164,6 +166,8 @@ def run_phase1_distillation(
     smoke: bool = False,
     seed: int = 20260925,
     seq_len: int = 500,
+    angle_mode: str = "jitter",
+    delta_theta: float = 0.5,
 ) -> List[ExperimentConfig]:
     """Executes Sweep 1A and Sweep 1B, selecting the top 5 physics configurations."""
     print("\n" + "=" * 78)
@@ -197,6 +201,8 @@ def run_phase1_distillation(
                             gamma2=float(row["gamma"]),
                             dt=0.2,
                             obs_bins=(50, 50),
+                            angle_mode=angle_mode,
+                            delta_theta=delta_theta,
                         ),
                         hmm=HMMConfig(n_states=4, alpha=0.7, stay=0.7),
                         m=int(row["m"]),
@@ -406,6 +412,8 @@ def run_phase1_distillation(
                 gamma2=float(row["gamma"]),
                 dt=0.2,
                 obs_bins=(50, 50),
+                angle_mode=angle_mode,
+                delta_theta=delta_theta,
             ),
             hmm=HMMConfig(n_states=4, alpha=0.7, stay=0.7),
             m=int(row["m"]),
@@ -861,7 +869,12 @@ def train_only_worker(
         m=exp_cfg.m,
         n_steps=exp_cfg.n,
         delta_v=exp_cfg.physics.delta_v,
-        system={"gamma1": exp_cfg.physics.gamma1, "gamma2": exp_cfg.physics.gamma2},
+        system={
+            "gamma1": exp_cfg.physics.gamma1,
+            "gamma2": exp_cfg.physics.gamma2,
+            "angle_mode": getattr(exp_cfg.physics, "angle_mode", "jitter"),
+            "delta_theta": getattr(exp_cfg.physics, "delta_theta", 0.5),
+        },
     )
 
     if micro_batch_size is not None:
@@ -1274,6 +1287,8 @@ def main():
     parser.add_argument("--workers", type=int, default=None, help="Number of concurrent worker processes (default: 5 for rtx5090, min(2, dev_count) for kaggle, 1 for local_cpu)")
     parser.add_argument("--micro-batch", type=int, default=None, help="Micro-batch size for gradient accumulation (default: 64)")
     parser.add_argument("--seq-len", type=int, default=500, help="Sequence length m * n (default: 500)")
+    parser.add_argument("--init-angle-mode", type=str, choices=["jitter", "uniform", "fixed"], default="jitter", help="Initial angle distribution mode (default: jitter)")
+    parser.add_argument("--delta-theta", type=float, default=0.5, help="Half-width in radians for jitter mode (default: 0.5)")
     args = parser.parse_args()
 
     platform_mode = args.platform or detect_platform_mode()
@@ -1325,7 +1340,13 @@ def main():
     print("=" * 78)
 
     # Phase 1: Physics Screening & 5-Tuple Distillation
-    chosen_configs = run_phase1_distillation(results_dir, smoke=smoke, seq_len=args.seq_len)
+    chosen_configs = run_phase1_distillation(
+        results_dir,
+        smoke=smoke,
+        seq_len=args.seq_len,
+        angle_mode=args.init_angle_mode,
+        delta_theta=args.delta_theta,
+    )
 
     # Phase 2: Build the Production Queue (15 Models Total: 5 tuples x 3 lookaheads)
     w = 128
