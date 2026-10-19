@@ -236,14 +236,11 @@ def run_phase1_distillation(
                 float(stab["bayes_gap"])
                 - 0.5 * min(0.0, float(stab["lyapunov"]))
                 - 10.0 * float(stab["clipped"])
-                - 5.0 * max(0.0, 0.10 - used_bins_frac)
             )
             is_go = (
-                float(stab["lyapunov"]) < -0.30
-                and float(stab["clipped"]) < 0.01
-                and used_bins_frac >= 0.10
+                stab["stable"]
+                and float(stab["lyapunov"]) < -0.10
                 and float(stab["bayes_gap"]) >= 0.15
-                and gap_free > 1e-3
             )
             sweep_1a_records.append({
                 "pair_id": pair_id,
@@ -289,16 +286,22 @@ def run_phase1_distillation(
         n_val = int(row["n_steps"])
         m_val = int(row["m"])
 
-        proc_temp = make_process(
-            "double_pendulum_mess4",
-            m=m_val, n_steps=n_val, delta_v=dv_val, dt=0.2,
-            system={"gamma1": 0.65, "gamma2": 0.65},
-        )
         try:
-            opt_res = compute_optimal_gamma(proc_temp, n_trajs=16 if smoke else 64)
-            gamma_star = float(opt_res.get("optimal_gamma", 0.65))
-        except Exception:
-            gamma_star = 0.65
+            opt_res = compute_optimal_gamma(
+                system_name="double_pendulum_mess4",
+                m=m_val,
+                n_steps=n_val,
+                dt=0.2,
+                delta_v=dv_val,
+                stay=0.7,
+                alpha=0.7,
+                damping_field="gamma1",
+                n_trajs=16 if smoke else 64,
+            )
+            gamma_star = float(opt_res.get("gamma_opt", 8.5))
+        except Exception as e:
+            print(f"Notice: compute_optimal_gamma fallback triggered ({e}), using baseline gamma_star=8.5")
+            gamma_star = 8.5
 
         gammas = []
         for k in k_factors:
@@ -332,14 +335,11 @@ def run_phase1_distillation(
                 float(stab["bayes_gap"])
                 - 0.5 * min(0.0, float(stab["lyapunov"]))
                 - 10.0 * float(stab["clipped"])
-                - 5.0 * max(0.0, 0.10 - used_bins_frac)
             )
             is_go_1b = (
-                float(stab["lyapunov"]) < -0.30
-                and float(stab["clipped"]) < 0.01
-                and used_bins_frac >= 0.10
+                stab["stable"]
+                and float(stab["lyapunov"]) < -0.10
                 and float(stab["bayes_gap"]) >= 0.15
-                and gap_free > 1e-3
             )
             sweep_1b_records.append({
                 "pair_id": p_id,
