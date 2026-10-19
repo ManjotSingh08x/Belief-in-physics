@@ -273,27 +273,27 @@ def run_full_probing_suite(
     belief_entropy_norm = float(-(b_np * np.log(np.clip(b_np, 1e-12, None))).sum(1).mean() / np.log(k_states))
     oracle_mood_recovery = float((b_np.argmax(1) == eval_batch["moods"].reshape(-1)).mean())
 
+    N, seq_len = tokens.shape
+    n = proc.n_steps
+    m = proc.m
+    k = trained_model.k
+    assert seq_len == m * n, f"Expected seq_len == m * n, got {seq_len} != {m} * {n}"
+
     # Extract residual streams directly on device in small chunks to prevent VRAM spikes
     def extract_streams(model: LookaheadTransformer) -> List[torch.Tensor]:
         streams = [[] for _ in range(len(model.blocks))]
-        chunk_size = 4 if device == "cpu" else 64
+        chunk_size = max(1, min(64, 32_768 // max(1, seq_len))) if device != "cpu" else 4
         with torch.no_grad():
             for i in range(0, eval_tokens.shape[0], chunk_size):
                 tok_chunk = eval_tokens[i : i + chunk_size]
                 x = model._embed(tok_chunk)
                 for b_idx, block in enumerate(model.blocks):
                     x = block(x)
-                    streams[b_idx].append(x)
+                    streams[b_idx].append(x.cpu())
         return [torch.cat(s, dim=0) for s in streams]
 
     trained_streams = extract_streams(trained_model)
     random_streams = extract_streams(random_model)
-
-    N, seq_len = tokens.shape
-    n = proc.n_steps
-    m = proc.m
-    k = trained_model.k
-    assert seq_len == m * n, f"Expected seq_len == m * n, got {seq_len} != {m} * {n}"
 
     # Targets on device
     beliefs_np = eval_batch["beliefs"] @ simplex_embedding(proc.chain.n_states)
@@ -321,8 +321,8 @@ def run_full_probing_suite(
     n_layers = len(trained_streams)
 
     for layer_idx in range(n_layers):
-        s_tr = trained_streams[layer_idx]
-        s_rnd = random_streams[layer_idx]
+        s_tr = trained_streams[layer_idx].to(device)
+        s_rnd = random_streams[layer_idx].to(device)
 
         for mode in probe_modes:
             if mode == "all_tokens_probing":
@@ -848,7 +848,7 @@ def probe_single_checkpoint(
         random_model = LookaheadTransformer(cfg, k=train_cfg.k).to(target_device)  # Untrained control
 
         # 1. Full Multi-Target GPU Probing Suite
-        n_eval_trajs = 8 if smoke else 512
+        n_eval_trajs = 8 if smoke else (128 if proc.seq_len >= 2000 else 512)
         probe_df, simplex_data, meta_info = run_full_probing_suite(
             trained_model=trained_model,
             random_model=random_model,

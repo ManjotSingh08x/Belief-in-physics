@@ -163,6 +163,7 @@ def run_phase1_distillation(
     results_dir: Path,
     smoke: bool = False,
     seed: int = 20260925,
+    seq_len: int = 500,
 ) -> List[ExperimentConfig]:
     """Executes Sweep 1A and Sweep 1B, selecting the top 5 physics configurations."""
     print("\n" + "=" * 78)
@@ -176,12 +177,12 @@ def run_phase1_distillation(
     if tuples_csv_path.exists() and tuples_json_path.exists():
         try:
             df_top = pd.read_csv(tuples_csv_path)
-            # Invalidate stale cache if sequence length invariant (500) does not match
+            # Invalidate stale cache if sequence length invariant does not match
             is_valid_cache = (
                 not df_top.empty
                 and "m" in df_top.columns
                 and "n_steps" in df_top.columns
-                and int(df_top["m"].iloc[0] * df_top["n_steps"].iloc[0]) == 500
+                and int(df_top["m"].iloc[0] * df_top["n_steps"].iloc[0]) == seq_len
             )
             if is_valid_cache:
                 print(f"Loading existing distilled physics tuples from {tuples_csv_path.name}...")
@@ -205,7 +206,7 @@ def run_phase1_distillation(
                 print(f"Resumed {len(configs)} physics tuples from Level 1 export.")
                 return configs
             else:
-                print(f"Notice: Stale distilled physics tuples found (seq_len != 500). Re-screening Phase 1...")
+                print(f"Notice: Stale distilled physics tuples found (seq_len != {seq_len}). Re-screening Phase 1...")
         except Exception as e:
             print(f"Notice: Error reading cached tuples ({e}). Re-screening Phase 1...")
 
@@ -219,7 +220,7 @@ def run_phase1_distillation(
     for dv in delta_vs:
         for n in n_candidates:
             pair_id += 1
-            m = 500 // n
+            m = seq_len // n
             proc = make_process(
                 "double_pendulum_mess4",
                 m=m, n_steps=n, delta_v=dv, dt=0.2,
@@ -522,27 +523,27 @@ def run_synchronous_probing_gpu(
     tokens = eval_batch["tokens"]
     eval_tokens = torch.as_tensor(tokens, dtype=torch.long, device=device)
 
+    N, seq_len = tokens.shape
+    n = proc.n_steps
+    m = proc.m
+    k = trained_model.k
+    assert seq_len == m * n, f"Expected seq_len == m * n, got {seq_len} != {m} * {n}"
+
     # Extract residual streams directly on device (chunked to prevent peak VRAM/memory spikes)
     def extract_streams(model: LookaheadTransformer) -> List[torch.Tensor]:
         streams = [[] for _ in range(len(model.blocks))]
-        chunk_size = 4 if device == "cpu" else 64
+        chunk_size = max(1, min(64, 32_768 // max(1, seq_len))) if device != "cpu" else 4
         with torch.no_grad():
             for i in range(0, eval_tokens.shape[0], chunk_size):
                 tok_chunk = eval_tokens[i : i + chunk_size]
                 x = model._embed(tok_chunk)
                 for b_idx, block in enumerate(model.blocks):
                     x = block(x)
-                    streams[b_idx].append(x)
+                    streams[b_idx].append(x.cpu())
         return [torch.cat(s, dim=0) for s in streams]
 
     trained_streams = extract_streams(trained_model)
     random_streams = extract_streams(random_model)
-
-    N, seq_len = tokens.shape
-    n = proc.n_steps
-    m = proc.m
-    k = trained_model.k
-    assert seq_len == m * n == 500
 
     # Targets on device
     beliefs_np = eval_batch["beliefs"] @ simplex_embedding(proc.chain.n_states)
@@ -571,8 +572,8 @@ def run_synchronous_probing_gpu(
     n_layers = len(trained_streams)
 
     for layer_idx in range(n_layers):
-        s_tr = trained_streams[layer_idx]
-        s_rnd = random_streams[layer_idx]
+        s_tr = trained_streams[layer_idx].to(device)
+        s_rnd = random_streams[layer_idx].to(device)
 
         for mode in probe_modes:
             if mode == "all_tokens_probing":
@@ -865,7 +866,9 @@ def train_only_worker(
 
     default_mb = 1 if device == "cpu" else (16 if smoke else int(os.environ.get("BELIEF_MICRO_BATCH", "16")))
     chosen_mb = micro_batch_size or default_mb
-    micro_batch = min(chosen_mb, batch_size)
+    # Dynamically cap micro-batch to prevent VRAM spikes for long sequences (max ~32k tokens per forward pass)
+    bounded_mb = max(1, min(chosen_mb, 32_768 // max(1, proc.seq_len)))
+    micro_batch = min(bounded_mb, batch_size)
     eff_batch = micro_batch if smoke else batch_size
     grad_accum_steps = max(1, eff_batch // micro_batch)
     tokens_per_step = micro_batch * grad_accum_steps * proc.seq_len
@@ -1030,7 +1033,7 @@ def probe_only_worker_gpu(
             exp_name=exp_cfg.name,
             training_name=train_cfg.name,
             device=target_device,
-            n_eval_trajs=8 if smoke else 512,
+            n_eval_trajs=8 if smoke else (128 if proc.seq_len >= 2000 else 512),
             eval_seed=20260829,
         )
         probe_df.to_csv(probe_csv_path, index=False)
@@ -1257,6 +1260,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1024, help="Locked batch size invariant (default: 1024)")
     parser.add_argument("--workers", type=int, default=None, help="Number of concurrent worker processes (default: 5 for rtx5090, min(2, dev_count) for kaggle, 1 for local_cpu)")
     parser.add_argument("--micro-batch", type=int, default=None, help="Micro-batch size for gradient accumulation (default: 64)")
+    parser.add_argument("--seq-len", type=int, default=500, help="Sequence length m * n (default: 500)")
     args = parser.parse_args()
 
     platform_mode = args.platform or detect_platform_mode()
@@ -1308,7 +1312,7 @@ def main():
     print("=" * 78)
 
     # Phase 1: Physics Screening & 5-Tuple Distillation
-    chosen_configs = run_phase1_distillation(results_dir, smoke=smoke)
+    chosen_configs = run_phase1_distillation(results_dir, smoke=smoke, seq_len=args.seq_len)
 
     # Phase 2: Build the Production Queue (15 Models Total: 5 tuples x 3 lookaheads)
     w = 128
