@@ -204,7 +204,7 @@ def load_models_for_run(ckpt_info: dict, device: str = DEVICE):
         n_ctx = int(state_dict["pos_emb.weight"].shape[0])
     else:
         exp_d = meta.get("experiment", meta.get("exp_config", {}))
-        n_ctx = int(cfg_d.get("n_ctx", exp_d.get("m", 50) * exp_d.get("n", 10)))
+        n_ctx = int(cfg_d.get("n_ctx", exp_d.get("m", 200) * exp_d.get("n", 10)))
 
     if "tok_emb.weight" in state_dict:
         vocab_size = int(state_dict["tok_emb.weight"].shape[0])

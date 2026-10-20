@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Double Pendulum Production Training & Multi-Platform Queue Orchestrator (v2: 15 Models).
+"""Double Pendulum Production Training & Multi-Platform Queue Orchestrator (v2: 3 Models).
 
 Key Specifications:
-- 1 model trained per physics configuration x lookahead horizon (no multi-seed sweep).
-- 5 distilled physics configurations x 3 lookahead horizons (_k1, _k_mid, _k_full) x 1 fixed width (d_model=128) = 15 models total.
+- 1 physics configuration x 3 lookahead horizons (_k1, _k_mid, _k_full) x 1 fixed width (d_model=128) = 3 models total.
 - Trajectory starting angular velocities randomized across [-delta_v, delta_v] via truncated normal distribution.
 - Clean model naming: {exp_name}_{train_name} without seed suffixes.
 - Seed column omitted from probe results and manifest.
 - Multi-Platform Modes: 'rtx5090' (concurrent workers on cuda:0), 'kaggle' (2 workers on cuda:0/1), 'local_cpu' (1 worker).
-- Smoke mode: 10,000 tokens for rapid ~2-second sanity testing.
+- Smoke mode: 10,000 tokens for rapid sanity testing.
 """
 
 from __future__ import annotations
@@ -165,13 +164,14 @@ def run_phase1_distillation(
     results_dir: Path,
     smoke: bool = False,
     seed: int = 20260925,
-    seq_len: int = 500,
+    seq_len: int = 2000,
     angle_mode: str = "jitter",
     delta_theta: float = 0.5,
+    num_configs: int = 1,
 ) -> List[ExperimentConfig]:
-    """Executes Sweep 1A and Sweep 1B, selecting the top 5 physics configurations."""
+    """Executes Sweep 1A and Sweep 1B, selecting the top physics configuration(s)."""
     print("\n" + "=" * 78)
-    print(" PHASE 1: PHYSICS SCREENING & 5-TUPLE DISTILLATION")
+    print(f" PHASE 1: PHYSICS SCREENING & DISTILLATION ({num_configs} CONFIGURATION(S))")
     print("=" * 78)
 
     tuples_csv_path = results_dir / "distilled_physics_tuples.csv"
@@ -188,7 +188,7 @@ def run_phase1_distillation(
                 and "n_steps" in df_top.columns
                 and int(df_top["m"].iloc[0] * df_top["n_steps"].iloc[0]) == seq_len
             )
-            if is_valid_cache:
+            if is_valid_cache and len(df_top) >= num_configs:
                 print(f"Loading existing distilled physics tuples from {tuples_csv_path.name}...")
                 configs = []
                 for idx, row in df_top.iterrows():
@@ -209,8 +209,8 @@ def run_phase1_distillation(
                         n=int(row["n_steps"]),
                         seed=seed,
                     ))
-                print(f"Resumed {len(configs)} physics tuples from Level 1 export.")
-                return configs
+                print(f"Resumed {num_configs} physics tuple(s) from Level 1 export.")
+                return configs[:num_configs]
             else:
                 print(f"Notice: Stale distilled physics tuples found (seq_len != {seq_len}). Re-screening Phase 1...")
         except Exception as e:
@@ -267,7 +267,7 @@ def run_phase1_distillation(
     print(f"Sweep 1A complete. Evaluated {len(df_1a)} candidate (dv, n) pairs.")
 
     # Distillation Checkpoint 1A: Filter is_go == True before taking top candidates
-    n_pairs_target = min(len(df_1a), 2 if smoke else 5)
+    n_pairs_target = min(len(df_1a), num_configs)
     passing_1a = df_1a[df_1a["is_go"] == True]
     if len(passing_1a) == 0:
         print("Warning: 0 pairs passed is_go in Sweep 1A; falling back to top non-chaotic pairs by score.")
@@ -366,8 +366,8 @@ def run_phase1_distillation(
     df_1b = pd.DataFrame(sweep_1b_records).sort_values("score", ascending=False).reset_index(drop=True)
     print(f"Sweep 1B complete. Evaluated {len(df_1b)} candidate physics tuples.")
 
-    # Distillation Checkpoint 2: Select Top 5 Physics Tuples (Diversity Constrained)
-    n_tuples_target = min(len(df_1b), 2 if smoke else 5)
+    # Distillation Checkpoint 2: Select Top Physics Tuple(s) (Diversity Constrained)
+    n_tuples_target = min(len(df_1b), num_configs)
     passing_1b = df_1b[df_1b["is_go"] == True]
 
     if len(passing_1b) == 0:
@@ -1278,17 +1278,21 @@ def sync_from_kaggle_input(results_dir: Path) -> None:
 # ==============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Double Pendulum Production Training v2 (15 Models, GPU Probing)")
-    parser.add_argument("--smoke", action="store_true", help="Run rapid smoke validation (~2 models, 10K tokens)")
+    parser = argparse.ArgumentParser(description="Double Pendulum Production Training v2 (3 Models: k1, k_mid, k_full)")
+    parser.add_argument("--smoke", action="store_true", help="Run rapid smoke validation (10K tokens)")
     parser.add_argument("--platform", type=str, choices=["rtx5090", "kaggle", "local_cpu"], default=None)
     parser.add_argument("--out-dir", type=str, default=None, help="Root directory for outputs")
     parser.add_argument("--tokens", type=int, default=None, help="Token budget per model (default: 800M, smoke: 10K)")
     parser.add_argument("--batch-size", type=int, default=1024, help="Locked batch size invariant (default: 1024)")
     parser.add_argument("--workers", type=int, default=None, help="Number of concurrent worker processes (default: 5 for rtx5090, min(2, dev_count) for kaggle, 1 for local_cpu)")
     parser.add_argument("--micro-batch", type=int, default=None, help="Micro-batch size for gradient accumulation (default: 64)")
-    parser.add_argument("--seq-len", type=int, default=500, help="Sequence length m * n (default: 500)")
+    parser.add_argument("--seq-len", type=int, default=2000, help="Sequence length m * n (default: 2000)")
     parser.add_argument("--init-angle-mode", type=str, choices=["jitter", "uniform", "fixed"], default="jitter", help="Initial angle distribution mode (default: jitter)")
     parser.add_argument("--delta-theta", type=float, default=0.5, help="Half-width in radians for jitter mode (default: 0.5)")
+    parser.add_argument("--num-configs", type=int, default=1, help="Number of distilled physics configurations to train (default: 1)")
+    parser.add_argument("--delta-v", type=float, default=None, help="Explicit kick magnitude delta_v (bypasses screening if set with --gamma and --n-steps)")
+    parser.add_argument("--gamma", type=float, default=None, help="Explicit damping gamma (bypasses screening if set with --delta-v and --n-steps)")
+    parser.add_argument("--n-steps", type=int, default=None, help="Explicit cycle steps n (bypasses screening if set with --delta-v and --gamma)")
     args = parser.parse_args()
 
     platform_mode = args.platform or detect_platform_mode()
@@ -1327,7 +1331,7 @@ def main():
         worker_devices = ["cuda:0"] if torch.cuda.is_available() else ["cpu"]
 
     print("=" * 78)
-    print(" DOUBLE PENDULUM PRODUCTION TRAINING ORCHESTRATOR (v2: 15 Models)")
+    print(" DOUBLE PENDULUM PRODUCTION TRAINING ORCHESTRATOR (v2: 3 Models)")
     print("=" * 78)
     print(f"Platform Mode:    {platform_mode.upper()}")
     print(f"Smoke Mode:       {smoke}")
@@ -1339,21 +1343,46 @@ def main():
     print(f"Results Dir:      {results_dir}")
     print("=" * 78)
 
-    # Phase 1: Physics Screening & 5-Tuple Distillation
-    chosen_configs = run_phase1_distillation(
-        results_dir,
-        smoke=smoke,
-        seq_len=args.seq_len,
-        angle_mode=args.init_angle_mode,
-        delta_theta=args.delta_theta,
-    )
+    # Phase 1: Physics Screening & Distillation
+    if args.delta_v is not None and args.gamma is not None and args.n_steps is not None:
+        n = args.n_steps
+        m = args.seq_len // n
+        cfg_name = f"tuple01_dv{args.delta_v:.2f}_g{args.gamma:.2f}_n{n}"
+        chosen_configs = [
+            ExperimentConfig(
+                name=cfg_name,
+                physics=DoublePendulumConfig(
+                    delta_v=args.delta_v,
+                    gamma1=args.gamma,
+                    gamma2=args.gamma,
+                    dt=0.2,
+                    obs_bins=(50, 50),
+                    angle_mode=args.init_angle_mode,
+                    delta_theta=args.delta_theta,
+                ),
+                hmm=HMMConfig(n_states=4, alpha=0.7, stay=0.7),
+                m=m,
+                n=n,
+                seed=20260925,
+            )
+        ]
+        print(f"Using explicit single physics configuration: {cfg_name} (m={m}, n={n}, dv={args.delta_v}, gamma={args.gamma})")
+    else:
+        chosen_configs = run_phase1_distillation(
+            results_dir,
+            smoke=smoke,
+            seq_len=args.seq_len,
+            angle_mode=args.init_angle_mode,
+            delta_theta=args.delta_theta,
+            num_configs=args.num_configs,
+        )
 
-    # Phase 2: Build the Production Queue (15 Models Total: 5 tuples x 3 lookaheads)
+    # Phase 2: Build the Production Queue (3 Models: 1 tuple x 3 lookaheads: _k1, _k_mid, _k_full)
     w = 128
     d_mlp = 4 * w
 
     jobs: List[ModelJob] = []
-    for exp_cfg in chosen_configs:
+    for exp_cfg in chosen_configs[:args.num_configs]:
         n = exp_cfg.n
         lookahead_specs = [
             (1, "_k1"),
@@ -1389,13 +1418,13 @@ def main():
             )
             jobs.append(job)
 
-    if smoke:
-        jobs = jobs[:2]
+    if smoke and len(jobs) > 3:
+        jobs = jobs[:3]
 
     print("\n" + "=" * 78)
     print(f" PHASE 2: PRODUCTION MODEL QUEUE ({len(jobs)} TOTAL MODELS)")
     print("=" * 78)
-    print(f"Queue Size:       {len(jobs)} models across {len(chosen_configs)} tuples, 1 width ({w}), 3 lookaheads, 1 model/config.")
+    print(f"Queue Size:       {len(jobs)} models across {len(chosen_configs[:args.num_configs])} tuple(s), 1 width ({w}), 3 lookaheads, 1 model/config.")
 
     manifest_path = output_base / "pipeline_state.json"
     master_csv_path = output_base / "master_probe_results.csv"

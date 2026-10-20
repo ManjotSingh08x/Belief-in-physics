@@ -741,7 +741,7 @@ def parse_model_metadata(model_dir: Path, job_id: str) -> Tuple[ExperimentConfig
                 name=exp_data.get("name", "tuple"),
                 physics=phys_cfg,
                 hmm=hmm_cfg,
-                m=int(exp_data.get("m", 50)),
+                m=int(exp_data.get("m", 200)),
                 n=int(exp_data.get("n", 10)),
                 seed=int(exp_data.get("seed", 20260925)),
             )
@@ -769,7 +769,7 @@ def parse_model_metadata(model_dir: Path, job_id: str) -> Tuple[ExperimentConfig
     dv = float(m_dv.group(1)) if m_dv else 1.2
     gamma = float(m_g.group(1)) if m_g else 0.65
     n = int(m_n.group(1)) if m_n else 10
-    m = 500 // n
+    m = 2000 // n
     d_model = int(m_dm.group(1)) if m_dm else 128
     d_mlp = int(m_dmlp.group(1)) if m_dmlp else 4 * d_model
 
@@ -800,6 +800,7 @@ def probe_single_checkpoint(
     device: str = "cuda:0",
     smoke: bool = False,
     force: bool = False,
+    seq_len_override: Optional[int] = None,
 ) -> Optional[Tuple[str, pd.DataFrame, Dict[str, Any]]]:
     """Evaluates all metrics for a single model checkpoint."""
     job_id = model_dir.name
@@ -827,9 +828,11 @@ def probe_single_checkpoint(
     t0 = time.perf_counter()
     exp_cfg, train_cfg = parse_model_metadata(model_dir, job_id)
 
+    m_val = (seq_len_override // exp_cfg.n) if seq_len_override is not None else exp_cfg.m
+
     proc = make_process(
         "double_pendulum_mess4",
-        m=exp_cfg.m,
+        m=m_val,
         n_steps=exp_cfg.n,
         delta_v=exp_cfg.physics.delta_v,
         system={
@@ -980,6 +983,8 @@ def main():
                         help="Watch mode: continuously poll and probe newly trained models every N seconds")
     parser.add_argument("--dashboard-only", action="store_true",
                         help="Skip model probing; only regenerate Phase 3 synthesis dashboard from existing probe CSVs")
+    parser.add_argument("--seq-len", type=int, default=None,
+                        help="Override evaluation sequence length m * n (default: auto from metadata or 2000)")
     args = parser.parse_args()
 
     # Determine directory paths
@@ -1064,6 +1069,7 @@ def main():
                     device=device,
                     smoke=args.smoke,
                     force=args.force,
+                    seq_len_override=args.seq_len,
                 )
                 if res is not None:
                     _, df, summary = res
