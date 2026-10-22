@@ -269,7 +269,7 @@ def run_synchronous_probing(
     N, seq_len = tokens_np.shape
     n = proc.n_steps
     m = proc.m
-    assert seq_len == m * n == 500
+    assert seq_len == m * n, f"Expected seq_len == m * n, got {seq_len} != {m} * {n}"
 
     embedded_beliefs = eval_batch["beliefs"] @ simplex_embedding(proc.chain.n_states)
     physics_metric = eval_batch["metric"]  # (N, seq_len, 2)
@@ -390,6 +390,64 @@ def plot_lookahead_probability_map(
     plt.close()
 
 
+def plot_training_loss_curve(
+    history_df: pd.DataFrame,
+    job_id: str,
+    save_path: Path,
+) -> None:
+    """Renders and saves a publication-quality training loss vs steps/epochs curve."""
+    if history_df.empty or "loss" not in history_df.columns:
+        return
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax1 = plt.subplots(figsize=(9, 4.8), dpi=150)
+    fig.patch.set_facecolor("#fcfcfb")
+    ax1.set_facecolor("white")
+
+    steps = history_df["step"].values
+    loss = history_df["loss"].values
+    tokens_seen = history_df["tokens_seen"].values if "tokens_seen" in history_df.columns else steps
+
+    # Raw loss points & line
+    ax1.plot(steps, loss, color="#1d3557", alpha=0.35, lw=1.0, label="Step Loss")
+
+    # Smoothed trend
+    if len(loss) >= 5:
+        window = max(3, len(loss) // 15)
+        smooth_loss = pd.Series(loss).rolling(window, min_periods=1).mean().values
+        ax1.plot(steps, smooth_loss, color="#e63946", lw=2.0, label=f"Smoothed Loss (win={window})")
+
+    ax1.set_xlabel("Optimization Step", fontsize=10, fontweight="bold")
+    ax1.set_ylabel("Cross-Entropy Loss [nats]", fontsize=10, fontweight="bold")
+    ax1.grid(True, alpha=0.25)
+
+    # Top axis for Tokens Seen
+    ax2 = ax1.twiny()
+    ax2.set_xlim(ax1.get_xlim())
+    num_ticks = min(6, len(steps))
+    tick_indices = np.linspace(0, len(steps) - 1, num_ticks, dtype=int)
+    ax2.set_xticks(steps[tick_indices])
+    ax2.set_xticklabels([f"{tokens_seen[i]/1e6:.1f}M tok" for i in tick_indices], fontsize=8)
+    ax2.set_xlabel("Total Tokens Trained", fontsize=9, color="#555")
+
+    # Annotate final loss
+    final_l = float(loss[-1])
+    min_l = float(np.min(loss))
+    ax1.axhline(final_l, color="#2a9d8f", lw=1.0, ls="--", alpha=0.7)
+    ax1.text(
+        steps[-1], final_l + 0.03 * (max(loss) - min_l + 1e-4),
+        f"Final Loss: {final_l:.4f}",
+        ha="right", va="bottom", fontsize=8.5, fontweight="bold", color="#2a9d8f",
+    )
+
+    ax1.set_title(f"Training Loss Curve: {job_id}", fontsize=11, fontweight="bold", pad=12)
+    ax1.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="#ddd", fontsize=8.5)
+    plt.tight_layout()
+    fig.savefig(save_path, bbox_inches="tight")
+    plt.close()
+    print(f"[{job_id}] Saved training loss curve -> {save_path.name}", flush=True)
+
+
 # ==============================================================================
 # 5. Production Worker Queue Execution (3 Models)
 # ==============================================================================
@@ -480,9 +538,11 @@ def train_and_probe_worker(
         optimiser.zero_grad(set_to_none=True)
         loss_accum = 0.0
 
-        for _ in range(grad_accum_steps):
-            batch_tokens = proc.sample_batch(stream_rng, micro_batch)["tokens"]
-            batch_tensor = torch.as_tensor(batch_tokens, dtype=torch.long, device=device)
+        full_batch_tokens = proc.sample_batch(stream_rng, batch_size)["tokens"]
+        full_batch_tensor = torch.as_tensor(full_batch_tokens, dtype=torch.long, device=device)
+
+        for i in range(0, batch_size, micro_batch):
+            batch_tensor = full_batch_tensor[i : i + micro_batch]
             micro_loss = trained_model.loss(batch_tensor) / grad_accum_steps
             micro_loss.backward()
             loss_accum += float(micro_loss.item())
@@ -493,13 +553,14 @@ def train_and_probe_worker(
 
         if step % (5 if smoke else 50) == 0 or step == total_steps - 1:
             tokens_seen = (step + 1) * tokens_per_step
+            lr_now = scheduler.get_last_lr()[0]
             history.append({
                 "model_id": spec.model_id,
                 "step": step,
                 "tokens_seen": tokens_seen,
                 "loss": loss_accum,
+                "lr": lr_now,
             })
-            lr_now = scheduler.get_last_lr()[0]
             pct = 100.0 * (step + 1) / total_steps
             print(
                 f"[{spec.model_id}] Step {step+1:4d}/{total_steps} ({pct:5.1f}%) | "
@@ -507,6 +568,14 @@ def train_and_probe_worker(
                 f"Loss: {loss_accum:6.4f} | LR: {lr_now:.2e}",
                 flush=True,
             )
+
+    # Save training loss history CSV and render loss curve plot
+    hist_df = pd.DataFrame(history)
+    if not hist_df.empty:
+        loss_csv_path = model_dir / f"{spec.model_id}_loss_history.csv"
+        hist_df.to_csv(loss_csv_path, index=False)
+        loss_plot_path = model_dir / f"{spec.model_id}_loss_curve.png"
+        plot_training_loss_curve(hist_df, spec.model_id, loss_plot_path)
 
     # Save final model weights and sidecar
     final_pt = model_dir / f"{spec.model_id}_final.pt"
@@ -519,8 +588,10 @@ def train_and_probe_worker(
             "d_mlp": spec.d_mlp,
             "k": spec.k,
             "seed": spec.seed,
-            "final_loss": history[-1]["loss"],
+            "final_loss": history[-1]["loss"] if history else loss_accum,
             "tokens_trained": total_tokens,
+            "loss_history_csv": f"{spec.model_id}_loss_history.csv",
+            "loss_curve_png": f"{spec.model_id}_loss_curve.png",
         }, f, indent=2)
 
     # 4. In-Worker Synchronous Probing
