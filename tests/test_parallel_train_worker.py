@@ -23,6 +23,7 @@ from _worker import (
     _ridge_r2_gpu,
     extract_probe_features_and_targets,
     extract_raw_targets,
+    get_pending_jobs,
     is_pid_alive,
     make_sampler,
     mark_completed,
@@ -563,5 +564,41 @@ def test_worker_cli_full_cycle():
         res2 = subprocess.run(cmd, capture_output=True, text=True)
         assert res2.returncode == 0
         assert "Queue empty and no active jobs. Exiting." in res2.stdout
+
+
+def test_get_pending_jobs_and_probe_file_deletion():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        state_file = tmp_path / "pipeline_state.json"
+
+        jobs = [
+            {"job_id": "cfg1_d32_seed0", "config_name": "cfg1", "width": 32, "seed": 0},
+            {"job_id": "cfg2_d32_seed0", "config_name": "cfg2", "width": 32, "seed": 0},
+        ]
+
+        # Case 1: No state file, both jobs are pending
+        pending = get_pending_jobs(jobs, tmp_path, state_file)
+        assert len(pending) == 2
+
+        # Case 2: State says cfg1 is completed, but probe CSV does not exist on disk
+        state_file.write_text(json.dumps({"completed": ["cfg1_d32_seed0"]}))
+        pending = get_pending_jobs(jobs, tmp_path, state_file)
+        assert len(pending) == 2
+
+        # Case 3: Create probe CSV for cfg1
+        cfg1_dir = tmp_path / "cfg1"
+        cfg1_dir.mkdir(parents=True)
+        probe_csv = cfg1_dir / "d32_seed0_probes.csv"
+        probe_csv.write_text("dummy,csv,content\n1,2,3\n")
+
+        state_file.write_text(json.dumps({"completed": ["cfg1_d32_seed0"]}))
+        pending = get_pending_jobs(jobs, tmp_path, state_file)
+        assert len(pending) == 1
+        assert pending[0]["job_id"] == "cfg2_d32_seed0"
+
+        # Case 4: User deletes probe CSV for cfg1 -> immediately becomes pending again
+        probe_csv.unlink()
+        pending = get_pending_jobs(jobs, tmp_path, state_file)
+        assert len(pending) == 2
 
 

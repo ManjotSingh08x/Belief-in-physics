@@ -53,7 +53,16 @@ class SampledPhysicsSystem:
         self.integration_dt = integration_dt
 
     def __getattr__(self, name: str):
+        if name in ("base", "integration_dt"):
+            raise AttributeError(name)
         return getattr(self.base, name)
+
+    def __getstate__(self):
+        return {"base": self.base, "integration_dt": self.integration_dt}
+
+    def __setstate__(self, state):
+        self.base = state["base"]
+        self.integration_dt = state["integration_dt"]
 
     def flow(self, z, dt: float, substeps: int = 1):
         internal_steps = round(dt / self.integration_dt)
@@ -96,10 +105,20 @@ def build_process(
     )
 
 
+class ProcessSampler:
+    """Picklable callable for DataLoader worker processes that uses fast sample_tokens."""
+
+    def __init__(self, proc: MessDriven):
+        self.proc = proc
+
+    def __call__(self, rng: np.random.Generator, batch_size: int):
+        if hasattr(self.proc, "sample_tokens"):
+            return self.proc.sample_tokens(rng, batch_size)
+        return self.proc.sample_batch(rng, batch_size)["tokens"]
+
+
 def make_sampler(proc: MessDriven):
-    def sampler(rng: np.random.Generator, batch_size: int):
-        return proc.sample_batch(rng, batch_size)["tokens"]
-    return sampler
+    return ProcessSampler(proc)
 
 
 def is_pid_alive(pid: int) -> bool:
@@ -209,6 +228,38 @@ def mark_completed(state_path: Path, job_id: str) -> None:
         finally:
             fcntl.flock(lf, fcntl.LOCK_UN)
 
+
+def get_pending_jobs(
+    jobs: list[dict],
+    output_dir: Path | str,
+    state_path: Path | str | None = None,
+) -> list[dict]:
+    """Returns list of pending jobs, reconciling pipeline_state.json with on-disk probe CSVs."""
+    output_dir = Path(output_dir)
+    state_p = Path(state_path) if state_path is not None else output_dir / "pipeline_state.json"
+    raw_completed = set()
+    state_data = {"completed": [], "in_progress": {}}
+    if state_p.exists():
+        try:
+            state_data = json.loads(state_p.read_text())
+            raw_completed = set(state_data.get("completed", []))
+        except Exception:
+            pass
+
+    verified_completed = set()
+    for j in jobs:
+        jid = j["job_id"]
+        probe_csv = output_dir / j["config_name"] / f"d{j['width']}_seed{j['seed']}_probes.csv"
+        if jid in raw_completed and probe_csv.exists() and probe_csv.stat().st_size > 0:
+            verified_completed.add(jid)
+
+    if state_p.exists() and raw_completed != verified_completed:
+        state_data["completed"] = [c for c in state_data.get("completed", []) if c in verified_completed]
+        state_p.write_text(json.dumps(state_data, indent=2))
+
+    return [j for j in jobs if j["job_id"] not in verified_completed]
+
+
 PROBE_MODES = [
     "single_layer_single_token",
     "all_layers_single_token",
@@ -302,19 +353,80 @@ def extract_probe_features_and_targets(
     return X.astype(np.float32), y_phys.astype(np.float32), y_bel.astype(np.float32), groups
 
 
+def _compute_xtx_xty(
+    X: np.ndarray, y: np.ndarray, device: str, chunk_size: int = 50_000
+) -> tuple[torch.Tensor, torch.Tensor]:
+    D = X.shape[1]
+    if y.ndim == 1:
+        y = y[:, None]
+    K = y.shape[1]
+    N = X.shape[0]
+
+    if N <= chunk_size:
+        Xt = torch.tensor(X, dtype=torch.float32, device=device)
+        yt = torch.tensor(y, dtype=torch.float32, device=device)
+        XtX = Xt.T @ Xt
+        Xty = Xt.T @ yt
+        del Xt, yt
+        return XtX, Xty
+
+    XtX = torch.zeros((D, D), dtype=torch.float32, device=device)
+    Xty = torch.zeros((D, K), dtype=torch.float32, device=device)
+    for i in range(0, N, chunk_size):
+        xc = torch.tensor(X[i : i + chunk_size], dtype=torch.float32, device=device)
+        yc = torch.tensor(y[i : i + chunk_size], dtype=torch.float32, device=device)
+        XtX.addmm_(xc.T, xc)
+        Xty.addmm_(xc.T, yc)
+        del xc, yc
+    return XtX, Xty
+
+
+def _evaluate_r2(
+    X_val: np.ndarray,
+    y_val: np.ndarray,
+    W: torch.Tensor,
+    device: str,
+    chunk_size: int = 50_000,
+) -> float:
+    if y_val.ndim == 1:
+        y_val = y_val[:, None]
+    N = X_val.shape[0]
+
+    if N <= chunk_size:
+        Xv = torch.tensor(X_val, dtype=torch.float32, device=device)
+        yv = torch.tensor(y_val, dtype=torch.float32, device=device)
+        pred = Xv @ W
+        ss_res = ((yv - pred) ** 2).sum()
+        ss_tot = ((yv - yv.mean(0, keepdim=True)) ** 2).sum()
+        r2 = float(1.0 - ss_res / ss_tot.clamp(min=1e-10))
+        del Xv, yv, pred
+        return r2
+
+    yv_cpu = torch.from_numpy(y_val)
+    yv_mean = yv_cpu.mean(0, keepdim=True)
+    ss_tot = float(((yv_cpu - yv_mean) ** 2).sum())
+
+    ss_res = 0.0
+    for i in range(0, N, chunk_size):
+        xc = torch.tensor(X_val[i : i + chunk_size], dtype=torch.float32, device=device)
+        yc = torch.tensor(y_val[i : i + chunk_size], dtype=torch.float32, device=device)
+        pred = xc @ W
+        ss_res += float(((yc - pred) ** 2).sum().item())
+        del xc, yc, pred
+
+    return float(1.0 - ss_res / max(ss_tot, 1e-10))
+
+
 def _ridge_r2_gpu(X_tr, y_tr, X_val, y_val, alpha: float, device: str) -> float:
     """Closed-form ridge on GPU: (XᵀX + αI)⁻¹ Xᵀy via torch.linalg.solve."""
-    Xtr = torch.tensor(X_tr, dtype=torch.float32, device=device)
-    ytr = torch.tensor(y_tr, dtype=torch.float32, device=device)
-    Xv  = torch.tensor(X_val, dtype=torch.float32, device=device)
-    yv  = torch.tensor(y_val, dtype=torch.float32, device=device)
-    A = Xtr.T @ Xtr
-    A.diagonal().add_(alpha)
-    W = torch.linalg.solve(A, Xtr.T @ ytr)   # (features, targets)
-    pred = Xv @ W
-    ss_res = ((yv - pred) ** 2).sum()
-    ss_tot = ((yv - yv.mean(0, keepdim=True)) ** 2).sum()
-    return float(1.0 - ss_res / ss_tot.clamp(min=1e-10))
+    XtX, Xty = _compute_xtx_xty(X_tr, y_tr, device)
+    eye = torch.eye(XtX.shape[0], dtype=torch.float32, device=device)
+    A = XtX.add(eye, alpha=float(alpha))
+    W = torch.linalg.solve(A, Xty)
+    del XtX, Xty, eye, A
+    r2 = _evaluate_r2(X_val, y_val, W, device)
+    del W
+    return r2
 
 
 def cross_validated_ridge(
@@ -328,55 +440,59 @@ def cross_validated_ridge(
     device: str = "cpu",
 ) -> dict:
     """
-    StandardScaler + Ridge with alpha CV on GPU (torch.linalg.solve),
-    parallelised across folds via joblib (n_jobs=-1).
-    Falls back to CPU if CUDA unavailable.
+    StandardScaler + Ridge with alpha CV on GPU (torch.linalg.solve).
+    Accumulates XᵀX and Xᵀy once per fold in memory-bounded chunks,
+    eliminating multi-threaded VRAM blowups.
     """
-    from joblib import Parallel, delayed
-
     X_dev, y_dev, g_dev = X[dev_mask], y[dev_mask], groups[dev_mask]
 
-    # StandardScale on dev set; apply same transform to test
     scaler = StandardScaler().fit(X_dev)
     X_dev_s = scaler.transform(X_dev).astype(np.float32)
     X_test_s = scaler.transform(X[test_mask]).astype(np.float32)
     y_dev_f  = y_dev.astype(np.float32)
+    y_test_f = y[test_mask].astype(np.float32)
 
-    ridge_device = device  # GPU if available, else cpu
+    ridge_device = device
 
-    # Warm-up torch.linalg.solve on device to avoid multi-thread lazy loader race condition
-    if ridge_device != "cpu":
-        _ = torch.linalg.solve(torch.eye(2, device=ridge_device), torch.ones(2, 1, device=ridge_device))
-
-    # Build (train_idx, val_idx) splits for GroupKFold
     splits = list(GroupKFold(n_splits=cv_folds).split(X_dev_s, y_dev_f, g_dev))
+    alpha_fold_scores: dict[float, list[float]] = {alpha: [] for alpha in ridge_alphas}
 
-    def _fold_alpha(alpha, tr_idx, val_idx):
-        return _ridge_r2_gpu(
-            X_dev_s[tr_idx], y_dev_f[tr_idx],
-            X_dev_s[val_idx], y_dev_f[val_idx],
-            alpha, ridge_device,
-        )
+    d_feat = X_dev_s.shape[1]
+    eye_d = torch.eye(d_feat, dtype=torch.float32, device=ridge_device)
 
-    # Parallel over (alpha × fold) — n_jobs=-1 uses all CPU threads
-    results = Parallel(n_jobs=-1, prefer="threads")(
-        delayed(_fold_alpha)(alpha, tr, val)
-        for alpha in ridge_alphas
-        for tr, val in splits
-    )
+    for tr_idx, val_idx in splits:
+        XtX, Xty = _compute_xtx_xty(X_dev_s[tr_idx], y_dev_f[tr_idx], device=ridge_device)
+        for alpha in ridge_alphas:
+            A = XtX.add(eye_d, alpha=float(alpha))
+            W = torch.linalg.solve(A, Xty)
+            del A
+            r2 = _evaluate_r2(X_dev_s[val_idx], y_dev_f[val_idx], W, device=ridge_device)
+            del W
+            alpha_fold_scores[alpha].append(r2)
+        del XtX, Xty
 
-    n_folds = len(splits)
-    # Mean CV R² per alpha
+    del eye_d
+    if str(ridge_device).startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     alpha_scores = {
-        alpha: float(np.mean(results[i * n_folds : (i + 1) * n_folds]))
-        for i, alpha in enumerate(ridge_alphas)
+        alpha: float(np.mean(alpha_fold_scores[alpha]))
+        for alpha in ridge_alphas
     }
     best_alpha = max(alpha_scores, key=alpha_scores.__getitem__)
     best_cv_r2 = alpha_scores[best_alpha]
 
-    # Refit on full dev set with best alpha and score on test
-    test_r2 = _ridge_r2_gpu(X_dev_s, y_dev_f, X_test_s,
-                             y[test_mask].astype(np.float32), best_alpha, ridge_device)
+    XtX_full, Xty_full = _compute_xtx_xty(X_dev_s, y_dev_f, device=ridge_device)
+    eye_full = torch.eye(d_feat, dtype=torch.float32, device=ridge_device)
+    A_full = XtX_full.add(eye_full, alpha=float(best_alpha))
+    W_best = torch.linalg.solve(A_full, Xty_full)
+    del XtX_full, Xty_full, eye_full, A_full
+
+    test_r2 = _evaluate_r2(X_test_s, y_test_f, W_best, device=ridge_device)
+    del W_best
+    if str(ridge_device).startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     return {
         "alpha": float(best_alpha),
         "cv_r2": float(best_cv_r2),
@@ -399,6 +515,7 @@ def generate_summary_plot(
     belief_gt: np.ndarray | None = None,
     belief_pred: np.ndarray | None = None,
     hmm_states: np.ndarray | None = None,
+    heatmap_window: int = 20,
 ):
     fig = plt.figure(figsize=(18, 14), constrained_layout=True)
     gs = fig.add_gridspec(3, 3)
@@ -437,10 +554,34 @@ def generate_summary_plot(
             if k < len(tokens_single):
                 pred_probs = probs[:-k]
                 actual = tokens_single[k:]
-                ax.imshow(pred_probs.T, origin="lower", aspect="auto", cmap="magma")
-                ax.plot(np.arange(len(actual)), actual, color="cyan", lw=1.2, label="Actual")
                 nll = -np.log(np.maximum(pred_probs[np.arange(len(actual)), actual], 1e-12)).mean()
-                ax.set_title(f"Horizon {k_suffix} (k={k}) | Mean NLL: {nll:.3f}")
+
+                n_steps_total = len(actual)
+                if n_steps_total > heatmap_window:
+                    start_t = (n_steps_total - heatmap_window) // 2
+                    end_t = start_t + heatmap_window
+                else:
+                    start_t = 0
+                    end_t = n_steps_total
+
+                slice_pred = pred_probs[start_t:end_t]
+                slice_actual = actual[start_t:end_t]
+                time_steps = np.arange(start_t, end_t)
+
+                ax.imshow(
+                    slice_pred.T,
+                    origin="lower",
+                    aspect="auto",
+                    cmap="magma",
+                    extent=[start_t - 0.5, end_t - 0.5, -0.5, 180.5],
+                )
+                ax.plot(time_steps, slice_actual, color="cyan", lw=1.5, marker="o", markersize=3, label="Actual")
+                ax.set_xlim(start_t - 0.5, end_t - 0.5)
+                ax.set_ylim(-0.5, 180.5)
+                if n_steps_total > heatmap_window:
+                    ax.set_title(f"Horizon {k_suffix} (k={k}) | Mean NLL: {nll:.3f}\n[t={start_t}..{end_t-1}]")
+                else:
+                    ax.set_title(f"Horizon {k_suffix} (k={k}) | Mean NLL: {nll:.3f}")
             else:
                 ax.text(0.5, 0.5, f"k={k} >= seq_len", ha="center", va="center")
         ax.set_xlabel("Time step t")
@@ -595,7 +736,361 @@ def generate_summary_plot(
     plt.close(fig)
 
 
-# --- 5. Main Worker Loop ---
+def run_job(
+    job: dict,
+    output_dir: Path | str,
+    device: str = "cuda:0" if torch.cuda.is_available() else "cpu",
+    total_tokens: int = 600_000_000,
+    batch_size: int = 1024,
+    eval_batch_size: int = 32,
+    num_workers: int = 4,
+    n_probe_traj: int = 1024,
+    cv_folds: int = 5,
+    ridge_alphas: tuple[float, ...] = (0.1, 1.0, 10.0, 50.0),
+    test_frac: float = 0.2,
+    n_layers: int = 4,
+    n_heads: int = 8,
+    log_every: int = 100,
+    state_path: Path | str | None = None,
+) -> pd.DataFrame:
+    output_dir = Path(output_dir)
+    state_path = Path(state_path) if state_path is not None else output_dir / "pipeline_state.json"
+    job_id = job["job_id"]
+    t0 = time.time()
+    config_dir = output_dir / job["config_name"]
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    proc = build_process(
+        delta_v=job["delta_v"],
+        gamma=job["gamma"],
+        dt=job["dt"],
+        n_steps=job["n_steps"],
+        m=job["m"],
+    )
+    seq_len = proc.seq_len
+    sampler = make_sampler(proc)
+
+    width = job["width"]
+    seed = job["seed"]
+    n_steps = job["n_steps"]
+    m = job["m"]
+    horizons = [(1, "k1"), (max(1, n_steps // 2), "kn2"), (n_steps, "kn")]
+    loss_histories: dict[str, list[dict]] = {}
+
+    for k, k_suffix in horizons:
+        model_id = f"d{width}_{k_suffix}_seed{seed}"
+        final_pt = config_dir / f"{model_id}_final.pt"
+        final_json = config_dir / f"{model_id}_final.json"
+
+        if final_pt.exists() and final_json.exists():
+            print(f"  [{model_id}] Checkpoint exists. Skipping training.")
+            loss_histories[k_suffix] = []
+            continue
+
+        model_config = ModelConfig(
+            vocab_size=181,
+            n_ctx=seq_len,
+            n_layers=n_layers,
+            n_heads=n_heads,
+            d_model=width,
+            d_mlp=4 * width,
+            seed=seed,
+        )
+        model = LookaheadTransformer(model_config, k=k)
+
+        train_cfg = TrainConfig(
+            total_tokens=total_tokens,
+            batch_size=batch_size,
+            eval_batch_size=eval_batch_size,
+            learning_rate=1e-3,
+            weight_decay=0.0,
+            warmup_frac=0.02,
+            grad_clip=1.0,
+            seed=seed,
+            log_every=log_every,
+            checkpoint_at=(),
+            num_workers=num_workers,
+        )
+
+        t_train = time.time()
+        report = train(model, sampler, seq_len, train_cfg, device=device)
+        elapsed = time.time() - t_train
+
+        torch.save({k_w: v_w.detach().cpu() for k_w, v_w in model.state_dict().items()}, final_pt)
+
+        meta = {
+            "config_name": job["config_name"],
+            "delta_v": job["delta_v"],
+            "gamma": job["gamma"],
+            "dt": job["dt"],
+            "n_steps": n_steps,
+            "m": m,
+            "seq_len": seq_len,
+            "d_model": width,
+            "d_mlp": 4 * width,
+            "n_layers": n_layers,
+            "n_heads": n_heads,
+            "vocab_size": 181,
+            "k": k,
+            "k_suffix": k_suffix,
+            "seed": seed,
+            "total_tokens": total_tokens,
+            "tokens_seen": report["tokens_seen"],
+            "batch_size": batch_size,
+            "gradient_steps": report["steps"],
+            "final_train_loss": report["final"]["train_loss"] if report["final"] else None,
+            "final_eval_loss": report["final"]["eval_loss"] if report["final"] else None,
+            "device": device,
+            "training_time_seconds": round(elapsed, 1),
+            "random_init": True,
+            "init_theta_std": 0.3,
+            "init_omega_std": job["delta_v"],
+        }
+        final_json.write_text(json.dumps(meta, indent=2))
+        loss_histories[k_suffix] = report["history"]
+        print(f"  [{model_id}] Finished in {elapsed:.1f}s | Eval loss: {meta['final_eval_loss']}")
+
+        del model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
+    if probe_csv.exists() and probe_csv.stat().st_size > 0:
+        print(f"  [Probing] Probe file {probe_csv.name} already exists. Skipping probing.")
+        if state_path is not None:
+            mark_completed(state_path, job_id)
+        return pd.read_csv(probe_csv)
+
+    print(f"  [Probing] Generating {n_probe_traj} evaluation trajectories...")
+    probe_rng = np.random.default_rng(seed + 1000)
+    analysis_batch = proc.sample_batch(probe_rng, n_probe_traj)
+    raw_targets = extract_raw_targets(analysis_batch, proc)
+
+    N = n_probe_traj
+    order = np.random.default_rng(seed + 4).permutation(N)
+    n_test = max(1, int(N * test_frac))
+    test_seqs = set(order[:n_test].tolist())
+
+    probe_rows = []
+    for k, k_suffix in horizons:
+        model_id = f"d{width}_{k_suffix}_seed{seed}"
+        final_pt = config_dir / f"{model_id}_final.pt"
+
+        model_config = ModelConfig(
+            vocab_size=181,
+            n_ctx=seq_len,
+            n_layers=n_layers,
+            n_heads=n_heads,
+            d_model=width,
+            d_mlp=4 * width,
+            seed=seed,
+        )
+
+        for model_tag in ["trained", "random_init"]:
+            if model_tag == "trained":
+                model_obj = LookaheadTransformer(model_config, k=k)
+                model_obj.load_state_dict(torch.load(final_pt, map_location=device))
+                model_obj.to(device).eval()
+            else:
+                model_obj = LookaheadTransformer(model_config, k=k).to(device).eval()
+
+            streams = residual_streams_batched(model_obj, analysis_batch["tokens"], device)
+            del model_obj
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            L = len(streams)
+            for mode in PROBE_MODES:
+                if mode.startswith("single_layer_"):
+                    layer_scores = []
+                    for layer_idx in range(L):
+                        X, y_phys, y_bel, groups = extract_probe_features_and_targets(
+                            streams, raw_targets, mode, n_steps, m, k=k, layer=layer_idx
+                        )
+                        t_mask = np.isin(groups, list(test_seqs))
+                        d_mask = ~t_mask
+
+                        for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
+                            score = cross_validated_ridge(
+                                X, y, groups, d_mask, t_mask,
+                                ridge_alphas=ridge_alphas, cv_folds=cv_folds,
+                                device=device,
+                            )
+                            probe_rows.append({
+                                "config_name": job["config_name"],
+                                "delta_v": job["delta_v"],
+                                "gamma": job["gamma"],
+                                "dt": job["dt"],
+                                "n_steps": n_steps,
+                                "m": m,
+                                "d_model": width,
+                                "seed": seed,
+                                "horizon": k_suffix,
+                                "k_value": k,
+                                "model_type": model_tag,
+                                "mode": mode,
+                                "target": target_name,
+                                "layer": str(layer_idx),
+                                **score,
+                            })
+                            layer_scores.append((target_name, score))
+
+                    for target_name in ["physics", "belief"]:
+                        t_scores = [sc for tn, sc in layer_scores if tn == target_name]
+                        cv_r2s = [s["cv_r2"] for s in t_scores]
+                        test_r2s = [s["test_r2"] for s in t_scores]
+                        feat_dim = t_scores[0]["feature_dim"] if t_scores else width
+
+                        probe_rows.append({
+                            "config_name": job["config_name"],
+                            "delta_v": job["delta_v"],
+                            "gamma": job["gamma"],
+                            "dt": job["dt"],
+                            "n_steps": n_steps,
+                            "m": m,
+                            "d_model": width,
+                            "seed": seed,
+                            "horizon": k_suffix,
+                            "k_value": k,
+                            "model_type": model_tag,
+                            "mode": mode,
+                            "target": target_name,
+                            "layer": "mean",
+                            "alpha": float("nan"),
+                            "cv_r2": float(np.mean(cv_r2s)),
+                            "test_r2": float(np.mean(test_r2s)),
+                            "feature_dim": feat_dim,
+                        })
+                        max_idx = int(np.argmax(test_r2s)) if test_r2s else 0
+                        probe_rows.append({
+                            "config_name": job["config_name"],
+                            "delta_v": job["delta_v"],
+                            "gamma": job["gamma"],
+                            "dt": job["dt"],
+                            "n_steps": n_steps,
+                            "m": m,
+                            "d_model": width,
+                            "seed": seed,
+                            "horizon": k_suffix,
+                            "k_value": k,
+                            "model_type": model_tag,
+                            "mode": mode,
+                            "target": target_name,
+                            "layer": "max",
+                            "alpha": t_scores[max_idx]["alpha"] if t_scores else float("nan"),
+                            "cv_r2": float(np.max(cv_r2s)) if cv_r2s else float("nan"),
+                            "test_r2": float(np.max(test_r2s)) if test_r2s else float("nan"),
+                            "feature_dim": feat_dim,
+                        })
+                else:
+                    X, y_phys, y_bel, groups = extract_probe_features_and_targets(
+                        streams, raw_targets, mode, n_steps, m, k=k
+                    )
+                    t_mask = np.isin(groups, list(test_seqs))
+                    d_mask = ~t_mask
+
+                    for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
+                        score = cross_validated_ridge(
+                            X, y, groups, d_mask, t_mask,
+                            ridge_alphas=ridge_alphas, cv_folds=cv_folds,
+                            device=device,
+                        )
+                        probe_rows.append({
+                            "config_name": job["config_name"],
+                            "delta_v": job["delta_v"],
+                            "gamma": job["gamma"],
+                            "dt": job["dt"],
+                            "n_steps": n_steps,
+                            "m": m,
+                            "d_model": width,
+                            "seed": seed,
+                            "horizon": k_suffix,
+                            "k_value": k,
+                            "model_type": model_tag,
+                            "mode": mode,
+                            "target": target_name,
+                            "layer": "all",
+                            **score,
+                        })
+
+            del streams
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    probe_df = pd.DataFrame(probe_rows)
+    probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
+    probe_df.to_csv(probe_csv, index=False)
+    print(f"  [Probing] Saved {len(probe_df)} rows to {probe_csv.name}")
+
+    N_VIS = min(32, n_probe_traj)
+    vis_beliefs = analysis_batch["beliefs"][:N_VIS]
+
+    best_row = (
+        probe_df[(probe_df["target"] == "belief")
+                 & (probe_df["model_type"] == "trained")
+                 & (probe_df["mode"] == "all_layers_usable_token")]
+        .sort_values("cv_r2", ascending=False)
+    )
+    vis_belief_pred = None
+    vis_pos = None
+    if len(best_row) > 0:
+        best_k_suffix = best_row.iloc[0]["horizon"]
+        best_k = int(best_row.iloc[0]["k_value"])
+        best_alpha = best_row.iloc[0]["alpha"]
+        best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
+        best_pt = config_dir / f"{best_model_id}_final.pt"
+        vis_pos = proc.usable_positions(best_k)
+        if best_pt.exists():
+            vis_cfg = ModelConfig(
+                vocab_size=181, n_ctx=proc.seq_len, n_layers=n_layers,
+                n_heads=n_heads, d_model=width, d_mlp=4 * width, seed=seed,
+            )
+            vis_model = LookaheadTransformer(vis_cfg, k=best_k)
+            vis_model.load_state_dict(torch.load(best_pt, map_location=device))
+            vis_model.to(device).eval()
+            vis_streams = residual_streams_batched(
+                vis_model, analysis_batch["tokens"][:N_VIS], device
+            )
+            vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, vis_pos, :]
+            vis_X = StandardScaler().fit_transform(
+                vis_X_raw.reshape(N_VIS * len(vis_pos), -1)
+            )
+            vis_y_bel = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4)).reshape(N_VIS * len(vis_pos), 3)
+            _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
+            _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
+            _A = _Xt.T @ _Xt
+            _A.diagonal().add_(float(best_alpha))
+            _W = torch.linalg.solve(_A, _Xt.T @ _yt)
+            vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(vis_pos), 3)
+            del vis_model, vis_streams
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    if vis_pos is None:
+        vis_pos = np.arange(n_steps - 1, proc.seq_len, n_steps)
+    vis_belief_gt = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4))
+    vis_hmm_states = vis_beliefs[:, vis_pos, :].argmax(-1)
+
+    print(f"  [Summary] Generating summary plot...")
+    generate_summary_plot(
+        config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
+        n_layers=n_layers, n_heads=n_heads,
+        belief_gt=vis_belief_gt,
+        belief_pred=vis_belief_pred,
+        hmm_states=vis_hmm_states,
+    )
+
+    if state_path is not None:
+        mark_completed(state_path, job_id)
+
+    elapsed_total = time.time() - t0
+    print(f"Job {job_id} complete in {elapsed_total:.1f}s")
+    return probe_df
+
 
 def worker_main():
     parser = argparse.ArgumentParser(description="BeliefPhysics single-pendulum sweep worker")
@@ -605,13 +1100,15 @@ def worker_main():
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--total-tokens", type=int, default=600_000_000)
     parser.add_argument("--batch-size", type=int, default=1024)
+    parser.add_argument("--eval-batch-size", type=int, default=32)
+    parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--n-probe-traj", type=int, default=1024)
     parser.add_argument("--cv-folds", type=int, default=5)
     parser.add_argument("--ridge-alphas", type=str, default="0.1,1.0,10.0,50.0")
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--n-layers", type=int, default=4)
     parser.add_argument("--n-heads", type=int, default=8)
-    parser.add_argument("--log-every", type=int, default=50)
+    parser.add_argument("--log-every", type=int, default=100)
 
     args = parser.parse_args()
     queue_path = Path(args.queue_file)
@@ -659,333 +1156,28 @@ def worker_main():
         job_id = job["job_id"]
         current_job_id[0] = job_id
         print(f"\n[Worker {args.worker_id}] Claimed job: {job_id}")
-        t0 = time.time()
 
         try:
-            config_dir = output_dir / job["config_name"]
-            config_dir.mkdir(parents=True, exist_ok=True)
-
-            # 1. Build MessDriven process
-            proc = build_process(
-                delta_v=job["delta_v"],
-                gamma=job["gamma"],
-                dt=job["dt"],
-                n_steps=job["n_steps"],
-                m=job["m"],
+            run_job(
+                job=job,
+                output_dir=output_dir,
+                device=device,
+                total_tokens=args.total_tokens,
+                batch_size=args.batch_size,
+                eval_batch_size=args.eval_batch_size,
+                num_workers=args.num_workers,
+                n_probe_traj=args.n_probe_traj,
+                cv_folds=args.cv_folds,
+                ridge_alphas=ridge_alphas,
+                test_frac=args.test_frac,
+                n_layers=args.n_layers,
+                n_heads=args.n_heads,
+                log_every=args.log_every,
+                state_path=state_path,
             )
-            seq_len = proc.seq_len
-            sampler = make_sampler(proc)
-
-            width = job["width"]
-            seed = job["seed"]
-            n_steps = job["n_steps"]
-            m = job["m"]
-            horizons = [(1, "k1"), (max(1, n_steps // 2), "kn2"), (n_steps, "kn")]
-            loss_histories: dict[str, list[dict]] = {}
-
-            # 2. Train 3 horizons
-            for k, k_suffix in horizons:
-                model_id = f"d{width}_{k_suffix}_seed{seed}"
-                final_pt = config_dir / f"{model_id}_final.pt"
-                final_json = config_dir / f"{model_id}_final.json"
-
-                if final_pt.exists() and final_json.exists():
-                    print(f"  [{model_id}] Checkpoint exists. Skipping training.")
-                    loss_histories[k_suffix] = []
-                    continue
-
-                model_config = ModelConfig(
-                    vocab_size=181,
-                    n_ctx=seq_len,
-                    n_layers=args.n_layers,
-                    n_heads=args.n_heads,
-                    d_model=width,
-                    d_mlp=4 * width,
-                    seed=seed,
-                )
-                model = LookaheadTransformer(model_config, k=k)
-
-                train_cfg = TrainConfig(
-                    total_tokens=args.total_tokens,
-                    batch_size=args.batch_size,
-                    learning_rate=1e-3,
-                    weight_decay=0.0,
-                    warmup_frac=0.02,
-                    grad_clip=1.0,
-                    seed=seed,
-                    log_every=args.log_every,
-                    checkpoint_at=(),
-                )
-
-                t_train = time.time()
-                report = train(model, sampler, seq_len, train_cfg, device=device)
-                elapsed = time.time() - t_train
-
-                # Save weights
-                torch.save({k_w: v_w.detach().cpu() for k_w, v_w in model.state_dict().items()}, final_pt)
-
-                # Save metadata sidecar
-                meta = {
-                    "config_name": job["config_name"],
-                    "delta_v": job["delta_v"],
-                    "gamma": job["gamma"],
-                    "dt": job["dt"],
-                    "n_steps": n_steps,
-                    "m": m,
-                    "seq_len": seq_len,
-                    "d_model": width,
-                    "d_mlp": 4 * width,
-                    "n_layers": args.n_layers,
-                    "n_heads": args.n_heads,
-                    "vocab_size": 181,
-                    "k": k,
-                    "k_suffix": k_suffix,
-                    "seed": seed,
-                    "total_tokens": args.total_tokens,
-                    "tokens_seen": report["tokens_seen"],
-                    "batch_size": args.batch_size,
-                    "gradient_steps": report["steps"],
-                    "final_train_loss": report["final"]["train_loss"] if report["final"] else None,
-                    "final_eval_loss": report["final"]["eval_loss"] if report["final"] else None,
-                    "device": device,
-                    "training_time_seconds": round(elapsed, 1),
-                    "random_init": True,
-                    "init_theta_std": 0.3,
-                    "init_omega_std": job["delta_v"],
-                }
-                final_json.write_text(json.dumps(meta, indent=2))
-                loss_histories[k_suffix] = report["history"]
-                print(f"  [{model_id}] Finished in {elapsed:.1f}s | Eval loss: {meta['final_eval_loss']}")
-
-                del model
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-
-            # 3. Probing: 3 horizons × 2 models (trained, random) × 6 modes × 2 targets
-            print(f"  [Probing] Generating {args.n_probe_traj} evaluation trajectories...")
-            probe_rng = np.random.default_rng(seed + 1000)
-            analysis_batch = proc.sample_batch(probe_rng, args.n_probe_traj)
-            raw_targets = extract_raw_targets(analysis_batch, proc)
-
-            N = args.n_probe_traj
-            order = np.random.default_rng(seed + 4).permutation(N)
-            n_test = max(1, int(N * args.test_frac))
-            test_seqs = set(order[:n_test].tolist())
-
-            probe_rows = []
-            for k, k_suffix in horizons:
-                model_id = f"d{width}_{k_suffix}_seed{seed}"
-                final_pt = config_dir / f"{model_id}_final.pt"
-
-                model_config = ModelConfig(
-                    vocab_size=181,
-                    n_ctx=seq_len,
-                    n_layers=args.n_layers,
-                    n_heads=args.n_heads,
-                    d_model=width,
-                    d_mlp=4 * width,
-                    seed=seed,
-                )
-
-                # Load trained model
-                trained_model = LookaheadTransformer(model_config, k=k)
-                trained_model.load_state_dict(torch.load(final_pt, map_location=device))
-                trained_model.to(device).eval()
-
-                # Randomly initialized baseline model
-                random_model = LookaheadTransformer(model_config, k=k).to(device).eval()
-
-                for model_tag, model_obj in [("trained", trained_model), ("random_init", random_model)]:
-                    streams = residual_streams_batched(model_obj, analysis_batch["tokens"], device)
-                    L = len(streams)
-                    for mode in PROBE_MODES:
-                        if mode.startswith("single_layer_"):
-                            layer_scores = []
-                            for layer_idx in range(L):
-                                X, y_phys, y_bel, groups = extract_probe_features_and_targets(
-                                    streams, raw_targets, mode, n_steps, m, k=k, layer=layer_idx
-                                )
-                                t_mask = np.isin(groups, list(test_seqs))
-                                d_mask = ~t_mask
-
-                                for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
-                                    score = cross_validated_ridge(
-                                        X, y, groups, d_mask, t_mask,
-                                        ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
-                                        device=device,
-                                    )
-                                    probe_rows.append({
-                                        "config_name": job["config_name"],
-                                        "delta_v": job["delta_v"],
-                                        "gamma": job["gamma"],
-                                        "dt": job["dt"],
-                                        "n_steps": n_steps,
-                                        "m": m,
-                                        "d_model": width,
-                                        "seed": seed,
-                                        "horizon": k_suffix,
-                                        "k_value": k,
-                                        "model_type": model_tag,
-                                        "mode": mode,
-                                        "target": target_name,
-                                        "layer": str(layer_idx),
-                                        **score,
-                                    })
-                                    layer_scores.append((target_name, score))
-
-                            # Aggregate mean and max over layers
-                            for target_name in ["physics", "belief"]:
-                                t_scores = [sc for tn, sc in layer_scores if tn == target_name]
-                                cv_r2s = [s["cv_r2"] for s in t_scores]
-                                test_r2s = [s["test_r2"] for s in t_scores]
-                                feat_dim = t_scores[0]["feature_dim"] if t_scores else width
-
-                                probe_rows.append({
-                                    "config_name": job["config_name"],
-                                    "delta_v": job["delta_v"],
-                                    "gamma": job["gamma"],
-                                    "dt": job["dt"],
-                                    "n_steps": n_steps,
-                                    "m": m,
-                                    "d_model": width,
-                                    "seed": seed,
-                                    "horizon": k_suffix,
-                                    "k_value": k,
-                                    "model_type": model_tag,
-                                    "mode": mode,
-                                    "target": target_name,
-                                    "layer": "mean",
-                                    "alpha": float("nan"),
-                                    "cv_r2": float(np.mean(cv_r2s)),
-                                    "test_r2": float(np.mean(test_r2s)),
-                                    "feature_dim": feat_dim,
-                                })
-                                max_idx = int(np.argmax(test_r2s)) if test_r2s else 0
-                                probe_rows.append({
-                                    "config_name": job["config_name"],
-                                    "delta_v": job["delta_v"],
-                                    "gamma": job["gamma"],
-                                    "dt": job["dt"],
-                                    "n_steps": n_steps,
-                                    "m": m,
-                                    "d_model": width,
-                                    "seed": seed,
-                                    "horizon": k_suffix,
-                                    "k_value": k,
-                                    "model_type": model_tag,
-                                    "mode": mode,
-                                    "target": target_name,
-                                    "layer": "max",
-                                    "alpha": t_scores[max_idx]["alpha"] if t_scores else float("nan"),
-                                    "cv_r2": float(np.max(cv_r2s)) if cv_r2s else float("nan"),
-                                    "test_r2": float(np.max(test_r2s)) if test_r2s else float("nan"),
-                                    "feature_dim": feat_dim,
-                                })
-                        else:
-                            X, y_phys, y_bel, groups = extract_probe_features_and_targets(
-                                streams, raw_targets, mode, n_steps, m, k=k
-                            )
-                            t_mask = np.isin(groups, list(test_seqs))
-                            d_mask = ~t_mask
-
-                            for target_name, y in [("physics", y_phys), ("belief", y_bel)]:
-                                score = cross_validated_ridge(
-                                    X, y, groups, d_mask, t_mask,
-                                    ridge_alphas=ridge_alphas, cv_folds=args.cv_folds,
-                                    device=device,
-                                )
-                                probe_rows.append({
-                                    "config_name": job["config_name"],
-                                    "delta_v": job["delta_v"],
-                                    "gamma": job["gamma"],
-                                    "dt": job["dt"],
-                                    "n_steps": n_steps,
-                                    "m": m,
-                                    "d_model": width,
-                                    "seed": seed,
-                                    "horizon": k_suffix,
-                                    "k_value": k,
-                                    "model_type": model_tag,
-                                    "mode": mode,
-                                    "target": target_name,
-                                    "layer": "all",
-                                    **score,
-                                })
-
-            # 4. Save per-job probes CSV
-            probe_df = pd.DataFrame(probe_rows)
-            probe_csv = config_dir / f"d{width}_seed{seed}_probes.csv"
-            probe_df.to_csv(probe_csv, index=False)
-            print(f"  [Probing] Saved {len(probe_df)} rows to {probe_csv.name}")
-
-            # Compute 3D belief arrays for visualization (use first 32 trajectories max)
-            N_VIS = min(32, args.n_probe_traj)
-            vis_beliefs = analysis_batch["beliefs"][:N_VIS]            # (N_VIS, seq_len, 4)
-
-            # Probe-predicted belief from best model (trained, all_layers_usable_token, best horizon by cv_r2)
-            best_row = (
-                probe_df[(probe_df["target"] == "belief")
-                         & (probe_df["model_type"] == "trained")
-                         & (probe_df["mode"] == "all_layers_usable_token")]
-                .sort_values("cv_r2", ascending=False)
-            )
-            vis_belief_pred = None
-            vis_pos = None
-            if len(best_row) > 0:
-                best_k_suffix = best_row.iloc[0]["horizon"]
-                best_k = int(best_row.iloc[0]["k_value"])
-                best_alpha = best_row.iloc[0]["alpha"]
-                best_model_id = f"d{width}_{best_k_suffix}_seed{seed}"
-                best_pt = config_dir / f"{best_model_id}_final.pt"
-                vis_pos = proc.usable_positions(best_k)
-                if best_pt.exists():
-                    vis_cfg = ModelConfig(
-                        vocab_size=181, n_ctx=proc.seq_len, n_layers=args.n_layers,
-                        n_heads=args.n_heads, d_model=width, d_mlp=4 * width, seed=seed,
-                    )
-                    vis_model = LookaheadTransformer(vis_cfg, k=best_k)
-                    vis_model.load_state_dict(torch.load(best_pt, map_location=device))
-                    vis_model.to(device).eval()
-                    vis_streams = residual_streams_batched(
-                        vis_model, analysis_batch["tokens"][:N_VIS], device
-                    )
-                    # all_layers_usable_token: concat streams, pick vis_pos
-                    vis_X_raw = np.concatenate(vis_streams, axis=-1)[:, vis_pos, :]  # (N_VIS, n_u, L*d)
-                    vis_X = StandardScaler().fit_transform(
-                        vis_X_raw.reshape(N_VIS * len(vis_pos), -1)
-                    )
-                    vis_y_bel = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4)).reshape(N_VIS * len(vis_pos), 3)
-                    # Fit ridge with best alpha (no CV needed — just for viz)
-                    _Xt = torch.tensor(vis_X, dtype=torch.float32, device=device)
-                    _yt = torch.tensor(vis_y_bel.astype(np.float32), dtype=torch.float32, device=device)
-                    _A = _Xt.T @ _Xt
-                    _A.diagonal().add_(float(best_alpha))
-                    _W = torch.linalg.solve(_A, _Xt.T @ _yt)
-                    vis_belief_pred = (_Xt @ _W).cpu().numpy().reshape(N_VIS, len(vis_pos), 3)
-
-            if vis_pos is None:
-                vis_pos = np.arange(n_steps - 1, proc.seq_len, n_steps)
-            vis_belief_gt = (vis_beliefs[:, vis_pos, :] @ simplex_embedding(4))
-            vis_hmm_states = vis_beliefs[:, vis_pos, :].argmax(-1)
-
-            # 5. Generate summary plot
-            print(f"  [Summary] Generating summary plot...")
-            generate_summary_plot(
-                config_dir, job, width, seed, horizons, loss_histories, probe_df, proc, device,
-                n_layers=args.n_layers, n_heads=args.n_heads,
-                belief_gt=vis_belief_gt,
-                belief_pred=vis_belief_pred,
-                hmm_states=vis_hmm_states,
-            )
-
-            # 6. Mark job complete atomically
-            mark_completed(state_path, job_id)
             current_job_id[0] = None
             oom_consecutive = 0
-            elapsed_total = time.time() - t0
-            print(f"[Worker {args.worker_id}] Job {job_id} complete in {elapsed_total:.1f}s")
-
+            print(f"[Worker {args.worker_id}] Job {job_id} complete")
         except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
             is_oom = isinstance(exc, torch.cuda.OutOfMemoryError) or "out of memory" in str(exc).lower()
             if not is_oom:
@@ -996,17 +1188,14 @@ def worker_main():
             oom_consecutive += 1
             print(f"\n[Worker {args.worker_id}] CAUGHT CUDA OOM on job {job_id} (count={oom_consecutive}): {exc}")
 
-            # Clean up all GPU memory
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            # Atomically release job back to queue
             release_job(state_path, job_id)
             current_job_id[0] = None
             print(f"[Worker {args.worker_id}] Released job {job_id} back to queue.")
 
-            # Back off to allow concurrent GPU processes to release memory (batch size is preserved!)
             backoff_secs = min(120.0, 15.0 * oom_consecutive + float(np.random.uniform(3.0, 10.0)))
             print(f"[Worker {args.worker_id}] Backing off for {backoff_secs:.1f}s before attempting next job...")
             time.sleep(backoff_secs)

@@ -314,6 +314,42 @@ class MessDriven:
             out[..., channel] = lo + indices[..., channel] / denom * (hi - lo)
         return out
 
+    def sample_tokens(
+        self,
+        rng: np.random.Generator,
+        n: int,
+        initial_state: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Fast-path generating only observation tokens (n, seq_len) for training."""
+        _, letters = self.chain.sample(rng, n, self.m)
+
+        sys_, actions = self.system, self.actions
+        if initial_state is not None:
+            z = np.asarray(initial_state, dtype=np.float64)
+        elif self.random_init:
+            if not hasattr(sys_, "sample_initial_state"):
+                raise ValueError(
+                    f"{type(sys_).__name__} does not support random_init; sample_initial_state missing"
+                )
+            z = sys_.sample_initial_state(rng, n, self.init_theta_std, self.delta_v)
+        else:
+            z = sys_.initial_state(n)
+        z = z.copy()
+
+        obs = np.empty((n, self.seq_len, len(self.obs_bins)), dtype=np.float64)
+        dt = self.dt
+        n_steps = self.n_steps
+        channels_fn = self.channels
+
+        for t in range(self.m):
+            z = sys_.kick(z, actions[letters[:, t]])
+            base_idx = t * n_steps
+            for s in range(n_steps):
+                z = sys_.flow(z, dt)
+                obs[:, base_idx + s] = channels_fn(z)
+
+        return self.discretise(obs)
+
     def sample_batch(
         self,
         rng: np.random.Generator,

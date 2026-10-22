@@ -12,3 +12,7 @@ build/
 /cache/
 scratch/
 graphify-out/
+*.run.log
+.nb_run.*.sh
+.pyproject_deps.*.txt
+.conda/
