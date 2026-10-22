@@ -10,16 +10,20 @@ Primary Benchmark: Option B (Internal Residual Stream Belief State Probing)
 - Trained Model Probed Belief: Softmax linear probe fitted on residual stream activations
     \\hat{b}_c = softmax(W h_c + c) minimizing cross-entropy (KL divergence).
 
-Configuration:
-- Uses m = 20 cycles by default (e.g. 20 cycles x 10 steps = 200 tokens per sequence for n=10).
-- Sequence-level train/test split (70% train, 30% test) to prevent sequence leakage.
-- Generates 4-panel publication-grade diagnostic plots (cycle convergence, layer profile,
-  suboptimality ladder, and 2D belief simplex square projection).
+Multi-Regime Context Lengths:
+- Evaluates across 3 context lengths:
+    * Short context: 500 tokens (50 cycles for n=10)
+    * Mid context:   1500 tokens (150 cycles for n=10)
+    * Long context:  2500 tokens (250 cycles for n=10)
+- Sequence-level train/test split (70% train, 30% held-out test) to prevent sequence leakage.
+- Tracks model cross-entropy loss vs sequence position and training loss vs epochs/steps.
+- Generates 4-panel publication-grade diagnostic plots (multi-regime convergence, loss curves,
+  context-length scaling ladder, and 2D belief simplex square projection).
 
 Usage:
-  uv run python scripts/measure_optimal_observer_kl.py --checkpoint path/to/model_final.pt --m 20
-  uv run python scripts/measure_optimal_observer_kl.py --dir ./experiments/results --m 20
-  uv run python scripts/measure_optimal_observer_kl.py --smoke --m 20
+  uv run python scripts/measure_optimal_observer_kl.py --checkpoint path/to/model_final.pt
+  uv run python scripts/measure_optimal_observer_kl.py --dir ./experiments/results
+  uv run python scripts/measure_optimal_observer_kl.py --smoke
 """
 
 from __future__ import annotations
@@ -71,13 +75,11 @@ class LookaheadTransformer(TinyTransformer):
         return F.cross_entropy(logits[:, :-self.k].reshape(-1, logits.shape[-1]), tokens[:, self.k:].reshape(-1))
 
 
-def load_model_and_process(
+def load_model_and_metadata(
     ckpt_path: Path,
     device: str = "cpu",
-    m_cycles: int = 20,
-    override_seq_len: Optional[int] = None,
-) -> Tuple[TinyTransformer, TinyTransformer, Any, Dict[str, Any]]:
-    """Loads trained checkpoint, matched random control, and reconstructed process with m cycles."""
+) -> Tuple[TinyTransformer, TinyTransformer, Dict[str, Any]]:
+    """Loads trained checkpoint, matched random control, and experiment configuration metadata."""
     model_dir = ckpt_path.parent
     job_id = model_dir.name
     sidecar_path = model_dir / f"{job_id}_final.json"
@@ -111,23 +113,6 @@ def load_model_and_process(
     k_lookahead = int(train_data.get("k", meta.get("k", 1)))
     seed = int(exp_data.get("seed", 20260925))
 
-    # Determine sequence length and cycles m (default m = 20 cycles)
-    if override_seq_len is not None:
-        target_seq_len = min(override_seq_len, n_ctx)
-        m = max(1, target_seq_len // n_steps)
-    else:
-        m = min(m_cycles, n_ctx // n_steps)
-    actual_seq_len = m * n_steps
-
-    proc = make_process(
-        "double_pendulum_mess4",
-        m=m,
-        n_steps=n_steps,
-        delta_v=delta_v,
-        dt=dt,
-        system={"gamma1": gamma1, "gamma2": gamma2},
-    )
-
     model_cfg = ModelConfig(
         vocab_size=vocab_size,
         n_ctx=n_ctx,
@@ -149,21 +134,35 @@ def load_model_and_process(
     trained_model.to(device).eval()
     random_model.to(device).eval()
 
+    # Check for training loss history CSV
+    loss_history_df: Optional[pd.DataFrame] = None
+    possible_loss_csvs = [
+        model_dir / f"{job_id}_loss_history.csv",
+        model_dir.parent / f"{job_id}_loss_history.csv",
+    ]
+    for p_csv in possible_loss_csvs:
+        if p_csv.exists():
+            try:
+                loss_history_df = pd.read_csv(p_csv)
+                break
+            except Exception:
+                pass
+
     info = {
         "job_id": job_id,
         "delta_v": delta_v,
         "gamma": gamma1,
+        "dt": dt,
         "n_steps": n_steps,
-        "m": m,
-        "seq_len": actual_seq_len,
         "vocab_size": vocab_size,
         "n_ctx": n_ctx,
         "d_model": d_model,
         "n_layers": n_layers,
         "n_heads": n_heads,
         "k": k_lookahead,
+        "loss_history_df": loss_history_df,
     }
-    return trained_model, random_model, proc, info
+    return trained_model, random_model, info
 
 
 # ==============================================================================
@@ -274,14 +273,7 @@ def compute_belief_divergences(
     Q: np.ndarray,
     eps: float = 1e-15,
 ) -> Dict[str, np.ndarray]:
-    """Computes exact information divergences between true belief P and prediction Q.
-    
-    Args:
-        P: True belief distribution, shape (..., K)
-        Q: Predicted distribution, shape (..., K)
-    Returns:
-        dict containing 'kl', 'cross_entropy', 'entropy', 'jsd', 'argmax_match'
-    """
+    """Computes exact information divergences between true belief P and prediction Q."""
     P_c = np.clip(P, eps, 1.0)
     P_c = P_c / P_c.sum(axis=-1, keepdims=True)
     Q_c = np.clip(Q, eps, 1.0)
@@ -311,10 +303,10 @@ def compute_belief_divergences(
 
 
 # ==============================================================================
-# 5. Core Option B Belief Probing Pipeline (with 0-HMM & 1-HMM Baselines)
+# 5. Core Single-Regime Probing Pipeline
 # ==============================================================================
 
-def evaluate_probed_belief_kl(
+def evaluate_single_regime_belief_kl(
     trained_model: TinyTransformer,
     random_model: TinyTransformer,
     proc: Any,
@@ -328,7 +320,7 @@ def evaluate_probed_belief_kl(
     actual_trajs = 16 if smoke else n_trajs
     rng = np.random.default_rng(seed)
 
-    # 1. Sample complete physical rollouts with exact beliefs and moods
+    # 1. Sample complete physical rollouts
     batch = proc.sample_batch(rng, actual_trajs)
     tokens = batch["tokens"]              # (N, seq_len)
     letters = batch["letters"]            # (N, m)
@@ -342,19 +334,12 @@ def evaluate_probed_belief_kl(
     joint = proc.chain.joint
     pi = np.full(K, 1.0 / K)
 
-    # 2. Extract boundary positions (usable tokens: final step of each cycle right before the kick)
-    # At this step, the pendulum has completed flowing through cycle c, and the model must predict next kick
+    # 2. Extract boundary positions (final step of each cycle right before kick)
     boundary_indices = np.array([c * n_steps + n_steps - 1 for c in range(m_cycles)])
-
-    # Target beliefs at boundary positions: b_c = P(mood_{c+1} | letters_{0..c})
     beliefs_opt = all_beliefs[:, boundary_indices, :]  # Shape: (N, m_cycles, K)
-    target_moods = moods[:, boundary_indices]          # Shape: (N, m_cycles)
 
     # 3. Compute HMM Baselines across all sequences
-    # 0-HMM: Memoryless stationary prior for all cycles
     beliefs_0hmm = np.tile(pi, (N, m_cycles, 1))  # (N, m_cycles, K)
-
-    # 1-HMM: 1-letter memory observer conditioning only on letter L_c
     beliefs_1hmm = np.empty((N, m_cycles, K), dtype=np.float64)
     for i in range(N):
         for c in range(m_cycles):
@@ -367,7 +352,7 @@ def evaluate_probed_belief_kl(
     n_train_seqs = len(train_seqs)
     n_test_seqs = len(test_seqs)
 
-    # 5. Extract residual streams for all depths
+    # 5. Extract residual streams
     trained_streams = extract_residual_streams_batched(trained_model, tokens, device=device)
     random_streams = extract_residual_streams_batched(random_model, tokens, device=device)
     n_depths = len(trained_streams)
@@ -376,7 +361,6 @@ def evaluate_probed_belief_kl(
     B_train_np = beliefs_opt[train_seqs].reshape(-1, K)
     B_test_np = beliefs_opt[test_seqs].reshape(-1, K)
     B_train_t = torch.as_tensor(B_train_np, dtype=torch.float32)
-    B_test_t = torch.as_tensor(B_test_np, dtype=torch.float32)
 
     # Test baseline predictions
     B_0hmm_test = beliefs_0hmm[test_seqs]  # (n_test, m_cycles, K)
@@ -387,7 +371,17 @@ def evaluate_probed_belief_kl(
     div_0hmm = compute_belief_divergences(B_opt_test, B_0hmm_test)
     div_1hmm = compute_belief_divergences(B_opt_test, B_1hmm_test)
 
-    # 6. Fit probes across all layers and score on held-out test sequences
+    # 6. Compute in-context language modeling cross-entropy loss by sequence position
+    with torch.no_grad():
+        test_tok_t = torch.as_tensor(tokens[test_seqs], dtype=torch.long, device=device)
+        logits = trained_model(test_tok_t)
+        loss_by_pos = F.cross_entropy(
+            logits[:, :-1, :].reshape(-1, logits.shape[-1]),
+            test_tok_t[:, 1:].reshape(-1),
+            reduction="none",
+        ).reshape(n_test_seqs, seq_len - 1).mean(dim=0).cpu().numpy()
+
+    # 7. Fit probes across all layers and score on held-out test sequences
     layer_results: List[Dict[str, Any]] = []
     best_layer_idx = 0
     best_test_kl = float("inf")
@@ -397,9 +391,8 @@ def evaluate_probed_belief_kl(
     for d_idx in range(n_depths):
         layer_name = "Embedding" if d_idx == 0 else f"Layer {d_idx - 1}"
 
-        # Extract features at boundary tokens
-        s_tr_d = trained_streams[d_idx][:, boundary_indices, :]  # (N, m_cycles, d_model)
-        s_rnd_d = random_streams[d_idx][:, boundary_indices, :]  # (N, m_cycles, d_model)
+        s_tr_d = trained_streams[d_idx][:, boundary_indices, :]
+        s_rnd_d = random_streams[d_idx][:, boundary_indices, :]
 
         X_tr_train = torch.as_tensor(s_tr_d[train_seqs].reshape(-1, s_tr_d.shape[-1]), dtype=torch.float32)
         X_tr_test = torch.as_tensor(s_tr_d[test_seqs].reshape(-1, s_tr_d.shape[-1]), dtype=torch.float32)
@@ -412,7 +405,6 @@ def evaluate_probed_belief_kl(
         # Fit softmax probe on random control model
         probe_rnd = fit_softmax_linear_probe(X_rnd_train, B_train_t, device=device)
 
-        # Predict on train and test
         with torch.no_grad():
             tr_train_pred = probe_tr.predict_probs(X_tr_train.to(device)).cpu().numpy()
             tr_test_pred = probe_tr.predict_probs(X_tr_test.to(device)).cpu().numpy()
@@ -451,7 +443,7 @@ def evaluate_probed_belief_kl(
     assert best_trained_preds_test is not None
     assert best_random_preds_test is not None
 
-    # 7. Cycle-by-cycle metrics for the best layer
+    # 8. Cycle-by-cycle metrics for the best layer
     div_tr_by_cycle = compute_belief_divergences(B_opt_test, best_trained_preds_test)
     div_rnd_by_cycle = compute_belief_divergences(B_opt_test, best_random_preds_test)
 
@@ -470,171 +462,191 @@ def evaluate_probed_belief_kl(
             "0hmm_accuracy": float(np.mean(div_0hmm["argmax_match"][:, c])),
         })
 
-    # Summary aggregations
     mean_opt_entropy = float(np.mean(div_0hmm["entropy"]))
     mean_0hmm_kl = float(np.mean(div_0hmm["kl"]))
     mean_1hmm_kl = float(np.mean(div_1hmm["kl"]))
     best_layer_info = layer_results[best_layer_idx]
 
     return {
-        "n_total_trajs": actual_trajs,
-        "n_train_seqs": n_train_seqs,
-        "n_test_seqs": n_test_seqs,
+        "seq_len": seq_len,
         "m_cycles": m_cycles,
         "n_steps": n_steps,
         "best_layer_idx": best_layer_idx,
         "best_layer_name": best_layer_info["layer_name"],
         "mean_optimal_entropy": mean_opt_entropy,
-        "uniform_floor_kl": math.log(K) - mean_opt_entropy,
-        # Primary Benchmark Scores (on held-out test split)
         "best_trained_kl": best_layer_info["trained_test_kl"],
         "best_trained_ce": best_layer_info["trained_test_ce"],
-        "best_trained_jsd": best_layer_info["trained_test_jsd"],
         "best_trained_acc": best_layer_info["trained_test_acc"],
         "best_random_kl": best_layer_info["random_test_kl"],
-        "best_random_ce": best_layer_info["random_test_ce"],
         "best_random_acc": best_layer_info["random_test_acc"],
         "net_emergence_gain": best_layer_info["net_emergence_gain"],
         "1hmm_baseline_kl": mean_1hmm_kl,
-        "1hmm_baseline_ce": mean_opt_entropy + mean_1hmm_kl,
         "1hmm_baseline_acc": float(np.mean(div_1hmm["argmax_match"])),
         "0hmm_baseline_kl": mean_0hmm_kl,
-        "0hmm_baseline_ce": mean_opt_entropy + mean_0hmm_kl,
         "0hmm_baseline_acc": float(np.mean(div_0hmm["argmax_match"])),
-        # Structured tables
+        "mean_eval_loss": float(np.mean(loss_by_pos)),
+        "loss_by_pos": loss_by_pos.tolist(),
         "layer_results": layer_results,
         "cycle_results": cycle_records,
-        # Visualization raw points
         "_vis_data": {
             "B_opt_test": B_opt_test,
             "B_pred_test": best_trained_preds_test,
-            "B_1hmm_test": B_1hmm_test,
         },
     }
 
 
+# Backwards-compatibility alias
+evaluate_probed_belief_kl = evaluate_single_regime_belief_kl
+
+
 # ==============================================================================
-# 6. Publication-Grade Diagnostic Visualizations (4 Panels)
+# 6. Publication-Grade Multi-Regime Diagnostic Visualizations (4 Panels)
 # ==============================================================================
 
-def save_belief_kl_diagnostic_plots(
-    results: Dict[str, Any],
+def save_multiregime_kl_diagnostic_plots(
+    regimes_data: Dict[str, Dict[str, Any]],
+    training_loss_df: Optional[pd.DataFrame],
     job_id: str,
     out_path: Path,
 ) -> None:
-    """Renders a 4-panel publication-grade diagnostic figure for belief state probing."""
+    """Renders a 4-panel publication-grade diagnostic figure comparing Short, Mid, and Long regimes."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 4, figsize=(22, 5.2), dpi=150)
     fig.patch.set_facecolor("#fcfcfb")
 
-    cycles = [r["cycle"] for r in results["cycle_results"]]
-    tr_kl_c = [r["trained_kl"] for r in results["cycle_results"]]
-    one_kl_c = [r["1hmm_kl"] for r in results["cycle_results"]]
-    zero_kl_c = [r["0hmm_kl"] for r in results["cycle_results"]]
-    rnd_kl_c = [r["random_kl"] for r in results["cycle_results"]]
+    # Order of regimes
+    regime_order = ["short", "mid", "long"]
+    active_regimes = [r for r in regime_order if r in regimes_data]
 
     # --------------------------------------------------------------------------
-    # Panel 1: Cycle-by-Cycle Convergence vs HMM Baselines
+    # Panel 1: Cycle-by-Cycle Belief KL Across Context Regimes
     # --------------------------------------------------------------------------
     ax0 = axes[0]
     ax0.set_facecolor("white")
-    ax0.plot(cycles, tr_kl_c, marker="o", markersize=4.5, color="#1d3557", lw=1.8, label=f"Trained ({results['best_layer_name']})")
-    ax0.plot(cycles, one_kl_c, marker="^", markersize=4, color="#2a9d8f", lw=1.3, ls="--", label="1-HMM Baseline")
-    ax0.plot(cycles, zero_kl_c, marker="s", markersize=4, color="#e76f51", lw=1.3, ls="-.", label="0-HMM Baseline")
-    ax0.plot(cycles, rnd_kl_c, color="#9a8c98", lw=1.1, ls=":", label="Random Control")
-    ax0.axhline(0.0, color="#2b78d6", lw=1.0, ls="-", alpha=0.8, label="Optimal Floor (0.00)")
+
+    regime_styles = {
+        "short": {"color": "#457b9d", "lw": 1.4, "ls": "-.", "label": "Short (500 tok)"},
+        "mid":   {"color": "#1d3557", "lw": 1.6, "ls": "--", "label": "Mid (1500 tok)"},
+        "long":  {"color": "#e63946", "lw": 1.8, "ls": "-",  "label": "Long (2500 tok)"},
+    }
+
+    for r_key in active_regimes:
+        r_res = regimes_data[r_key]
+        cycles = [row["cycle"] for row in r_res["cycle_results"]]
+        tr_kl = [row["trained_kl"] for row in r_res["cycle_results"]]
+        style = regime_styles.get(r_key, {"color": "black", "lw": 1.2, "ls": "-", "label": r_key})
+        ax0.plot(cycles, tr_kl, color=style["color"], lw=style["lw"], ls=style["ls"], label=f"Trained: {style['label']}")
+
+    # Baseline references from the longest available regime
+    longest_key = active_regimes[-1]
+    long_res = regimes_data[longest_key]
+    long_cycles = [row["cycle"] for row in long_res["cycle_results"]]
+    one_kl = [row["1hmm_kl"] for row in long_res["cycle_results"]]
+    zero_kl = [row["0hmm_kl"] for row in long_res["cycle_results"]]
+
+    ax0.plot(long_cycles, one_kl, color="#2a9d8f", lw=1.2, ls=":", label="1-HMM Baseline")
+    ax0.plot(long_cycles, zero_kl, color="#e76f51", lw=1.2, ls=":", label="0-HMM Baseline")
+    ax0.axhline(0.0, color="#2b78d6", lw=0.9, ls="-", alpha=0.7, label="Optimal Floor (0.00)")
 
     ax0.set(
-        title="1. Belief State KL vs Cycle",
+        title="1. Belief State KL vs Cycle across Regimes",
         xlabel="Cycle Index (m)",
         ylabel="D_KL(b_c || \\hat{b}_c) [nats]",
     )
     ax0.grid(True, alpha=0.25)
-    ax0.legend(frameon=True, facecolor="white", edgecolor="#ddd", fontsize=8)
+    ax0.legend(frameon=True, facecolor="white", edgecolor="#ddd", fontsize=7.5)
 
     # --------------------------------------------------------------------------
-    # Panel 2: Layer-by-Layer Probing Profile
+    # Panel 2: Model Cross-Entropy Loss vs Token Position / Training Loss vs Steps
     # --------------------------------------------------------------------------
     ax1 = axes[1]
     ax1.set_facecolor("white")
-    layer_names = [lr["layer_name"] for lr in results["layer_results"]]
-    tr_layers_kl = [lr["trained_test_kl"] for lr in results["layer_results"]]
-    rnd_layers_kl = [lr["random_test_kl"] for lr in results["layer_results"]]
-    x_layers = np.arange(len(layer_names))
 
-    ax1.plot(x_layers, tr_layers_kl, marker="o", markersize=5, color="#1d3557", lw=1.8, label="Trained Test KL")
-    ax1.plot(x_layers, rnd_layers_kl, marker="x", markersize=5, color="#9a8c98", lw=1.2, ls="--", label="Random Control")
-    ax1.axhline(results["1hmm_baseline_kl"], color="#2a9d8f", lw=1.2, ls=":", label="1-HMM Baseline")
-    ax1.axhline(results["0hmm_baseline_kl"], color="#e76f51", lw=1.2, ls="-.", label="0-HMM Baseline")
+    if training_loss_df is not None and not training_loss_df.empty:
+        # Plot training loss history
+        steps = training_loss_df["step"].values
+        t_loss = training_loss_df["loss"].values
+        ax1.plot(steps, t_loss, color="#1d3557", alpha=0.35, lw=1.0, label="Step Loss")
+        if len(t_loss) >= 5:
+            win = max(3, len(t_loss) // 15)
+            s_loss = pd.Series(t_loss).rolling(win, min_periods=1).mean().values
+            ax1.plot(steps, s_loss, color="#e63946", lw=2.0, label=f"Smoothed Loss (win={win})")
+        ax1.set(
+            title="2. Training Loss Curve (Phase 2)",
+            xlabel="Optimization Step",
+            ylabel="Cross-Entropy Loss [nats]",
+        )
+        final_l = float(t_loss[-1])
+        ax1.axhline(final_l, color="#2a9d8f", lw=1.0, ls="--", alpha=0.7)
+        ax1.text(steps[-1], final_l, f" Final: {final_l:.4f}", va="center", fontsize=8, fontweight="bold", color="#2a9d8f")
+    else:
+        # Plot evaluation in-context loss curve across sequence position
+        loss_curve = np.array(long_res["loss_by_pos"])
+        tok_steps = np.arange(len(loss_curve))
+        ax1.plot(tok_steps, loss_curve, color="#1d3557", alpha=0.35, lw=0.8, label="Token Loss")
+        if len(loss_curve) >= 10:
+            win = max(5, len(loss_curve) // 30)
+            smooth_curve = pd.Series(loss_curve).rolling(win, min_periods=1).mean().values
+            ax1.plot(tok_steps, smooth_curve, color="#e63946", lw=1.8, label=f"Smoothed (win={win})")
+        ax1.set(
+            title="2. In-Context Eval Loss vs Position",
+            xlabel="Context Position (t)",
+            ylabel="Cross-Entropy Loss [nats]",
+        )
 
-    # Highlight best layer
-    best_idx = results["best_layer_idx"]
-    ax1.scatter([best_idx], [tr_layers_kl[best_idx]], color="#e63946", s=60, zorder=6, label=f"Best: {results['best_layer_name']}")
-
-    ax1.set(
-        title="2. Layer-by-Layer Belief Representation",
-        xlabel="Network Depth",
-        ylabel="D_KL(b || \\hat{b}) [nats]",
-    )
-    ax1.set_xticks(x_layers)
-    ax1.set_xticklabels(layer_names, rotation=25, fontsize=8)
     ax1.grid(True, alpha=0.25)
     ax1.legend(frameon=True, facecolor="white", edgecolor="#ddd", fontsize=8)
 
     # --------------------------------------------------------------------------
-    # Panel 3: Suboptimality Benchmark Ladder
+    # Panel 3: Context-Length Scaling Profile (Short vs Mid vs Long)
     # --------------------------------------------------------------------------
     ax2 = axes[2]
     ax2.set_facecolor("white")
-    ladder_labels = ["Opt Floor\n(0-loss)", "1-HMM\n(1-step)", "0-HMM\n(0-step)", "Trained\n(Best Layer)", "Random\nControl"]
-    ladder_vals = [
-        0.0,
-        results["1hmm_baseline_kl"],
-        results["0hmm_baseline_kl"],
-        results["best_trained_kl"],
-        results["best_random_kl"],
-    ]
-    colors = ["#2b78d6", "#2a9d8f", "#e76f51", "#1d3557", "#adb5bd"]
-    x_pos = np.arange(len(ladder_labels))
 
-    ax2.bar(x_pos, ladder_vals, width=0.55, color=colors)
+    x_indices = np.arange(len(active_regimes))
+    bar_width = 0.22
+
+    trained_vals = [regimes_data[r]["best_trained_kl"] for r in active_regimes]
+    one_vals = [regimes_data[r]["1hmm_baseline_kl"] for r in active_regimes]
+    zero_vals = [regimes_data[r]["0hmm_baseline_kl"] for r in active_regimes]
+    rnd_vals = [regimes_data[r]["best_random_kl"] for r in active_regimes]
+
+    ax2.bar(x_indices - 1.5 * bar_width, trained_vals, width=bar_width, color="#1d3557", label="Trained Model")
+    ax2.bar(x_indices - 0.5 * bar_width, one_vals, width=bar_width, color="#2a9d8f", label="1-HMM Baseline")
+    ax2.bar(x_indices + 0.5 * bar_width, zero_vals, width=bar_width, color="#e76f51", label="0-HMM Baseline")
+    ax2.bar(x_indices + 1.5 * bar_width, rnd_vals, width=bar_width, color="#adb5bd", label="Random Control")
+
+    regime_labels = [f"{r.capitalize()}\n({regimes_data[r]['seq_len']} tok)" for r in active_regimes]
+    ax2.set_xticks(x_indices)
+    ax2.set_xticklabels(regime_labels, fontsize=8.5)
     ax2.set(
-        title="3. Belief Suboptimality Ladder",
+        title="3. Context-Length Scaling Ladder",
         ylabel="D_KL(b_opt || b_pred) [nats]",
     )
-    ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(ladder_labels, fontsize=8)
     ax2.grid(True, alpha=0.25)
-
-    max_v = max(ladder_vals) if max(ladder_vals) > 0 else 1.0
-    for i_b, val in enumerate(ladder_vals):
-        ax2.text(i_b, val + 0.02 * max_v, f"{val:.4f}", ha="center", va="bottom", fontsize=8, fontweight="bold")
+    ax2.legend(frameon=True, facecolor="white", edgecolor="#ddd", fontsize=7.5)
 
     # --------------------------------------------------------------------------
     # Panel 4: 2D Belief Simplex Square Projection
     # --------------------------------------------------------------------------
     ax3 = axes[3]
     ax3.set_facecolor("white")
-    sq_v = square_projection_vertices()  # (4, 2) corners in [-1, 1]^2
+    sq_v = square_projection_vertices()
 
-    # Draw simplex boundary polygon
     square_poly = np.array([sq_v[0], sq_v[1], sq_v[2], sq_v[3], sq_v[0]])
     ax3.plot(square_poly[:, 0], square_poly[:, 1], color="#bbb", lw=1.2, ls="--", zorder=1)
 
-    vis = results.get("_vis_data", {})
+    vis = long_res.get("_vis_data", {})
     if "B_opt_test" in vis and "B_pred_test" in vis:
-        # Flatten across sequences and cycles
         pts_opt = (vis["B_opt_test"].reshape(-1, 4)) @ sq_v
         pts_pred = (vis["B_pred_test"].reshape(-1, 4)) @ sq_v
 
-        # Subsample for clear visual density if large
         n_pts = min(400, pts_opt.shape[0])
         sub_idx = np.random.default_rng(0).choice(pts_opt.shape[0], size=n_pts, replace=False)
 
         ax3.scatter(pts_opt[sub_idx, 0], pts_opt[sub_idx, 1], s=12, color="#0077b6", alpha=0.55, label="Optimal b_t (Fractal)", zorder=3)
         ax3.scatter(pts_pred[sub_idx, 0], pts_pred[sub_idx, 1], s=12, color="#e63946", alpha=0.55, label="Probed \\hat{b}_t", zorder=4)
 
-    # Label mood vertices
     mood_names = ["Mood 0", "Mood 1", "Mood 2", "Mood 3"]
     offsets = [(-0.16, -0.12), (-0.16, 0.06), (0.04, 0.06), (0.04, -0.12)]
     for m_idx in range(4):
@@ -652,7 +664,7 @@ def save_belief_kl_diagnostic_plots(
     ax3.grid(True, alpha=0.25)
     ax3.legend(frameon=True, facecolor="white", edgecolor="#ddd", fontsize=8, loc="upper right")
 
-    fig.suptitle(f"Optimal Observer Belief State Probing (Option B): {job_id} (m={len(cycles)} cycles)", fontsize=12, fontweight="bold", y=1.02)
+    fig.suptitle(f"Multi-Regime Belief State KL & Loss Analysis: {job_id}", fontsize=12, fontweight="bold", y=1.02)
     plt.tight_layout()
     fig.savefig(out_path, bbox_inches="tight")
     plt.close()
@@ -660,106 +672,140 @@ def save_belief_kl_diagnostic_plots(
 
 
 # ==============================================================================
-# 7. Single Checkpoint Complete Evaluation Pipeline
+# 7. Checkpoint Multi-Regime Evaluation Pipeline
 # ==============================================================================
 
-def evaluate_checkpoint_kl(
+def evaluate_checkpoint_multiregime_kl(
     ckpt_path: Path,
     out_dir: Path,
+    target_seq_lens: List[int] = [500, 1500, 2500],
     n_trajs: int = 64,
     device: str = "cpu",
     seed: int = 20260829,
     smoke: bool = False,
-    m_cycles: int = 20,
-    override_seq_len: Optional[int] = None,
     save_plot: bool = True,
 ) -> Dict[str, Any]:
-    """Runs complete Option B Belief State probing evaluation against Optimal Observer, 1-HMM, and 0-HMM."""
+    """Runs complete Option B Belief State probing evaluation across 3 context lengths (Short, Mid, Long)."""
     t0 = time.perf_counter()
 
-    trained_m, random_m, proc, info = load_model_and_process(
-        ckpt_path=ckpt_path,
-        device=device,
-        m_cycles=m_cycles,
-        override_seq_len=override_seq_len,
-    )
+    trained_m, random_m, info = load_model_and_metadata(ckpt_path=ckpt_path, device=device)
+    n_ctx = info["n_ctx"]
+    n_steps = info["n_steps"]
+    job_id = info["job_id"]
 
-    print(f"\n[{info['job_id']}] Evaluating Probed Belief State KL against Optimal Observer & HMM Baselines...")
-    print(f"  Configuration: dv={info['delta_v']}, gamma={info['gamma']}, n={info['n_steps']}, m={info['m']} cycles")
-    print(f"  Sequence Len:  {info['seq_len']} tokens ({info['m']} HMM cycles)")
-    print(f"  Trajectories:  {16 if smoke else n_trajs} sequences (70% train probe, 30% held-out test)")
+    print(f"\n[{job_id}] Evaluating Probed Belief State KL across Context Lengths {target_seq_lens}...")
+    print(f"  Architecture: n_ctx={n_ctx}, d_model={info['d_model']}, n_layers={info['n_layers']}, n_steps={n_steps}")
 
-    # Execute Option B Evaluation
-    belief_results = evaluate_probed_belief_kl(
-        trained_model=trained_m,
-        random_model=random_m,
-        proc=proc,
-        n_trajs=n_trajs,
-        device=device,
-        seed=seed,
-        smoke=smoke,
-    )
+    regimes_data: Dict[str, Dict[str, Any]] = {}
+    regime_names = ["short", "mid", "long"]
+
+    for idx, target_len in enumerate(target_seq_lens):
+        regime_label = regime_names[idx] if idx < len(regime_names) else f"regime_{target_len}"
+        actual_len = min(target_len, n_ctx)
+        m_cycles = max(1, actual_len // n_steps)
+        effective_len = m_cycles * n_steps
+
+        if actual_len < target_len:
+            print(f"  Notice: Target context length {target_len} clamped to model context limit {actual_len} tokens ({m_cycles} cycles).")
+
+        proc = make_process(
+            "double_pendulum_mess4",
+            m=m_cycles,
+            n_steps=n_steps,
+            delta_v=info["delta_v"],
+            dt=info["dt"],
+            system={"gamma1": info["gamma"], "gamma2": info["gamma"]},
+        )
+
+        print(f"  Running [{regime_label.upper()}]: {effective_len} tokens ({m_cycles} cycles)...", flush=True)
+        res = evaluate_single_regime_belief_kl(
+            trained_model=trained_m,
+            random_model=random_m,
+            proc=proc,
+            n_trajs=n_trajs,
+            device=device,
+            seed=seed,
+            smoke=smoke,
+        )
+        res["target_len"] = target_len
+        res["regime"] = regime_label
+        regimes_data[regime_label] = res
 
     elapsed = time.perf_counter() - t0
 
+    # Console Summary Ladder across context lengths
+    print("=" * 86)
+    print(f" MULTI-REGIME BELIEF STATE KL EVALUATION (OPTION B): {job_id}")
+    print("=" * 86)
+    print(f"{'Regime':<10} | {'Tokens':<8} | {'Cycles':<7} | {'Trained KL':<11} | {'1-HMM KL':<10} | {'0-HMM KL':<10} | {'Random KL':<10} | {'Net Gain':<10}")
+    print("-" * 86)
+    for r_key in ["short", "mid", "long"]:
+        if r_key in regimes_data:
+            rd = regimes_data[r_key]
+            print(
+                f"{r_key.capitalize():<10} | {rd['seq_len']:<8} | {rd['m_cycles']:<7} | "
+                f"{rd['best_trained_kl']:7.4f} nats | {rd['1hmm_baseline_kl']:7.4f} nats | "
+                f"{rd['0hmm_baseline_kl']:7.4f} nats | {rd['best_random_kl']:7.4f} nats | "
+                f"{rd['net_emergence_gain']:+7.4f} nats"
+            )
+    print("=" * 86)
+
+    # Save summary artifacts
+    model_out_dir = out_dir / job_id
+    model_out_dir.mkdir(parents=True, exist_ok=True)
+
     result_payload = {
-        "job_id": info["job_id"],
+        "job_id": job_id,
         "checkpoint": str(ckpt_path),
         "evaluated_at": time.time(),
         "elapsed_seconds": elapsed,
-        "m_cycles": info["m"],
-        "seq_len": info["seq_len"],
-        "info": info,
-        "belief_probing_metrics": {
-            k: v for k, v in belief_results.items() if not k.startswith("_") and k not in ("layer_results", "cycle_results")
+        "info": {k: v for k, v in info.items() if k != "loss_history_df"},
+        "regimes": {
+            r: {k: v for k, v in rd.items() if not k.startswith("_") and k not in ("loss_by_pos",)}
+            for r, rd in regimes_data.items()
         },
-        "layer_results": belief_results["layer_results"],
-        "cycle_results": belief_results["cycle_results"],
     }
 
-    # Console Report
-    print("=" * 84)
-    print(f" OPTIMAL OBSERVER BELIEF STATE PROBING (OPTION B): {info['job_id']}")
-    print("=" * 84)
-    print(f" Cycles: m = {info['m']} cycles | Sequence Length = {info['seq_len']} tokens | Split: {belief_results['n_train_seqs']} train / {belief_results['n_test_seqs']} test")
-    print(f" Selected Representation: {belief_results['best_layer_name']} (Minimal Held-Out Test KL)")
-    print("-" * 84)
-    print(" SUBOPTIMALITY BENCHMARK LADDER: D_KL(b_opt || b_pred) on Held-Out Test Sequences:")
-    print("-" * 84)
-    print(f"  * Optimal Observer (Full-HMM):    D_KL =  0.0000 nats  ( 0.0000 bits) | H(b) = {belief_results['mean_optimal_entropy']:.4f} nats")
-    print(f"  * 1-HMM Baseline (1-step memory): D_KL = {belief_results['1hmm_baseline_kl']:7.4f} nats  ({belief_results['1hmm_baseline_kl']/math.log(2):7.4f} bits) | Acc = {belief_results['1hmm_baseline_acc']:.2%}")
-    print(f"  * 0-HMM Baseline (0-step memory): D_KL = {belief_results['0hmm_baseline_kl']:7.4f} nats  ({belief_results['0hmm_baseline_kl']/math.log(2):7.4f} bits) | Acc = {belief_results['0hmm_baseline_acc']:.2%}")
-    print(f"  * Trained Transformer Probed:     D_KL = {belief_results['best_trained_kl']:7.4f} nats  ({belief_results['best_trained_kl']/math.log(2):7.4f} bits) | Acc = {belief_results['best_trained_acc']:.2%}")
-    print(f"  * Untrained Random Control:       D_KL = {belief_results['best_random_kl']:7.4f} nats  ({belief_results['best_random_kl']/math.log(2):7.4f} bits) | Acc = {belief_results['best_random_acc']:.2%}")
-    print(f"  * Uniform Prior (ln 4 - H_opt):   D_KL = {belief_results['uniform_floor_kl']:7.4f} nats  ({belief_results['uniform_floor_kl']/math.log(2):7.4f} bits)")
-    print("-" * 84)
-    print(f"  * Net Emergence Gain (Random KL - Trained KL): {belief_results['net_emergence_gain']:+.4f} nats")
-    print("=" * 84)
-
-    # Save summary artifacts
-    model_out_dir = out_dir / info["job_id"]
-    model_out_dir.mkdir(parents=True, exist_ok=True)
-
-    summary_json_path = model_out_dir / f"{info['job_id']}_optimal_observer_kl.json"
+    summary_json_path = model_out_dir / f"{job_id}_optimal_observer_kl.json"
     with open(summary_json_path, "w") as f:
         json.dump(result_payload, f, indent=2)
-    print(f"Saved JSON metrics -> {summary_json_path}")
+    print(f"Saved multi-regime JSON metrics -> {summary_json_path}")
 
-    # Save CSV of per-cycle dynamics
-    cycle_df = pd.DataFrame(belief_results["cycle_results"])
-    cycle_csv_path = model_out_dir / f"{info['job_id']}_belief_kl_by_cycle.csv"
-    cycle_df.to_csv(cycle_csv_path, index=False)
-    print(f"Saved per-cycle CSV -> {cycle_csv_path}")
+    # Save multi-regime summary CSV
+    regime_rows = []
+    for r_key, rd in regimes_data.items():
+        regime_rows.append({
+            "regime": r_key,
+            "target_len": rd["target_len"],
+            "seq_len": rd["seq_len"],
+            "m_cycles": rd["m_cycles"],
+            "best_layer": rd["best_layer_name"],
+            "trained_kl": rd["best_trained_kl"],
+            "1hmm_kl": rd["1hmm_baseline_kl"],
+            "0hmm_kl": rd["0hmm_baseline_kl"],
+            "random_kl": rd["best_random_kl"],
+            "net_gain": rd["net_emergence_gain"],
+            "trained_acc": rd["best_trained_acc"],
+            "1hmm_acc": rd["1hmm_baseline_acc"],
+            "0hmm_acc": rd["0hmm_baseline_acc"],
+            "mean_loss": rd["mean_eval_loss"],
+        })
+    pd.DataFrame(regime_rows).to_csv(model_out_dir / f"{job_id}_belief_kl_summary_by_regime.csv", index=False)
 
-    # Save CSV of layer-by-layer profile
-    layer_df = pd.DataFrame(belief_results["layer_results"])
-    layer_csv_path = model_out_dir / f"{info['job_id']}_belief_kl_by_layer.csv"
-    layer_df.to_csv(layer_csv_path, index=False)
-    print(f"Saved layer profile CSV -> {layer_csv_path}")
+    # Save per-cycle CSV for the longest available regime
+    longest_key = "long" if "long" in regimes_data else list(regimes_data.keys())[-1]
+    pd.DataFrame(regimes_data[longest_key]["cycle_results"]).to_csv(
+        model_out_dir / f"{job_id}_belief_kl_by_cycle.csv", index=False
+    )
 
     if save_plot:
-        plot_path = model_out_dir / f"{info['job_id']}_kl_analysis.png"
-        save_belief_kl_diagnostic_plots(belief_results, info["job_id"], plot_path)
+        plot_path = model_out_dir / f"{job_id}_kl_analysis.png"
+        save_multiregime_kl_diagnostic_plots(
+            regimes_data=regimes_data,
+            training_loss_df=info.get("loss_history_df"),
+            job_id=job_id,
+            out_path=plot_path,
+        )
 
     return result_payload
 
@@ -770,7 +816,7 @@ def evaluate_checkpoint_kl(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Measure KL Divergence between Probed Transformer Belief States and Optimal Observer / HMM Baselines (Option B)"
+        description="Measure KL Divergence between Probed Transformer Belief States and Optimal Observer across Context Lengths (Option B)"
     )
     parser.add_argument("--checkpoint", "-c", type=str, default=None,
                         help="Path to specific *_final.pt model checkpoint to evaluate")
@@ -778,16 +824,16 @@ def main():
                         help="Directory to scan for *_final.pt checkpoints (default: ./experiments/results)")
     parser.add_argument("--models", "-m-filter", type=str, default=None,
                         help="Optional substring filter for model IDs when scanning directory")
-    parser.add_argument("--m", type=int, default=20,
-                        help="Number of HMM cycles m to evaluate (default: 20 cycles)")
+    parser.add_argument("--seq-lens", nargs="+", type=int, default=[500, 1500, 2500],
+                        help="Context lengths to evaluate (default: 500 1500 2500 tokens)")
+    parser.add_argument("--m", type=int, default=None,
+                        help="Single HMM cycle count override (e.g. --m 20)")
     parser.add_argument("--n-trajs", type=int, default=64,
                         help="Number of evaluation trajectories to simulate (default: 64)")
     parser.add_argument("--smoke", action="store_true",
                         help="Rapid smoke testing mode (16 trajectories)")
     parser.add_argument("--device", type=str, default=None,
                         help="Device to run inference on (default: cuda:0 if available, else cpu)")
-    parser.add_argument("--seq-len", type=int, default=None,
-                        help="Override evaluation sequence length (default: m * n)")
     parser.add_argument("--out-dir", type=str, default=None,
                         help="Output directory to save KL evaluations and plots (default: ./experiments/kl_results)")
     parser.add_argument("--no-plot", action="store_true",
@@ -805,6 +851,12 @@ def main():
     # Determine output directory
     out_dir = Path(args.out_dir) if args.out_dir else REPO_ROOT / "experiments" / "kl_results"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine target sequence lengths
+    if args.m is not None:
+        target_seq_lens = [args.m * 10]
+    else:
+        target_seq_lens = args.seq_lens
 
     # Locate checkpoints to evaluate
     ckpts: List[Path] = []
@@ -831,28 +883,27 @@ def main():
         print(f"No *_final.pt checkpoints found in {args.results_dir or search_dir}. Provide a --checkpoint path.")
         sys.exit(1)
 
-    print("=" * 84)
-    print(" OPTIMAL OBSERVER & HMM BASELINES BELIEF STATE KL DIVERGENCE (OPTION B)")
-    print("=" * 84)
+    print("=" * 86)
+    print(" OPTIMAL OBSERVER & HMM BASELINES MULTI-REGIME BELIEF STATE KL (OPTION B)")
+    print("=" * 86)
     print(f"Device:           {device}")
-    print(f"Cycles (m):       {args.m} cycles")
+    print(f"Sequence Lengths: {target_seq_lens} tokens (Short / Mid / Long)")
     print(f"Trajectories:     {16 if args.smoke else args.n_trajs} sequences")
     print(f"Checkpoints:      {len(ckpts)} checkpoint(s) queued for evaluation")
     print(f"Output Directory: {out_dir}")
-    print("=" * 84)
+    print("=" * 86)
 
     all_results: List[Dict[str, Any]] = []
     for idx, ckpt in enumerate(ckpts, 1):
         print(f"\nProcessing [{idx}/{len(ckpts)}]: {ckpt.name}")
         try:
-            res = evaluate_checkpoint_kl(
+            res = evaluate_checkpoint_multiregime_kl(
                 ckpt_path=ckpt,
                 out_dir=out_dir,
+                target_seq_lens=target_seq_lens,
                 n_trajs=args.n_trajs,
                 device=device,
                 smoke=args.smoke,
-                m_cycles=args.m,
-                override_seq_len=args.seq_len,
                 save_plot=not args.no_plot,
             )
             all_results.append(res)
@@ -865,31 +916,27 @@ def main():
     if all_results:
         summary_rows = []
         for r in all_results:
-            bm = r["belief_probing_metrics"]
-            info = r["info"]
-            summary_rows.append({
-                "job_id": r["job_id"],
-                "m": info["m"],
-                "best_layer": bm["best_layer_name"],
-                "trained_belief_kl": bm["best_trained_kl"],
-                "1hmm_belief_kl": bm["1hmm_baseline_kl"],
-                "0hmm_belief_kl": bm["0hmm_baseline_kl"],
-                "random_belief_kl": bm["best_random_kl"],
-                "net_gain": bm["net_emergence_gain"],
-                "trained_acc": bm["best_trained_acc"],
-                "1hmm_acc": bm["1hmm_baseline_acc"],
-                "0hmm_acc": bm["0hmm_baseline_acc"],
-            })
+            j_id = r["job_id"]
+            row = {"job_id": j_id}
+            for reg in ["short", "mid", "long"]:
+                if reg in r["regimes"]:
+                    rg_d = r["regimes"][reg]
+                    row[f"{reg}_trained_kl"] = rg_d["best_trained_kl"]
+                    row[f"{reg}_1hmm_kl"] = rg_d["1hmm_baseline_kl"]
+                    row[f"{reg}_0hmm_kl"] = rg_d["0hmm_baseline_kl"]
+                    row[f"{reg}_random_kl"] = rg_d["best_random_kl"]
+                    row[f"{reg}_net_gain"] = rg_d["net_emergence_gain"]
+            summary_rows.append(row)
+
         summary_df = pd.DataFrame(summary_rows)
         master_csv_path = out_dir / "optimal_observer_kl_summary.csv"
         summary_df.to_csv(master_csv_path, index=False)
 
-        print("\n" + "=" * 84)
-        print(" MASTER EVALUATION SUMMARY TABLE")
-        print("=" * 84)
-        cols_to_show = ["job_id", "m", "best_layer", "trained_belief_kl", "1hmm_belief_kl", "0hmm_belief_kl", "random_belief_kl", "net_gain"]
-        print(summary_df[cols_to_show].to_string(index=False))
-        print("=" * 84)
+        print("\n" + "=" * 86)
+        print(" MASTER MULTI-REGIME EVALUATION SUMMARY TABLE")
+        print("=" * 86)
+        print(summary_df.to_string(index=False))
+        print("=" * 86)
         print(f"Master summary CSV saved -> {master_csv_path}")
 
 
