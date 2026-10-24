@@ -29,6 +29,7 @@ class TrainConfig:
     seed: int = 0
     log_every: int = 100
     checkpoint_at: tuple[int, ...] = ()  # token counts to hand to `on_checkpoint`
+    micro_batch: int | None = None  # None for auto-scaled micro-batching based on sequence length
 
 
 def checkpoint_paths(directory, name: str, tag: str = ""):
@@ -102,8 +103,12 @@ def train(
     eval_np = sampler(eval_rng, 256)
     eval_tokens = torch.as_tensor(eval_np, dtype=torch.long, device=device)
 
+    # Memory-safe micro-batch and gradient accumulation for long sequences
+    micro_batch = config.micro_batch or max(1, min(config.batch_size, 32_768 // max(1, seq_len)))
+    grad_accum_steps = max(1, config.batch_size // micro_batch)
+
     history: list[dict] = []
-    tokens_per_step = config.batch_size * seq_len
+    tokens_per_step = micro_batch * grad_accum_steps * seq_len
     pending = sorted(config.checkpoint_at)
     saved: list[int] = []
 
@@ -118,11 +123,16 @@ def train(
                 model.train()
             saved.append(target)
 
-        tokens = torch.as_tensor(sampler(stream, config.batch_size), dtype=torch.long, device=device)
-
-        loss = model.loss(tokens)
         optimiser.zero_grad(set_to_none=True)
-        loss.backward()
+        step_loss = 0.0
+        for _ in range(grad_accum_steps):
+            raw_tokens = sampler(stream, micro_batch)
+            tokens = torch.as_tensor(raw_tokens, dtype=torch.long, device=device)
+            loss = model.loss(tokens) / grad_accum_steps
+            loss.backward()
+            step_loss += float(loss.item()) * grad_accum_steps
+        step_loss /= grad_accum_steps
+
         torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
         optimiser.step()
         schedule.step()
@@ -130,17 +140,22 @@ def train(
         if step % config.log_every == 0 or step == steps - 1:
             model.eval()
             with torch.no_grad():
-                eval_loss = float(model.loss(eval_tokens))
+                eval_chunk_size = max(1, min(eval_tokens.shape[0], 32_768 // max(1, seq_len)))
+                total_loss = 0.0
+                for c_idx in range(0, eval_tokens.shape[0], eval_chunk_size):
+                    chunk = eval_tokens[c_idx : c_idx + eval_chunk_size]
+                    total_loss += float(model.loss(chunk).item()) * chunk.shape[0]
+                eval_loss = total_loss / eval_tokens.shape[0]
             model.train()
             history.append(
-                {"step": step, "train_loss": float(loss.item()), "eval_loss": eval_loss}
+                {"step": step, "train_loss": step_loss, "eval_loss": eval_loss}
             )
             print_every = max(config.log_every, max(1, steps // 200))
             if step % print_every == 0 or step == steps - 1:
                 lr_curr = schedule.get_last_lr()[0]
                 print(
                     f"train [{step:5d}/{steps} ({step / steps:5.1%})] "
-                    f"loss: {loss.item():.4f} | eval_loss: {eval_loss:.4f} | lr: {lr_curr:.2e}",
+                    f"loss: {step_loss:.4f} | eval_loss: {eval_loss:.4f} | lr: {lr_curr:.2e}",
                     flush=True,
                 )
 

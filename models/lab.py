@@ -180,7 +180,13 @@ def probe_checkpoints(
         )
         with torch.no_grad():
             evaluation = proc.sample_batch(np.random.default_rng(4_242), 256)["tokens"]
-            loss = float(model.loss(torch.as_tensor(evaluation, dtype=torch.long, device=device)))
+            eval_tokens = torch.as_tensor(evaluation, dtype=torch.long, device=device)
+            chunk_size = max(1, min(eval_tokens.shape[0], 32_768 // max(1, proc.seq_len)))
+            total_loss = 0.0
+            for c_idx in range(0, eval_tokens.shape[0], chunk_size):
+                chunk = eval_tokens[c_idx : c_idx + chunk_size]
+                total_loss += float(model.loss(chunk).item()) * chunk.shape[0]
+            loss = total_loss / eval_tokens.shape[0]
         rows.append({
             "label": label,
             "belief_r2": readout.r2["belief"],

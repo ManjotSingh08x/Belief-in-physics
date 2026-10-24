@@ -54,10 +54,12 @@ def residual_streams_batched(
     gigabytes per depth, so a caller that wants four of nine should say so
     rather than materialise all nine and discard five.
     """
+    seq_len = tokens.shape[1] if tokens.ndim > 1 else 1
+    effective_batch_size = max(1, min(batch_size, 32_768 // max(1, seq_len)))
     chunks: list[list[np.ndarray]] = []
     model.eval()
-    for start in range(0, tokens.shape[0], batch_size):
-        block = torch.as_tensor(tokens[start : start + batch_size], dtype=torch.long, device=device)
+    for start in range(0, tokens.shape[0], effective_batch_size):
+        block = torch.as_tensor(tokens[start : start + effective_batch_size], dtype=torch.long, device=device)
         streams = model.residual_streams(block)
         chunks.append(streams if depths is None else [streams[d] for d in depths])
     return [np.concatenate([c[i] for c in chunks], axis=0) for i in range(len(chunks[0]))]
